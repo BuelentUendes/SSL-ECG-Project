@@ -1,8 +1,9 @@
+####
+# This is the script of supervised_training without metaflow
+###
+
 import os
 import gc
-import json
-import logging
-import tempfile
 import argparse
 
 import numpy as np
@@ -11,7 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 import mlflow
 import mlflow.pytorch
-from mlflow.tracking import MlflowClient
+
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 
@@ -19,7 +20,6 @@ from torch_utilities import (
     load_processed_data,
     split_indices_by_participant,
     build_supervised_fingerprint,
-    search_encoder_fp,
     ECGDataset,
     set_seed,
     train_one_epoch,
@@ -158,13 +158,6 @@ def main(
         "label_fraction": label_fraction,
     })
     mlflow.log_params(fp)
-
-    # try reuse
-    # if np.isclose(label_fraction, 1.0):
-    #     prev = search_encoder_fp(fp, experiment_name, mlflow_tracking_uri)
-    #     if prev:
-    #         print(f"Re-using cached model {prev}")
-    #         model = mlflow.pytorch.load_model(f"runs:/{prev}/supervised_model", map_location=device)
 
     # train
     best_t, best_f1 = 0.5, -1.0
