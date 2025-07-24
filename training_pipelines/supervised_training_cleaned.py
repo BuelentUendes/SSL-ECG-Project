@@ -37,7 +37,7 @@ def main(
         window_data_path: str,
         mlflow_tracking_uri: str,
         model_type: str = "cnn",
-        gpu_number: int = 0,
+        gpu: int = 0,
         seed: int = 42,
         lr: float = 1e-4,
         batch_size: int = 32,
@@ -53,7 +53,7 @@ def main(
 
     # device
     if torch.cuda.is_available():
-        device = torch.device(f"cuda:{gpu_number}")
+        device = torch.device(f"cuda:{gpu}")
     elif torch.backends.mps.is_available():
         device = torch.device("mps")
     else:
@@ -216,13 +216,13 @@ if __name__ == "__main__":
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--num_epochs", type=int, default=25)
+    parser.add_argument("--batch_size", type=int, default=12)
+    parser.add_argument("--num_epochs", type=int, default=5)
     parser.add_argument("--patience", type=int, default=5)
     parser.add_argument("--scheduler_mode", default="min")
     parser.add_argument("--scheduler_factor", type=float, default=0.1)
     parser.add_argument("--scheduler_patience", type=int, default=2)
     parser.add_argument("--scheduler_min_lr", type=float, default=1e-11)
-    parser.add_argument("--label_fraction", type=float, default=1.0)
+    parser.add_argument("--label_fraction", type=float, default=0.01)
     args = parser.parse_args()
     main(**vars(args))
