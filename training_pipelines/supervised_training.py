@@ -63,10 +63,10 @@ class ECGSupervisedFlow(FlowSpec):
         """Set seed, choose MLflow experiment name, open run."""
         set_seed(self.seed)
 
-        if torch.backends.mps.is_available():
-            self.device = torch.device("mps")
-        elif torch.cuda.is_available():
+        if torch.cuda.is_available():
             self.device = torch.device(f"cuda:{self.gpu_number}")
+        elif torch.backends.mps.is_available():
+            self.device = torch.device("mps")
         else:
             self.device = torch.device("cpu")
 
@@ -162,7 +162,7 @@ class ECGSupervisedFlow(FlowSpec):
         # Print out the total parameter count and the total trainable ones
         self._get_number_parameters()
         print(f"Total number of parameters: {self.total_parameters}")
-        print(f"Total number of trainbale parameters: {self.total_parameters_trainable}")
+        print(f"Total number of trainable parameters: {self.total_parameters_trainable}")
 
         loss_fn = nn.BCEWithLogitsLoss()
         optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
