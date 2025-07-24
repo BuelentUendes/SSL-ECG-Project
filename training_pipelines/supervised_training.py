@@ -143,14 +143,14 @@ class ECGSupervisedFlow(FlowSpec):
         tr_ds = ECGDataset(self.X[sub_train_idx], self.y[sub_train_idx])
         va_ds = ECGDataset(self.X[self.val_idx],   self.y[self.val_idx])
 
-        num_workers = min(4, os.cpu_count() or 2)
+        num_workers = min(8, os.cpu_count() or 2)
         # Reduce the num of workers
         # num_workers = min(2, os.cpu_count() or 2)
         # num_workers = max(os.cpu_count(),1)
 
-        tr_loader = DataLoader(tr_ds, self.batch_size, shuffle=True, persistent_workers=True,
+        tr_loader = DataLoader(tr_ds, self.batch_size, shuffle=True, persistent_workers=False,
                                num_workers=num_workers, pin_memory=True)
-        va_loader = DataLoader(va_ds, self.batch_size, shuffle=False, persistent_workers=True,
+        va_loader = DataLoader(va_ds, self.batch_size, shuffle=False, persistent_workers=False,
                                num_workers=num_workers, pin_memory=True)
         
         # model choice
