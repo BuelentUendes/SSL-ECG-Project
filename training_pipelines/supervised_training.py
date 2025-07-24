@@ -42,7 +42,7 @@ class ECGSupervisedFlow(FlowSpec):
         default="cnn"
     )
 
-    gpu_number = Parameter("--gpu", help="Which specific (cuda) gpu number to use (if available)",
+    gpu_number = Parameter("gpu", help="Which specific (cuda) gpu number to use (if available)",
                            type=int, default=0)
 
     # training hyper-parameters
@@ -143,7 +143,7 @@ class ECGSupervisedFlow(FlowSpec):
         tr_ds = ECGDataset(self.X[sub_train_idx], self.y[sub_train_idx])
         va_ds = ECGDataset(self.X[self.val_idx],   self.y[self.val_idx])
 
-        num_workers = min(8, os.cpu_count() or 2)
+        num_workers = min(4, os.cpu_count() or 2)
         # Reduce the num of workers
         # num_workers = min(2, os.cpu_count() or 2)
         # num_workers = max(os.cpu_count(),1)
