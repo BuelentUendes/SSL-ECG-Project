@@ -70,6 +70,7 @@ class ECGSupervisedFlow(FlowSpec):
         else:
             self.device = torch.device("cpu")
 
+        print(f"We are running our models on: {self.device}")
         exp_map = {
             "cnn": "Supervised_CNN",
             "tcn": "Supervised_TCN",
@@ -245,7 +246,7 @@ class ECGSupervisedFlow(FlowSpec):
         # Reduced num_workers for better GPU performance
         num_workers = min(4, os.cpu_count() or 2)
 
-        self.test_loader = DataLoader(te_ds, self.batch_size, shuffle=False, persistent_workers=True,
+        self.test_loader = DataLoader(te_ds, self.batch_size, shuffle=False,
                                           num_workers=num_workers, pin_memory=True)
         
         loss_fn = nn.BCEWithLogitsLoss()
