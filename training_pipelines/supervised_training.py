@@ -93,11 +93,11 @@ class ECGSupervisedFlow(FlowSpec):
     @step
     def load_and_split(self):
         """Load windowed data and produce participant-level train/val/test idx."""
-        X, y, groups = load_processed_data(
+        self.X, y, groups = load_processed_data(
             self.window_data_path,
             label_map={"baseline": 0, "mental_stress": 1}
         )
-        self.n_features = X.shape[2]
+        self.n_features = self.X.shape[2]
         self.y = y.astype(np.float32)
 
         tr_idx, val_idx, te_idx = split_indices_by_participant(groups, seed=42)
@@ -119,7 +119,9 @@ class ECGSupervisedFlow(FlowSpec):
         • Trained model only saved when label_fraction == 1.0.
         """
         set_seed(self.seed)
-        X, _, _ = load_processed_data(self.window_data_path)
+        # We remove this as this loads again the data? Probably inefficient
+        # Use self.X instead - data already loaded in load_and_split()
+        # X, _, _ = load_processed_data(self.window_data_path)
         
         # Stratified label-fraction subsampling
         if not (0 < self.label_fraction <= 1):
@@ -137,10 +139,13 @@ class ECGSupervisedFlow(FlowSpec):
             sub_train_idx = self.train_idx
 
         # Build datasets / loaders
-        tr_ds = ECGDataset(X[sub_train_idx], self.y[sub_train_idx])
-        va_ds = ECGDataset(X[self.val_idx],   self.y[self.val_idx])
+        tr_ds = ECGDataset(self.X[sub_train_idx], self.y[sub_train_idx])
+        va_ds = ECGDataset(self.X[self.val_idx],   self.y[self.val_idx])
 
-        num_workers = min(8, os.cpu_count() or 2)
+        # num_workers = min(8, os.cpu_count() or 2)
+        # Reduce the num of workers
+        num_workers = min(4, os.cpu_count() or 2)
+
         tr_loader = DataLoader(tr_ds, self.batch_size, shuffle=True,
                                num_workers=num_workers, pin_memory=True)
         va_loader = DataLoader(va_ds, self.batch_size, shuffle=False,
@@ -157,7 +162,7 @@ class ECGSupervisedFlow(FlowSpec):
         # Print out the total parameter count and the total trainable ones
         self._get_number_parameters()
         print(f"Total number of parameters: {self.total_parameters}")
-        print(f"\nTotal number of trainbale parameters: {self.total_parameters_trainable}")
+        print(f"Total number of trainbale parameters: {self.total_parameters_trainable}")
 
         loss_fn = nn.BCEWithLogitsLoss()
         optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
@@ -233,9 +238,13 @@ class ECGSupervisedFlow(FlowSpec):
     def evaluate(self):
         """Test-set evaluation."""
         set_seed(self.seed)
-        X, _, _ = load_processed_data(self.window_data_path)
-        te_ds = ECGDataset(X[self.test_idx], self.y[self.test_idx])
-        num_workers = min(8, os.cpu_count() or 2)
+        # X, _, _ = load_processed_data(self.window_data_path)
+        te_ds = ECGDataset(self.X[self.test_idx], self.y[self.test_idx])
+        # num_workers = min(8, os.cpu_count() or 2)
+
+        # Reduced num_workers for better GPU performance
+        num_workers = min(4, os.cpu_count() or 2)
+
         self.test_loader = DataLoader(te_ds, self.batch_size, shuffle=False,
                                           num_workers=num_workers, pin_memory=True)
         
