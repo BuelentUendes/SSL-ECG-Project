@@ -3,6 +3,7 @@ import gc
 import json
 import logging
 import tempfile
+import argparse
 
 import numpy as np
 import torch
@@ -159,11 +160,11 @@ def main(
     mlflow.log_params(fp)
 
     # try reuse
-    if np.isclose(label_fraction, 1.0):
-        prev = search_encoder_fp(fp, experiment_name, mlflow_tracking_uri)
-        if prev:
-            print(f"Re-using cached model {prev}")
-            model = mlflow.pytorch.load_model(f"runs:/{prev}/supervised_model", map_location=device)
+    # if np.isclose(label_fraction, 1.0):
+    #     prev = search_encoder_fp(fp, experiment_name, mlflow_tracking_uri)
+    #     if prev:
+    #         print(f"Re-using cached model {prev}")
+    #         model = mlflow.pytorch.load_model(f"runs:/{prev}/supervised_model", map_location=device)
 
     # train
     best_t, best_f1 = 0.5, -1.0
@@ -207,7 +208,6 @@ def main(
 
 
 if __name__ == "__main__":
-    import argparse
 
     parser = argparse.ArgumentParser(description="Train ECG classifier")
     parser.add_argument("--window_data_path", default="../data/interim/windowed_data.h5")
