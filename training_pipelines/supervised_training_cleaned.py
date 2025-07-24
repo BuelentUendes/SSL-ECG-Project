@@ -182,6 +182,7 @@ def main(
         if es.early_stop:
             print("Early stopping")
             break
+
     mlflow.log_param("chosen_threshold", best_t)
 
     # save model
@@ -215,14 +216,14 @@ if __name__ == "__main__":
     parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer"], default="cnn")
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--batch_size", type=int, default=12)
-    parser.add_argument("--num_epochs", type=int, default=5)
-    parser.add_argument("--patience", type=int, default=5)
+    parser.add_argument("--lr", type=float, default=1e-5) #lr 1e-4 was good
+    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--num_epochs", type=int, default=25)
+    parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--scheduler_mode", default="min")
-    parser.add_argument("--scheduler_factor", type=float, default=0.1)
+    parser.add_argument("--scheduler_factor", type=float, default=0.5)
     parser.add_argument("--scheduler_patience", type=int, default=2)
-    parser.add_argument("--scheduler_min_lr", type=float, default=1e-11)
+    parser.add_argument("--scheduler_min_lr", type=float, default=1e-9)
     parser.add_argument("--label_fraction", type=float, default=0.01)
     args = parser.parse_args()
     main(**vars(args))
