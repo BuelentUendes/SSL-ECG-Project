@@ -148,9 +148,9 @@ class ECGSupervisedFlow(FlowSpec):
         # num_workers = min(2, os.cpu_count() or 2)
         # num_workers = max(os.cpu_count(),1)
 
-        tr_loader = DataLoader(tr_ds, self.batch_size, shuffle=True, persistent_workers=False,
+        tr_loader = DataLoader(tr_ds, self.batch_size, shuffle=True, persistent_workers=True,
                                num_workers=num_workers, pin_memory=True)
-        va_loader = DataLoader(va_ds, self.batch_size, shuffle=False, persistent_workers=False,
+        va_loader = DataLoader(va_ds, self.batch_size, shuffle=False, persistent_workers=True,
                                num_workers=num_workers, pin_memory=True)
         
         # model choice
@@ -234,6 +234,8 @@ class ECGSupervisedFlow(FlowSpec):
                 if save_artifact:
                     mlflow.pytorch.log_model(self.model,
                                             artifact_path="supervised_model")
+
+        self._cleanup_dataloaders()
         self.next(self.evaluate)
 
     @step
@@ -268,10 +270,27 @@ class ECGSupervisedFlow(FlowSpec):
         print(f"Test accuracy: {self.acc:.3f}")
         self.next(self.end)
 
+    def _cleanup_dataloaders(self):
+        """Properly cleanup DataLoader workers to prevent inter-run issues"""
+        # Clean up any existing dataloaders
+        for attr_name in ['tr_loader', 'va_loader', 'test_loader']:
+            if hasattr(self, attr_name):
+                loader = getattr(self, attr_name)
+                if hasattr(loader, '_iterator') and loader._iterator is not None:
+                    loader._iterator._shutdown_workers()
+                delattr(self, attr_name)
+
+        # Clear CUDA cache
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+
     @step
     def end(self):
         print(f"Supervised training flow with {self.model_type} complete.")
         print(f"Test accuracy: {self.acc:.4f}")
+        # Clean up the data loaders as otherwise they consume memory still
+        self._cleanup_dataloaders()
         mlflow.end_run() 
         print("Done!")
 
