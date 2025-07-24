@@ -143,9 +143,10 @@ class ECGSupervisedFlow(FlowSpec):
         tr_ds = ECGDataset(self.X[sub_train_idx], self.y[sub_train_idx])
         va_ds = ECGDataset(self.X[self.val_idx],   self.y[self.val_idx])
 
-        # num_workers = min(8, os.cpu_count() or 2)
+        num_workers = min(8, os.cpu_count() or 2)
         # Reduce the num of workers
-        num_workers = min(4, os.cpu_count() or 2)
+        # num_workers = min(2, os.cpu_count() or 2)
+        # num_workers = max(os.cpu_count(),1)
 
         tr_loader = DataLoader(tr_ds, self.batch_size, shuffle=True, persistent_workers=True,
                                num_workers=num_workers, pin_memory=True)
@@ -159,6 +160,15 @@ class ECGSupervisedFlow(FlowSpec):
             self.model = TCNClassifier().to(self.device)
         else:
             self.model = TransformerECGClassifier().to(self.device)
+
+        # Compile the model:
+        if torch.cuda.is_available():
+            # only compile on CUDA
+            print(f"We compiled the model")
+            self.model = torch.compile(self.model)
+        else:
+            # fallback: leave the model as-is
+            print("Skipping torch.compile(): unsupported device", self.device)
 
         # Print out the total parameter count and the total trainable ones
         self._get_number_parameters()
