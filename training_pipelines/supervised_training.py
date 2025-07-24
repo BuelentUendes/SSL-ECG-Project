@@ -161,15 +161,6 @@ class ECGSupervisedFlow(FlowSpec):
         else:
             self.model = TransformerECGClassifier().to(self.device)
 
-        # Compile the model:
-        if torch.cuda.is_available():
-            # only compile on CUDA
-            print(f"We compiled the model")
-            self.model = torch.compile(self.model)
-        else:
-            # fallback: leave the model as-is
-            print("Skipping torch.compile(): unsupported device", self.device)
-
         # Print out the total parameter count and the total trainable ones
         self._get_number_parameters()
         print(f"Total number of parameters: {self.total_parameters}")
