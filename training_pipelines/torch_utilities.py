@@ -220,10 +220,11 @@ def train_one_epoch(
     auroc_tr = BinaryAUROC()
     pr_tr = BinaryAveragePrecision()
 
+    non_blocking_bool = torch.cuda.is_available()
+
     for batch_idx, (x, y) in enumerate(train_loader):
-        pin_memory_bool = torch.cuda.is_available()
-        x = x.to(device, pin_memory=pin_memory_bool).permute(0, 2, 1)     # (B,C,L)
-        y= y.to(device, pin_memory=pin_memory_bool).float()
+        x = x.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)     # (B,C,L)
+        y= y.to(device, non_blocking=non_blocking_bool).float()
 
         optimizer.zero_grad(set_to_none=True)
         out = model(x).view(-1)
@@ -267,11 +268,12 @@ def train_one_epoch(
     val_loss_total = 0.0
     n_val = 0
 
+    non_blocking_bool = torch.cuda.is_available()
+
     with torch.no_grad():
         for x, y in val_loader:
-            pin_memory_bool = torch.cuda.is_available()
-            x = x.to(device, pin_memory=pin_memory_bool).permute(0, 2, 1)
-            y = y.to(device, pin_memory=pin_memory_bool).float()
+            x = x.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)
+            y = y.to(device, non_blocking=non_blocking_bool).float()
             out = model(x).view(-1)
             probs = torch.sigmoid(out)
 
@@ -335,11 +337,12 @@ def test(
     total_loss = 0.0
     n_seen = 0
 
+    non_blocking_bool = torch.cuda.is_available()
+
     with torch.no_grad():
         for x, y in test_loader:
-            pin_memory_bool = torch.cuda.is_available()
-            x = x.to(device, pin_memory=pin_memory_bool).permute(0, 2, 1)
-            y = y.to(device, pin_memory=pin_memory_bool).float()
+            x = x.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)
+            y = y.to(device, non_blocking=non_blocking_bool).float()
             out = model(x).view(-1)
             probs = torch.sigmoid(out)
 
