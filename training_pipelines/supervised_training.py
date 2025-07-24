@@ -245,8 +245,6 @@ class ECGSupervisedFlow(FlowSpec):
         # X, _, _ = load_processed_data(self.window_data_path)
         te_ds = ECGDataset(self.X[self.test_idx], self.y[self.test_idx])
         # num_workers = min(8, os.cpu_count() or 2)
-
-        # Reduced num_workers for better GPU performance
         num_workers = min(8, os.cpu_count() or 2)
 
         self.test_loader = DataLoader(te_ds, self.batch_size, shuffle=False,
@@ -268,6 +266,7 @@ class ECGSupervisedFlow(FlowSpec):
             )
 
         print(f"Test accuracy: {self.acc:.3f}")
+        self._cleanup_dataloaders()
         self.next(self.end)
 
     def _cleanup_dataloaders(self):
