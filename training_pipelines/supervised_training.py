@@ -148,9 +148,9 @@ class ECGSupervisedFlow(FlowSpec):
         # num_workers = min(2, os.cpu_count() or 2)
         # num_workers = max(os.cpu_count(),1)
 
-        tr_loader = DataLoader(tr_ds, self.batch_size, shuffle=True, persistent_workers=True,
+        self.tr_loader = DataLoader(tr_ds, self.batch_size, shuffle=True, persistent_workers=True,
                                num_workers=num_workers, pin_memory=True)
-        va_loader = DataLoader(va_ds, self.batch_size, shuffle=False, persistent_workers=True,
+        self.va_loader = DataLoader(va_ds, self.batch_size, shuffle=False, persistent_workers=True,
                                num_workers=num_workers, pin_memory=True)
         
         # model choice
@@ -214,7 +214,7 @@ class ECGSupervisedFlow(FlowSpec):
                 for ep in range(1, self.num_epochs + 1):
                     print(f"\nEpoch {ep}/{self.num_epochs}")
                     val_loss, best_t, best_f1 = train_one_epoch(
-                        self.model, tr_loader, va_loader,
+                        self.model, self.tr_loader, self.va_loader,
                         optimizer, loss_fn,
                         self.device, ep,
                         best_threshold_so_far=best_t,
@@ -250,7 +250,7 @@ class ECGSupervisedFlow(FlowSpec):
         num_workers = min(8, os.cpu_count() or 2)
 
         self.test_loader = DataLoader(te_ds, self.batch_size, shuffle=False,
-                                          num_workers=num_workers, pin_memory=True)
+                                      persistent_workers=True, num_workers=num_workers, pin_memory=True)
         
         loss_fn = nn.BCEWithLogitsLoss()
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
