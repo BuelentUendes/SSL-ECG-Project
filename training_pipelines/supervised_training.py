@@ -1,4 +1,4 @@
-import os, tempfile, logging, json
+import os, tempfile, logging, json, gc
 import numpy as np
 import torch, torch.nn as nn, torch.optim as optim
 import mlflow, mlflow.pytorch
@@ -57,7 +57,6 @@ class ECGSupervisedFlow(FlowSpec):
     label_fraction = Parameter("label_fraction", default=1.0,
         help="Fraction of labelled training windows actually used (0.0-1.0).")
 
-    # Metaflow steps
     @step
     def start(self):
         """Set seed, choose MLflow experiment name, open run."""
@@ -141,7 +140,7 @@ class ECGSupervisedFlow(FlowSpec):
 
         # Build datasets / loaders
         tr_ds = ECGDataset(self.X[sub_train_idx], self.y[sub_train_idx])
-        va_ds = ECGDataset(self.X[self.val_idx],   self.y[self.val_idx])
+        va_ds = ECGDataset(self.X[self.val_idx],  self.y[self.val_idx])
 
         num_workers = min(8, os.cpu_count() or 2)
         # Reduce the num of workers
@@ -278,6 +277,10 @@ class ECGSupervisedFlow(FlowSpec):
                 if hasattr(loader, '_iterator') and loader._iterator is not None:
                     loader._iterator._shutdown_workers()
                 delattr(self, attr_name)
+
+                # Force garbage collection multiple times
+        for _ in range(3):
+            gc.collect()
 
         # Clear CUDA cache
         if torch.cuda.is_available():
