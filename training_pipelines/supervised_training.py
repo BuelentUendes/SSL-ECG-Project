@@ -247,7 +247,7 @@ class ECGSupervisedFlow(FlowSpec):
         # num_workers = min(8, os.cpu_count() or 2)
 
         # Reduced num_workers for better GPU performance
-        num_workers = min(4, os.cpu_count() or 2)
+        num_workers = min(8, os.cpu_count() or 2)
 
         self.test_loader = DataLoader(te_ds, self.batch_size, shuffle=False,
                                           num_workers=num_workers, pin_memory=True)
