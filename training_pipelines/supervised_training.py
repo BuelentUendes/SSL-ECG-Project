@@ -146,9 +146,9 @@ class ECGSupervisedFlow(FlowSpec):
         # Reduce the num of workers
         num_workers = min(4, os.cpu_count() or 2)
 
-        tr_loader = DataLoader(tr_ds, self.batch_size, shuffle=True,
+        tr_loader = DataLoader(tr_ds, self.batch_size, shuffle=True, persistent_workers=True,
                                num_workers=num_workers, pin_memory=True)
-        va_loader = DataLoader(va_ds, self.batch_size, shuffle=False,
+        va_loader = DataLoader(va_ds, self.batch_size, shuffle=False, persistent_workers=True,
                                num_workers=num_workers, pin_memory=True)
         
         # model choice
@@ -245,7 +245,7 @@ class ECGSupervisedFlow(FlowSpec):
         # Reduced num_workers for better GPU performance
         num_workers = min(4, os.cpu_count() or 2)
 
-        self.test_loader = DataLoader(te_ds, self.batch_size, shuffle=False,
+        self.test_loader = DataLoader(te_ds, self.batch_size, shuffle=False, persistent_workers=True,
                                           num_workers=num_workers, pin_memory=True)
         
         loss_fn = nn.BCEWithLogitsLoss()
