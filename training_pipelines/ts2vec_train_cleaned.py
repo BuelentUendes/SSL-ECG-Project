@@ -66,7 +66,6 @@ def main(
     if torch.cuda.is_available():
         device = torch.device(f"cuda:{gpu}")
         torch.cuda.set_device(f"cuda:{gpu}")
-        os.environ["CUDA_VISIBLE_DEVICES"] = f"{str(gpu)}"
         # Clear GPU memory
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
@@ -180,6 +179,14 @@ def main(
 
         # Load only training data for pretraining
         X_train = X[train_idx].astype(np.float32)
+
+        # Move training data to the correct device if it's a tensor
+        if isinstance(X_train, np.ndarray):
+            X_train = torch.tensor(X_train, device=device)
+        else:
+            X_train = X_train.to(device)
+
+        print(f"Training data device: {X_train.device}")
 
         ts2vec = TS2Vec(
             input_dims=n_features,
