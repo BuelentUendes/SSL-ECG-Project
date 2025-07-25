@@ -16,7 +16,7 @@ import mlflow.pytorch
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 
-from torch_utilities import (
+from utils.torch_utilities import (
     load_processed_data,
     split_indices_by_participant,
     build_supervised_fingerprint,
