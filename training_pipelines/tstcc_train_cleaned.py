@@ -22,6 +22,8 @@ from utils.torch_utilities import (
 )
 from models.tstcc import (
     data_generator_from_arrays,
+    train_linear_classifier,
+    evaluate_classifier,
     Trainer,
     base_Model,
     TC,
@@ -232,11 +234,14 @@ def main(
     mlflow.log_params(clf_params)
 
     # train & get best threshold
-    classifier, best_thr = Trainer.train_linear_classifier(
+    # Trainer does not have linear classifier method
+    classifier, best_thr = train_linear_classifier(
         classifier, tr_loader, va_loader,
         opt_clf, loss_fn,
         classifier_epochs, device
     )
+
+    # train & get best threshold
 
     # ── Step 5: Evaluation ──────────────────────────────────────────────────────
     te_loader = build_linear_loaders(test_repr, y_test,
@@ -244,13 +249,14 @@ def main(
                                      shuffle=False)
     # with mlflow.start_run(run_id=run_id):
 
-    acc, auroc, pr_auc, f1 = Trainer.evaluate_classifier(
+    acc, auroc, pr_auc, f1 = evaluate_classifier(
         model=classifier,
         test_loader=te_loader,
         device=device,
         threshold=best_thr,
         loss_fn=loss_fn,
     )
+
     mlflow.log_metrics({
         "test_accuracy": acc,
         "test_auroc":    auroc,
