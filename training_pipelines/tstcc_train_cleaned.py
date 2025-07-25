@@ -58,7 +58,7 @@ def main(
     pin_memory = device.type == "cuda"
     logging.basicConfig(level=logging.INFO)
     mlflow.set_tracking_uri(mlflow_tracking_uri)
-    mlflow.set_experiment("TSTCC")
+    mlflow.set_experiment("TSTCC cleaned")
 
     # Start top‑level run
     run = mlflow.start_run(run_name=f"tstcc_training_{seed}")
