@@ -46,6 +46,7 @@ def main(
     mlflow_tracking_uri: str,
     gpu: int,
     seed: int,
+    force_retraining: bool,
     tcc_epochs: int,
     tcc_lr: float,
     tcc_batch_size: int,
@@ -134,7 +135,8 @@ def main(
                                experiment_name="TSTCC",
                                tracking_uri=mlflow_tracking_uri)
 
-    if cached or os.path.exists(os.path.join(model_save_path, "tstcc.pt")):
+    # IF we have forced retraining we will always retraining
+    if (cached or os.path.exists(os.path.join(model_save_path, "tstcc.pt"))) and not (force_retraining):
         if cached:
             print(f"Found cached encoder run {cached}; downloading…")
             uri = f"runs:/{cached}/tstcc_model"
@@ -310,9 +312,11 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TS-TCC Training Pipeline (cleaned)")
     parser.add_argument("--window_data_path",     default="../data/interim/windowed_data.h5")
-    parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
+    parser.add_argument("--mlflow_tracking_uri",
+                        default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     parser.add_argument("--gpu",                 type=int, default=0)
     parser.add_argument("--seed",                type=int,   default=42)
+    parser.add_argument("--force_retraining", action="store_true")
     parser.add_argument("--tcc_epochs",          type=int,   default=40)
     parser.add_argument("--tcc_lr",              type=float, default=3e-4)
     parser.add_argument("--tcc_batch_size",      type=int,   default=128)
