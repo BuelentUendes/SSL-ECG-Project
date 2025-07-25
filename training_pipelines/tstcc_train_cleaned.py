@@ -38,7 +38,7 @@ from models.tstcc import (
     search_encoder_fp,
     build_linear_loaders,
 )
-from models.supervised import LinearClassifier
+from models.supervised import LinearClassifier, MLPClassifier
 
 
 def main(
@@ -55,6 +55,7 @@ def main(
     tc_hidden_dim: int,
     cc_temperature: float,
     cc_use_cosine: bool,
+    classifier_model: str,
     classifier_epochs: int,
     classifier_lr: float,
     classifier_batch_size: int,
@@ -255,12 +256,18 @@ def main(
     va_loader = build_linear_loaders(val_repr, y_val,
                                      classifier_batch_size, device,
                                      shuffle=False)
-    classifier = LinearClassifier(train_repr.shape[-1]).to(device)
+
+    #ToDo: Add here the MLP classifier on top
+    if classifier_model == "linear":
+        classifier = LinearClassifier(train_repr.shape[-1]).to(device)
+    else:
+        classifier_model = MLPClassifier(train_repr.shape[-1]).to(device)
+
     opt_clf = optim.AdamW(classifier.parameters(), lr=classifier_lr)
     loss_fn = torch.nn.BCEWithLogitsLoss()
 
     clf_params = {
-        "classifier_model":     "LinearClassifier",
+        "classifier_model":     "LinearClassifier" if classifier_model == "linear" else "MLP",
         "classifier_epochs":    classifier_epochs,
         "classifier_lr":        classifier_lr,
         "classifier_batch_size":classifier_batch_size,
@@ -326,6 +333,7 @@ if __name__ == "__main__":
     parser.add_argument("--tc_hidden_dim",       type=int,   default=128)
     parser.add_argument("--cc_temperature",      type=float, default=0.07)
     parser.add_argument("--cc_use_cosine",       action="store_true")
+    parser.add_argument("--classifier_model", type=str, default="linear", choices=("linear", "mlp"))
     parser.add_argument("--classifier_epochs",   type=int,   default=25)
     parser.add_argument("--classifier_lr",       type=float, default=1e-4)
     parser.add_argument("--classifier_batch_size", type=int, default=32)

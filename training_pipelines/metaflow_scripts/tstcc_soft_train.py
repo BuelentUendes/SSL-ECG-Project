@@ -14,7 +14,9 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
 from metaflow import FlowSpec, step, Parameter, current, project, resources
 
-from torch_utilities import load_processed_data, split_indices_by_participant, set_seed
+from utils.torch_utilities import (
+    load_processed_data, split_indices_by_participant, set_seed
+)
 
 from models.tstcc_soft import data_generator_from_arrays, Trainer_wo_DTW, tstcc_soft, TC, Config as ECGConfig, \
     train_linear_classifier, evaluate_classifier, encode_representations, show_shape, \
@@ -30,7 +32,7 @@ class ECGTSTCCFlow(FlowSpec):
 
     # MLflow and data parameters
     mlflow_tracking_uri = Parameter("mlflow_tracking_uri",
-                                    default=os.getenv("MLFLOW_TRACKING_URI", "https://127.0.0.1:5000"))
+                                    default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     window_data_path = Parameter("window_data_path",
                                  default="../data/interim/windowed_data.h5")
     seed = Parameter("seed", default=42)
