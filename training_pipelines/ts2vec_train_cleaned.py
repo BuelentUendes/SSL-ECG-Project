@@ -65,6 +65,10 @@ def main(
     # device
     if torch.cuda.is_available():
         device = torch.device(f"cuda:{gpu}")
+        # Clear GPU memory
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+
     elif torch.backends.mps.is_available():
         device = torch.device("mps")
     else:
@@ -291,6 +295,7 @@ def main(
         gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
 
     print(f"=== Done! Test Acc: {acc:.4f}, AUROC: {auroc:.4f}, F1: {f1:.4f} ===")
     mlflow.end_run()
