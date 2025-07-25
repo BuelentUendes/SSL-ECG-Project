@@ -154,6 +154,27 @@ def main(
         state = torch.load(ckpt_path, map_location=device)
         model.load_state_dict(state["encoder"])
         tc_head.load_state_dict(state["tc_head"])
+
+    elif os.path.exists(os.path.join(model_save_path, "tstcc.pt")):
+        print("We found a pretrained model. Load the pretrained weights")
+
+        ckpt_path = os.path.join(model_save_path, "tstcc.pt")
+
+        # rebuild model
+        cfg = ECGConfig()
+        cfg.num_epoch = tcc_epochs
+        cfg.batch_size = tcc_batch_size
+        cfg.TC.timesteps = tc_timesteps
+        cfg.TC.hidden_dim = tc_hidden_dim
+        cfg.Context_Cont.temperature = cc_temperature
+        cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
+
+        model  = base_Model(cfg).to(device)
+        tc_head = TC(cfg, device).to(device)
+        state = torch.load(ckpt_path, map_location=device)
+        model.load_state_dict(state["encoder"])
+        tc_head.load_state_dict(state["tc_head"])
+
     else:
         print("No cached encoder; training TS-TCC from scratch")
         cfg = ECGConfig()
