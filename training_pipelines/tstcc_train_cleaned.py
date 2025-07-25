@@ -133,9 +133,9 @@ def main(
         "cc_use_cosine":         cc_use_cosine,
     })
 
-    cached = search_encoder_fp(fp,
-                               experiment_name="TSTCC",
-                               tracking_uri=mlflow_tracking_uri)
+    cached = search_encoder_fp(
+        fp, experiment_name="TSTCC", tracking_uri=mlflow_tracking_uri
+    )
 
     # IF we have forced retraining we will always retraining
     if (cached or os.path.exists(os.path.join(model_save_path, "tstcc.pt"))) and not (force_retraining):
@@ -257,7 +257,6 @@ def main(
                                      classifier_batch_size, device,
                                      shuffle=False)
 
-    #ToDo: Add here the MLP classifier on top
     if classifier_model == "linear":
         classifier = LinearClassifier(train_repr.shape[-1]).to(device)
     else:

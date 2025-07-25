@@ -13,7 +13,7 @@ from metaflow import FlowSpec, step, Parameter, current, project, resources
 from models.ts2vec import TS2Vec, build_fingerprint, search_encoder_fp, build_linear_loaders, \
     train_linear_classifier, evaluate_classifier
 
-from torch_utilities import load_processed_data, split_indices_by_participant, set_seed
+from utils.torch_utilities import load_processed_data, split_indices_by_participant, set_seed
 
 from models.supervised import (
     LinearClassifier,
@@ -25,7 +25,7 @@ from models.supervised import (
 class ECGTS2VecFlow(FlowSpec):
     # MLflow and data parameters
     mlflow_tracking_uri = Parameter("mlflow_tracking_uri",
-                                    default=os.getenv("MLFLOW_TRACKING_URI", "https://127.0.0.1:5000"))
+                                    default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     window_data_path = Parameter("window_data_path",
                                  default="../data/interim/windowed_data.h5")
     seed = Parameter("seed", default=42)
