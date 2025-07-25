@@ -156,26 +156,26 @@ def main(
         opt_m   = optim.AdamW(model.parameters(), lr=tcc_lr, weight_decay=3e-4)
         opt_tc  = optim.AdamW(tc_head.parameters(), lr=tcc_lr, weight_decay=3e-4)
 
-        with mlflow.start_run(run_id=run_id):
-            mlflow.log_params(fp)
-            workdir = tempfile.mkdtemp(prefix="tstcc_")
-            Trainer(
-                model=model,
-                temporal_contr_model=tc_head,
-                model_optimizer=opt_m,
-                temp_cont_optimizer=opt_tc,
-                train_dl=tr_dl, valid_dl=va_dl, test_dl=te_dl,
-                device=device, config=cfg,
-                experiment_log_dir=workdir,
-                training_mode="self_supervised",
-            )
-            ckpt = os.path.join(workdir, "tstcc.pt")
-            torch.save(
-                {"encoder": model.state_dict(),
-                 "tc_head": tc_head.state_dict()},
-                ckpt
-            )
-            mlflow.log_artifact(ckpt, artifact_path="tstcc_model")
+        # Deleted second start of the run
+        mlflow.log_params(fp)
+        workdir = tempfile.mkdtemp(prefix="tstcc_")
+        Trainer(
+            model=model,
+            temporal_contr_model=tc_head,
+            model_optimizer=opt_m,
+            temp_cont_optimizer=opt_tc,
+            train_dl=tr_dl, valid_dl=va_dl, test_dl=te_dl,
+            device=device, config=cfg,
+            experiment_log_dir=workdir,
+            training_mode="self_supervised",
+        )
+        ckpt = os.path.join(workdir, "tstcc.pt")
+        torch.save(
+            {"encoder": model.state_dict(),
+             "tc_head": tc_head.state_dict()},
+            ckpt
+        )
+        mlflow.log_artifact(ckpt, artifact_path="tstcc_model")
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────
     model.eval(); tc_head.eval()
@@ -219,42 +219,44 @@ def main(
     opt_clf = optim.AdamW(classifier.parameters(), lr=classifier_lr)
     loss_fn = torch.nn.BCEWithLogitsLoss()
 
-    with mlflow.start_run(run_id=run_id):
-        clf_params = {
-            "classifier_model":     "LinearClassifier",
-            "classifier_epochs":    classifier_epochs,
-            "classifier_lr":        classifier_lr,
-            "classifier_batch_size":classifier_batch_size,
-            "label_fraction":       label_fraction,
-            "seed":                 seed,
-        }
-        mlflow.log_params(clf_params)
+    # with mlflow.start_run(run_id=run_id, nested=True):
 
-        # train & get best threshold
-        classifier, best_thr = Trainer.train_linear_classifier(
-            classifier, tr_loader, va_loader,
-            opt_clf, loss_fn,
-            classifier_epochs, device
-        )
+    clf_params = {
+        "classifier_model":     "LinearClassifier",
+        "classifier_epochs":    classifier_epochs,
+        "classifier_lr":        classifier_lr,
+        "classifier_batch_size":classifier_batch_size,
+        "label_fraction":       label_fraction,
+        "seed":                 seed,
+    }
+    mlflow.log_params(clf_params)
+
+    # train & get best threshold
+    classifier, best_thr = Trainer.train_linear_classifier(
+        classifier, tr_loader, va_loader,
+        opt_clf, loss_fn,
+        classifier_epochs, device
+    )
 
     # ── Step 5: Evaluation ──────────────────────────────────────────────────────
     te_loader = build_linear_loaders(test_repr, y_test,
                                      classifier_batch_size, device,
                                      shuffle=False)
-    with mlflow.start_run(run_id=run_id):
-        acc, auroc, pr_auc, f1 = Trainer.evaluate_classifier(
-            model=classifier,
-            test_loader=te_loader,
-            device=device,
-            threshold=best_thr,
-            loss_fn=loss_fn,
-        )
-        mlflow.log_metrics({
-            "test_accuracy": acc,
-            "test_auroc":    auroc,
-            "test_pr_auc":   pr_auc,
-            "test_f1":       f1,
-        })
+    # with mlflow.start_run(run_id=run_id):
+
+    acc, auroc, pr_auc, f1 = Trainer.evaluate_classifier(
+        model=classifier,
+        test_loader=te_loader,
+        device=device,
+        threshold=best_thr,
+        loss_fn=loss_fn,
+    )
+    mlflow.log_metrics({
+        "test_accuracy": acc,
+        "test_auroc":    auroc,
+        "test_pr_auc":   pr_auc,
+        "test_f1":       f1,
+    })
 
     # ── Cleanup ────────────────────────────────────────────────────────────────
     for _ in range(3):
