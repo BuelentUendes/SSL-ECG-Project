@@ -180,14 +180,6 @@ def main(
         # Load only training data for pretraining
         X_train = X[train_idx].astype(np.float32)
 
-        # Move training data to the correct device if it's a tensor
-        if isinstance(X_train, np.ndarray):
-            X_train = torch.tensor(X_train, device=device)
-        else:
-            X_train = X_train.to(device)
-
-        print(f"Training data device: {X_train.device}")
-
         ts2vec = TS2Vec(
             input_dims=n_features,
             output_dims=ts2vec_output_dims,
