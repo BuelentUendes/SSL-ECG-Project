@@ -68,10 +68,10 @@ def main(
         device = torch.device(f"cuda:{gpu}")
     elif torch.backends.mps.is_available():
         device = torch.device("mps")
+        # Important note:
+        # For TSTCC the MPS is not supported due to some binary operation that does not work on MPS.
     else:
         device = torch.device("cpu")
-    use_cuda = (device.type == "cuda")
-    pin_memory = use_cuda
 
     logging.basicConfig(level=logging.INFO)
     mlflow.set_tracking_uri(mlflow_tracking_uri)
@@ -86,8 +86,9 @@ def main(
     # Check if directory for saving model parameters exist, otherwise create it
     create_directory(SAVED_MODELS_PATH)
 
-    # We save the model here via seeds
-    model_save_path = os.path.join(SAVED_MODELS_PATH, "TSTCC", f"{seed}")
+    # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
+    pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
+    model_save_path = os.path.join(SAVED_MODELS_PATH, "TSTCC", pretrain_data, f"{seed}")
     create_directory(model_save_path)
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
