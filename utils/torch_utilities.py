@@ -471,3 +471,8 @@ def set_seed(seed=42, deterministic=True):
         
         if hasattr(torch, "use_deterministic_algorithms"):
             torch.use_deterministic_algorithms(True, warn_only=True)
+
+
+def create_directory(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
