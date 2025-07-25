@@ -5,6 +5,8 @@ import argparse
 import logging
 import tempfile
 import gc
+import warnings
+warnings.filterwarnings("ignore")
 
 import numpy as np
 import torch
@@ -342,7 +344,7 @@ if __name__ == "__main__":
     # TS-TCC pretraining parameters
     parser.add_argument("--tcc_epochs", type=int, default=40)
     parser.add_argument("--tcc_lr", type=float, default=3e-4)
-    parser.add_argument("--tcc_batch_size", type=int, default=128)
+    parser.add_argument("--tcc_batch_size", type=int, default=128) # We need to reduce the batch size as we run into memory issue 64
     parser.add_argument("--pretrain_all_conditions", action="store_true")
 
     # temporal contrasting
