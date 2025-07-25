@@ -261,7 +261,7 @@ def main(
     if classifier_model == "linear":
         classifier = LinearClassifier(train_repr.shape[-1]).to(device)
     else:
-        classifier_model = MLPClassifier(train_repr.shape[-1]).to(device)
+        classifier = MLPClassifier(train_repr.shape[-1]).to(device)
 
     opt_clf = optim.AdamW(classifier.parameters(), lr=classifier_lr)
     loss_fn = torch.nn.BCEWithLogitsLoss()
