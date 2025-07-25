@@ -192,6 +192,8 @@ def main(
             temporal_unit=ts2vec_temporal_unit,
         )
 
+        print(f"Created TS2Vec model on device: {next(ts2vec.net.parameters()).device}")
+
         mlflow.log_params(fp)
 
         # Train TS2Vec
