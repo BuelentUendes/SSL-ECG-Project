@@ -65,7 +65,7 @@ def main(
     # device
     if torch.cuda.is_available():
         device = torch.device(f"cuda:{gpu}")
-        torch.cuda.set_device(gpu)
+        torch.cuda.set_device(f"cuda:{gpu}")
         # Clear GPU memory
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
