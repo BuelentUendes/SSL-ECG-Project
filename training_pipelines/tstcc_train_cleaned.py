@@ -44,6 +44,7 @@ from models.supervised import LinearClassifier
 def main(
     window_data_path: str,
     mlflow_tracking_uri: str,
+    gpu: int,
     seed: int,
     tcc_epochs: int,
     tcc_lr: float,
@@ -308,6 +309,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TS-TCC Training Pipeline (cleaned)")
     parser.add_argument("--window_data_path",     default="../data/interim/windowed_data.h5")
     parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
+    parser.add_argument("--gpu",                 type=int, default=0)
     parser.add_argument("--seed",                type=int,   default=42)
     parser.add_argument("--tcc_epochs",          type=int,   default=40)
     parser.add_argument("--tcc_lr",              type=float, default=3e-4)
