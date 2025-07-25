@@ -134,31 +134,15 @@ def main(
                                experiment_name="TSTCC",
                                tracking_uri=mlflow_tracking_uri)
 
-    if cached:
-        print(f"Found cached encoder run {cached}; downloading…")
-        uri = f"runs:/{cached}/tstcc_model"
-        ckpt_dir = mlflow.artifacts.download_artifacts(uri)
-        ckpt_path = os.path.join(ckpt_dir, "tstcc.pt")
-
-        # rebuild model
-        cfg = ECGConfig()
-        cfg.num_epoch = tcc_epochs
-        cfg.batch_size = tcc_batch_size
-        cfg.TC.timesteps = tc_timesteps
-        cfg.TC.hidden_dim = tc_hidden_dim
-        cfg.Context_Cont.temperature = cc_temperature
-        cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
-
-        model  = base_Model(cfg).to(device)
-        tc_head = TC(cfg, device).to(device)
-        state = torch.load(ckpt_path, map_location=device)
-        model.load_state_dict(state["encoder"])
-        tc_head.load_state_dict(state["tc_head"])
-
-    elif os.path.exists(os.path.join(model_save_path, "tstcc.pt")):
-        print("We found a pretrained model. Load the pretrained weights")
-
-        ckpt_path = os.path.join(model_save_path, "tstcc.pt")
+    if cached or os.path.exists(os.path.join(model_save_path, "tstcc.pt")):
+        if cached:
+            print(f"Found cached encoder run {cached}; downloading…")
+            uri = f"runs:/{cached}/tstcc_model"
+            ckpt_dir = mlflow.artifacts.download_artifacts(uri)
+            ckpt_path = os.path.join(ckpt_dir, "tstcc.pt")
+        else:
+            print("We found a pretrained model. Load the pretrained weights")
+            ckpt_path = os.path.join(model_save_path, "tstcc.pt")
 
         # rebuild model
         cfg = ECGConfig()
@@ -231,9 +215,6 @@ def main(
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────
     model.eval(); tc_head.eval()
-
-    #ToDo: We can actually save the trained encoding (this is probably when it is cached).
-    # As we can then fine-tune it rather quickly!
 
     with torch.no_grad():
         train_repr, _ = encode_representations(X[train_idx], y[train_idx],
