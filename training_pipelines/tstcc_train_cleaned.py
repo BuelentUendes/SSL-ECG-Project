@@ -19,7 +19,11 @@ from utils.torch_utilities import (
     load_processed_data,
     split_indices_by_participant,
     set_seed,
+    create_directory,
 )
+
+from utils.helper_paths import SAVED_MODELS_PATH
+
 from models.tstcc import (
     data_generator_from_arrays,
     train_linear_classifier,
@@ -56,8 +60,17 @@ def main(
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    pin_memory = device.type == "cuda"
+
+    # device
+    if torch.cuda.is_available():
+        device = torch.device(f"cuda:{gpu}")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+    use_cuda = (device.type == "cuda")
+    pin_memory = use_cuda
+
     logging.basicConfig(level=logging.INFO)
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     mlflow.set_experiment("TSTCC cleaned")
@@ -67,6 +80,13 @@ def main(
     run_id = run.info.run_id
     logging.info(f"MLflow run_id: {run_id}")
     print(f"Using device: {device}")
+
+    # Check if directory for saving model parameters exist, otherwise create it
+    create_directory(SAVED_MODELS_PATH)
+
+    # We save the model here via seeds
+    model_save_path = os.path.join(SAVED_MODELS_PATH, "TSTCC", f"{seed}")
+    create_directory(model_save_path)
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
     if pretrain_all_conditions:
@@ -177,10 +197,22 @@ def main(
              "tc_head": tc_head.state_dict()},
             ckpt
         )
+
         mlflow.log_artifact(ckpt, artifact_path="tstcc_model")
+
+        saved_results = os.path.join(model_save_path, "tstcc.pt")
+        torch.save(
+            {"encoder": model.state_dict(),
+             "tc_head": tc_head.state_dict()},
+            saved_results
+        )
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────
     model.eval(); tc_head.eval()
+
+    #ToDo: We can actually save the trained encoding (this is probably when it is cached).
+    # As we can then fine-tune it rather quickly!
+
     with torch.no_grad():
         train_repr, _ = encode_representations(X[train_idx], y[train_idx],
                                                model, tc_head, tcc_batch_size, device)
@@ -220,8 +252,6 @@ def main(
     classifier = LinearClassifier(train_repr.shape[-1]).to(device)
     opt_clf = optim.AdamW(classifier.parameters(), lr=classifier_lr)
     loss_fn = torch.nn.BCEWithLogitsLoss()
-
-    # with mlflow.start_run(run_id=run_id, nested=True):
 
     clf_params = {
         "classifier_model":     "LinearClassifier",
