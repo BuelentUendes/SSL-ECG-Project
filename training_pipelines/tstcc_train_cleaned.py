@@ -364,7 +364,7 @@ def parse_args():
 
     # MLflow and data parameters
     parser.add_argument("--mlflow_tracking_uri",
-                        default=os.getenv("MLFLOW_TRACKING_URI", "https://127.0.0.1:5000"),
+                        default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"),
                         help="MLflow tracking URI")
     parser.add_argument("--window_data_path",
                         default="../data/interim/windowed_data.h5",
