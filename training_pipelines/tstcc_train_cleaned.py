@@ -183,7 +183,7 @@ def main(
         Xva = X[val_idx].astype(np.float32)
         Xte = X[test_idx].astype(np.float32)
         tr_dl, va_dl, te_dl = data_generator_from_arrays(
-            Xtr, y[train_idx], Xva, y[val_idx], Xte, y[test_idx],
+            Xtr, y[train_idx_all], Xva, y[val_idx], Xte, y[test_idx],
             cfg, training_mode="self_supervised"
         )
 
@@ -307,7 +307,7 @@ def main(
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    print(f"=== Done! Test Acc: {acc:.4f}, AUROC: {auroc:.4f}, F1: {f1:.4f} ===")
+    print(f"=== Done! Test Acc: {acc:.4f}, AUROC: {auroc:.4f}, PR-AUC: {pr_auc:.4f}, F1: {f1:.4f} ===")
     mlflow.end_run()
 
 
