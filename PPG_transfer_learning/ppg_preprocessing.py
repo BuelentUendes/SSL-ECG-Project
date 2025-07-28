@@ -3,7 +3,10 @@ from datetime import datetime, timezone
 
 import numpy as np
 import fastavro
+import neurokit2 as nk
 from scipy.signal import butter, filtfilt, iirnotch
+from torch.fx.experimental.sym_node import METHOD_TO_OPERATOR
+
 
 # ───────────────────────────────
 # helper funct.
@@ -78,7 +81,7 @@ def avro_to_hdf5(root_dir, out_h5):
 # ───────────────────────────────
 # cleaning
 # ───────────────────────────────
-def clean_hdf5(in_h5, out_h5):
+def clean_hdf5(in_h5, out_h5, method="custom"):
     with h5py.File(in_h5, "r") as fin, h5py.File(out_h5, "w") as fout:
         for part in fin:
             grp_out = fout.create_group(part)
@@ -87,8 +90,17 @@ def clean_hdf5(in_h5, out_h5):
                 sig, fs = fin[part][seg][...], fin[part][seg].attrs["fs"]
                 if not is_valid_segment(sig, fs): 
                     continue
-                grp_out.create_dataset(seg, data=clean_ppg(sig, fs),
-                                       compression="gzip", compression_opts=4)
+                if method == "custom":
+                    print(f"We use our custom preprocessing pipeline")
+                    grp_out.create_dataset(seg, data=clean_ppg(sig, fs),
+                                           compression="gzip", compression_opts=4)
+                elif method == "neurokit":
+                    print(f"We use the neurokit2 preprocessing pipeline")
+                    grp_out.create_dataset(seg, data=nk.ppg_clean(sig, sampling_rate=int(fs)),
+                                           compression="gzip", compression_opts=4)
+                else:
+                    raise AttributeError(f"Please specify a proper preprocessing pipeline. Options: 'custom' or 'neurokit'.")
+
                 grp_out[seg].attrs.update(fin[part][seg].attrs)
                 kept += 1
             if kept == 0:
@@ -152,7 +164,9 @@ if __name__ == "__main__":
     NORM_H5        = "../data/interim/ppg_norm.h5"
     WIN_H5         = "../data/interim/ppg_windows.h5"
 
+    METHOD = "neurokit" # option: "custom" or "neurokit" to preprocess
+
     avro_to_hdf5(ROOT_DIR, RAW_H5)
-    clean_hdf5(RAW_H5, CLEAN_H5)
+    clean_hdf5(RAW_H5, CLEAN_H5, METHOD)
     normalize_hdf5(CLEAN_H5, NORM_H5)
     window_hdf5(NORM_H5, WIN_H5, win_sec=10, step_sec=5)
