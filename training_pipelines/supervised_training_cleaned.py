@@ -209,7 +209,7 @@ def main(
 
         if os.path.exists(saved_results):
             print(f"Loading saved model parameters from: {saved_results}")
-            checkpoint = torch.load(saved_results, map_location=device)
+            checkpoint = torch.load(saved_results, map_location=device, weights_only=False)
 
             # Load model state dict
             model.load_state_dict(checkpoint["model_parameters"])
