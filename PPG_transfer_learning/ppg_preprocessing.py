@@ -7,6 +7,8 @@ import neurokit2 as nk
 from scipy.signal import butter, filtfilt, iirnotch
 from torch.fx.experimental.sym_node import METHOD_TO_OPERATOR
 
+from utils.helper_paths import DATA_PATH
+from utils.torch_utilities import create_directory
 
 # ───────────────────────────────
 # helper funct.
@@ -158,11 +160,16 @@ def window_hdf5(in_h5, out_h5, win_sec=10, step_sec=5):
 # main
 # ───────────────────────────────
 if __name__ == "__main__":
+
+    PPG_SAVE_PATH = os.path.join(DATA_PATH, "interim","PPG")
+    create_directory(PPG_SAVE_PATH)
+
     ROOT_DIR       = "../data/raw/Empatica Avro Files"
-    RAW_H5         = "../data/interim/ppg_raw.h5"
-    CLEAN_H5       = "../data/interim/ppg_clean.h5"
-    NORM_H5        = "../data/interim/ppg_norm.h5"
-    WIN_H5         = "../data/interim/ppg_windows.h5"
+
+    RAW_H5         = os.path.join(PPG_SAVE_PATH, "ppg_raw.h5")
+    CLEAN_H5       = os.path.join(PPG_SAVE_PATH, "ppg_clean.h5")
+    NORM_H5        = os.path.join(PPG_SAVE_PATH, "ppg_norm.h5")
+    WIN_H5         = os.path.join(PPG_SAVE_PATH, "ppg_windows.h5")
 
     METHOD = "neurokit" # option: "custom" or "neurokit" to preprocess
 
