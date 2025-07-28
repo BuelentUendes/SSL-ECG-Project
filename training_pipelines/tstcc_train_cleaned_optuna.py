@@ -373,7 +373,7 @@ def main(
     clf_params = {
         "classifier_model": "LinearClassifier" if classifier_model == "linear" else "MLP",
         "classifier_epochs": classifier_epochs,
-        "classifier_lr": classifier_lr if not do_hyperparameter_tuning else best_params['lr'],
+        "classifier_lr": classifier_lr,
         "classifier_batch_size": classifier_batch_size,
         "label_fraction": label_fraction,
         "seed": seed,
