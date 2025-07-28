@@ -358,7 +358,7 @@ def main(
         # Create Optuna study
         study_name = f"classifier_tuning_{classifier_model}_{seed}"
         study = optuna.create_study(
-            direction='maximize',  # Maximize F1 score
+            direction='maximize',  # Maximize AUROC score
             study_name=study_name,
             sampler=optuna.samplers.TPESampler(seed=seed),
             pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=10)
@@ -402,7 +402,6 @@ def main(
         opt_clf = optim.AdamW(
             classifier.parameters(),
             lr=best_params['lr'],
-            weight_decay=best_params['weight_decay']
         )
 
     else:
