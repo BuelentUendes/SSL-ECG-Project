@@ -95,20 +95,20 @@ def main(
     n_features = X.shape[2]
 
     # train/val/test split
-    tr_idx, val_idx, te_idx = split_indices_by_participant(groups, seed=seed)
+    tr_idx, val_idx, te_idx = split_indices_by_participant(groups, label_fraction=label_fraction, seed=seed)
     print(f"windows: train {len(tr_idx)}, val {len(val_idx)}, test {len(te_idx)}")
 
-    # subsample if needed
-    if not (0 < label_fraction <= 1):
-        raise ValueError("label_fraction must be in (0,1].")
-    if label_fraction < 1.0:
-        sub_tr_ind, _ = train_test_split(
-            np.arange(len(tr_idx)),
-            train_size=label_fraction,
-            stratify=y[tr_idx],
-            random_state=0,
-        )
-        tr_idx = tr_idx[sub_tr_ind]
+    # # subsample if needed
+    # if not (0 < label_fraction <= 1):
+    #     raise ValueError("label_fraction must be in (0,1].")
+    # if label_fraction < 1.0:
+    #     sub_tr_ind, _ = train_test_split(
+    #         np.arange(len(tr_idx)),
+    #         train_size=label_fraction,
+    #         stratify=y[tr_idx],
+    #         random_state=0,
+    #     )
+    #     tr_idx = tr_idx[sub_tr_ind]
 
     # datasets
     tr_ds = ECGDataset(X[tr_idx], y[tr_idx])
@@ -223,7 +223,6 @@ def main(
             print(f"No saved model found at {saved_results}. Please run with --force_retraining")
             raise FileNotFoundError(f"Model file not found: {saved_results}")
 
-
     # test
     loss, acc, auroc, prauc, f1 = test(
         model, test_loader, device,
@@ -261,6 +260,6 @@ if __name__ == "__main__":
     parser.add_argument("--scheduler_factor", type=float, default=0.5)
     parser.add_argument("--scheduler_patience", type=int, default=2)
     parser.add_argument("--scheduler_min_lr", type=float, default=1e-9)
-    parser.add_argument("--label_fraction", type=float, default=0.01)
+    parser.add_argument("--label_fraction", type=float, default=0.1)
     args = parser.parse_args()
     main(**vars(args))
