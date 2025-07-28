@@ -54,7 +54,6 @@ def optuna_objective(trial, train_repr, y_train, val_repr, y_val,
     if classifier_model == "mlp":
         hidden_dim = trial.suggest_int('hidden_dim', 16, 64, step=16)
         dropout_rate = trial.suggest_float('dropout_rate', 0.1, 0.5)
-        lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
 
         classifier = MLPClassifier(
             train_repr.shape[-1],
@@ -63,8 +62,6 @@ def optuna_objective(trial, train_repr, y_train, val_repr, y_val,
         ).to(device)
 
     else:  # linear
-        lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
-
         classifier = LinearClassifier(
             train_repr.shape[-1],
         ).to(device)
@@ -77,7 +74,7 @@ def optuna_objective(trial, train_repr, y_train, val_repr, y_val,
                                      shuffle=False)
 
     # Optimizer
-    optimizer = optim.AdamW(classifier.parameters(), lr=lr)
+    optimizer = optim.AdamW(classifier.parameters(), lr=1e-4)
     loss_fn = torch.nn.BCEWithLogitsLoss()
 
     # Train and get validation score
