@@ -3,6 +3,7 @@ from pathlib import Path
 
 import os
 import random
+import warnings
 import numpy as np
 import h5py
 import json
@@ -518,7 +519,9 @@ def set_seed(seed=42, deterministic=True):
         torch.backends.cudnn.benchmark     = False
         
         if hasattr(torch, "use_deterministic_algorithms"):
-            torch.use_deterministic_algorithms(True, warn_only=True)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                torch.use_deterministic_algorithms(True, warn_only=True)
 
 
 def create_directory(path):
