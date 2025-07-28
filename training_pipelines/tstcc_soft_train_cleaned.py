@@ -26,7 +26,7 @@ from utils.torch_utilities import (
     train_classifier_for_optuna,
 )
 
-from utils.helper_paths import SAVED_MODELS_PATH
+from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH
 
 from models.tstcc_soft import (
     data_generator_from_arrays,
@@ -449,7 +449,8 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TS-TCC Soft Training Pipeline")
-    parser.add_argument("--window_data_path", default="../data/interim/windowed_data.h5")
+    parser.add_argument("--window_data_path",
+                        default=f"{os.path.join(DATA_PATH, 'interim', 'windowed_data.h5')}")
     parser.add_argument("--mlflow_tracking_uri",
                         default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     parser.add_argument("--gpu", type=int, default=0)
