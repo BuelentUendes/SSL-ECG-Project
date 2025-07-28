@@ -165,8 +165,8 @@ def build_linear_loaders(
     batch_size: int, device: str, shuffle: bool = True,
 ) -> DataLoader:
     ds = TensorDataset(
-        torch.from_numpy(X_repr).float(),
-        torch.from_numpy(y).float()
+        torch.from_numpy(X_repr).float().to(device),
+        torch.from_numpy(y).float().to(device)
     )
     return DataLoader(ds, batch_size=batch_size, shuffle=shuffle)
 
