@@ -23,6 +23,7 @@ from utils.torch_utilities import (
     split_indices_by_participant,
     set_seed,
     create_directory,
+    train_classifier_for_optuna,
 )
 
 from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH
@@ -42,57 +43,6 @@ from models.tstcc import (
     build_linear_loaders,
 )
 from models.supervised import LinearClassifier, MLPClassifier
-
-
-def train_classifier_for_optuna(classifier, train_loader, val_loader, optimizer, loss_fn,
-                                num_epochs=50, device='cuda', early_stopping_patience=10):
-    """Train classifier and return best validation F1 score for Optuna"""
-    best_val_score = 0
-    patience_counter = 0
-
-    for epoch in range(num_epochs):
-        # Training
-        classifier.train()
-        train_loss = 0
-        for batch_x, batch_y in train_loader:
-            optimizer.zero_grad()
-            outputs = classifier(batch_x)
-            loss = loss_fn(outputs.squeeze(), batch_y.float())
-            loss.backward()
-            optimizer.step()
-            train_loss += loss.item()
-
-        # Validation
-        classifier.eval()
-        val_probs = []
-        val_targets = []
-        val_loss = 0
-
-        with torch.no_grad():
-            for batch_x, batch_y in val_loader:
-                outputs = classifier(batch_x)
-                loss = loss_fn(outputs.squeeze(), batch_y.float())
-                val_loss += loss.item()
-
-                # Get probabilities for AUROC calculation
-                probs = torch.sigmoid(outputs.squeeze())
-                val_probs.extend(probs.cpu().numpy())
-                val_targets.extend(batch_y.cpu().numpy())
-
-        # Calculate AUROC score
-        val_auroc = roc_auc_score(val_targets, val_probs)
-
-        # Early stopping based on AUROC score
-        if val_auroc > best_val_score:
-            best_val_score = val_auroc
-            patience_counter = 0
-        else:
-            patience_counter += 1
-
-        if patience_counter >= early_stopping_patience:
-            break
-
-    return best_val_score
 
 
 def optuna_objective(trial, train_repr, y_train, val_repr, y_val,
@@ -496,7 +446,6 @@ if __name__ == "__main__":
     parser.add_argument("--classifier_batch_size", type=int, default=32)
     parser.add_argument("--label_fraction", type=float, default=0.1)
 
-    # New hyperparameter tuning arguments
     parser.add_argument("--do_hyperparameter_tuning", action="store_true",
                         help="Enable hyperparameter tuning with Optuna")
     parser.add_argument("--n_trials", type=int, default=25,

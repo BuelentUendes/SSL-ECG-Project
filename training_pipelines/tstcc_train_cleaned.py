@@ -270,6 +270,8 @@ def main(
     }
     mlflow.log_params(clf_params)
 
+    # Do hyperparameter-tuning of hidden dimension, lr? dropout rate?
+
     # train & get best threshold
     classifier, best_thr = train_linear_classifier(
         classifier, tr_loader, va_loader,
