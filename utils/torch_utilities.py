@@ -144,7 +144,7 @@ def split_indices_by_participant(groups, train_ratio=0.6, val_ratio=0.2, label_f
 
         # Random selection if no labels provided
         labeled_participants = rng.choice(train_p, size=n_labeled_participants, replace=False)
-
+        train_p = labeled_participants
         train_idx = np.flatnonzero(np.isin(groups, labeled_participants))
 
     else:
