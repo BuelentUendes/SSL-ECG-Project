@@ -105,7 +105,12 @@ def main(
 
     X, y, groups = load_processed_data(window_data_path, label_map=label_map)
     y = y.astype(np.float32)
-    train_idx, val_idx, test_idx = split_indices_by_participant(groups, seed=seed)
+
+    # We first get all train idx for the SSL method (label fraction 1.0) as we do not use the labels
+    # train_idx_all (represents all training samples as we do not use their labels)
+    train_idx, train_idx_all, val_idx, test_idx = split_indices_by_participant(
+        groups, label_fraction=label_fraction, self_supervised_method=True, seed=seed
+    )
     print(f"windows: train {len(train_idx)}, val {len(val_idx)}, test {len(test_idx)}")
 
     # Keep binary‐task mask for later
@@ -174,7 +179,7 @@ def main(
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
 
         # data loaders
-        Xtr = X[train_idx].astype(np.float32)
+        Xtr = X[train_idx_all].astype(np.float32)
         Xva = X[val_idx].astype(np.float32)
         Xte = X[test_idx].astype(np.float32)
         tr_dl, va_dl, te_dl = data_generator_from_arrays(
@@ -241,17 +246,7 @@ def main(
 
     # ── Step 4: Classifier Fine‑Tuning ──────────────────────────────────────────
     set_seed(seed)
-    if label_fraction < 1.0:
-        sub_idx, _ = train_test_split(
-            np.arange(len(y_train)),
-            train_size=label_fraction,
-            stratify=y_train,
-            random_state=seed
-        )
-    else:
-        sub_idx = np.arange(len(y_train))
-
-    tr_loader = build_linear_loaders(train_repr[sub_idx], y_train[sub_idx],
+    tr_loader = build_linear_loaders(train_repr, y_train,
                                      classifier_batch_size, device)
     va_loader = build_linear_loaders(val_repr, y_val,
                                      classifier_batch_size, device,
@@ -337,7 +332,7 @@ if __name__ == "__main__":
     parser.add_argument("--classifier_epochs",   type=int,   default=25)
     parser.add_argument("--classifier_lr",       type=float, default=1e-4)
     parser.add_argument("--classifier_batch_size", type=int, default=32)
-    parser.add_argument("--label_fraction",      type=float, default=1.0)
+    parser.add_argument("--label_fraction",      type=float, default=0.1)
 
     args = parser.parse_args()
     main(**vars(args))
