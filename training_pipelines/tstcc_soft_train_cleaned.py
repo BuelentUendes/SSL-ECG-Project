@@ -40,7 +40,7 @@ from models.tstcc_soft import (
     search_encoder_fp,
     build_linear_loaders,
 )
-from models.supervised import LinearClassifier
+from models.supervised import LinearClassifier, MLPClassifier
 
 
 def main(
@@ -64,6 +64,7 @@ def main(
         tau_inst: float,
         dist_type: str,
         lambda_: float,
+        classifier_model: str,
         classifier_epochs: int,
         classifier_lr: float,
         classifier_batch_size: int,
@@ -110,7 +111,12 @@ def main(
 
     X, y, groups = load_processed_data(window_data_path, label_map=label_map)
     y = y.astype(np.float32)
-    train_idx, val_idx, test_idx = split_indices_by_participant(groups, seed=seed)
+
+    # We first get all train idx for the SSL method (label fraction 1.0) as we do not use the labels
+    # train_idx_all (represents all training samples as we do not use their labels)
+    train_idx, train_idx_all, val_idx, test_idx = split_indices_by_participant(
+        groups, label_fraction=label_fraction, self_supervised_method=True, seed=seed
+    )
     print(f"windows: train {len(train_idx)}, val {len(val_idx)}, test {len(test_idx)}")
 
     # Keep binary‐task mask for later
@@ -199,11 +205,11 @@ def main(
         cfg.lambda_ = lambda_
 
         # data loaders
-        Xtr = X[train_idx].astype(np.float32)
+        Xtr = X[train_idx_all].astype(np.float32)
         Xva = X[val_idx].astype(np.float32)
         Xte = X[test_idx].astype(np.float32)
         tr_dl, va_dl, te_dl = data_generator_from_arrays(
-            Xtr, y[train_idx], Xva, y[val_idx], Xte, y[test_idx],
+            Xtr, y[train_idx_all], Xva, y[val_idx], Xte, y[test_idx],
             cfg, training_mode="self_supervised"
         )
 
@@ -266,27 +272,23 @@ def main(
 
     # ── Step 4: Classifier Fine‑Tuning ──────────────────────────────────────────
     set_seed(seed)
-    if label_fraction < 1.0:
-        sub_idx, _ = train_test_split(
-            np.arange(len(y[train_idx])),
-            train_size=label_fraction,
-            stratify=y[train_idx],
-            random_state=seed
-        )
-    else:
-        sub_idx = np.arange(len(y[train_idx]))
 
-    tr_loader = build_linear_loaders(train_repr[sub_idx], y_train[sub_idx],
+    tr_loader = build_linear_loaders(train_repr, y_train,
                                      classifier_batch_size, device)
     va_loader = build_linear_loaders(val_repr, y_val,
                                      classifier_batch_size, device,
                                      shuffle=False)
-    classifier = LinearClassifier(train_repr.shape[-1]).to(device)
+
+    if classifier_model == "linear":
+        classifier = LinearClassifier(train_repr.shape[-1]).to(device)
+    else:
+        classifier = MLPClassifier(train_repr.shape[-1]).to(device)
+
     opt_clf = optim.AdamW(classifier.parameters(), lr=classifier_lr)
     loss_fn = torch.nn.BCEWithLogitsLoss()
 
     clf_params = {
-        "classifier_model": "LinearClassifier",
+        "classifier_model":  "LinearClassifier" if classifier_model == "linear" else "MLP",
         "classifier_epochs": classifier_epochs,
         "classifier_lr": classifier_lr,
         "classifier_batch_size": classifier_batch_size,
@@ -328,7 +330,7 @@ def main(
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    print(f"=== Done! Test Acc: {acc:.4f}, AUROC: {auroc:.4f}, F1: {f1:.4f} ===")
+    print(f"=== Done! Test Acc: {acc:.4f}, AUROC: {auroc:.4f}, PR-AUC: {pr_auc:.4f}, F1: {f1:.4f} ===")
     mlflow.end_run()
 
 
@@ -365,10 +367,11 @@ if __name__ == "__main__":
     parser.add_argument("--lambda_", type=float, default=0.5)
 
     # classifier fine-tuning
+    parser.add_argument("--classifier_model", type=str, default="linear", choices=("linear", "mlp"))
     parser.add_argument("--classifier_epochs", type=int, default=25)
     parser.add_argument("--classifier_lr", type=float, default=1e-4)
     parser.add_argument("--classifier_batch_size", type=int, default=32)
-    parser.add_argument("--label_fraction", type=float, default=1.0)
+    parser.add_argument("--label_fraction", type=float, default=0.1)
 
     args = parser.parse_args()
     main(**vars(args))
