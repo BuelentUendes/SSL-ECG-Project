@@ -378,7 +378,7 @@ def main(
         best_params = study.best_params
         best_val_score = study.best_value
 
-        print(f"Best validation F1 score: {best_val_score:.4f}")
+        print(f"Best validation AUROC score: {best_val_score:.4f}")
         print("Best parameters:")
         for key, value in best_params.items():
             print(f"  {key}: {value}")
@@ -469,8 +469,6 @@ def main(
         torch.cuda.empty_cache()
 
     print(f"=== Done! Test Acc: {acc:.4f}, AUROC: {auroc:.4f}, PR-AUC: {pr_auc:.4f}, F1: {f1:.4f} ===")
-    if do_hyperparameter_tuning:
-        print(f"=== Hyperparameter tuning improved validation F1 to: {best_val_score:.4f} ===")
 
     mlflow.end_run()
 
@@ -501,7 +499,7 @@ if __name__ == "__main__":
     # New hyperparameter tuning arguments
     parser.add_argument("--do_hyperparameter_tuning", action="store_true",
                         help="Enable hyperparameter tuning with Optuna")
-    parser.add_argument("--n_trials", type=int, default=50,
+    parser.add_argument("--n_trials", type=int, default=25,
                         help="Number of Optuna trials for hyperparameter tuning")
 
     args = parser.parse_args()
