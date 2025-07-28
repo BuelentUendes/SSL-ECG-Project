@@ -102,7 +102,7 @@ def optuna_objective(trial, train_repr, y_train, val_repr, y_val,
 
     # Suggest hyperparameters
     if classifier_model == "mlp":
-        hidden_dim = trial.suggest_int('hidden_dim', 16, 128, step=16)
+        hidden_dim = trial.suggest_int('hidden_dim', 16, 64)
         dropout_rate = trial.suggest_float('dropout_rate', 0.1, 0.5)
         lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
 
@@ -385,7 +385,7 @@ def main(
 
         # Log best parameters to MLflow
         mlflow.log_params({f"best_{k}": v for k, v in best_params.items()})
-        mlflow.log_metric("best_val_f1_optuna", best_val_score)
+        mlflow.log_metric("best_val_auroc_optuna", best_val_score)
 
         # Create final classifier with best parameters
         if classifier_model == "mlp":
