@@ -271,7 +271,6 @@ def main(
     mlflow.log_params(clf_params)
 
     # train & get best threshold
-    # Trainer does not have linear classifier method
     classifier, best_thr = train_linear_classifier(
         classifier, tr_loader, va_loader,
         opt_clf, loss_fn,
