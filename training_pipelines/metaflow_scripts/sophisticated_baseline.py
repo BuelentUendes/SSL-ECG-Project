@@ -2,17 +2,18 @@ import os
 import numpy as np
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 from metaflow import FlowSpec, step, Parameter, project, current
+from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH
 import mlflow
 
-from torch_utilities import load_processed_data, split_indices_by_participant, set_seed
+from utils.torch_utilities import (load_processed_data, split_indices_by_participant, set_seed, create_directory)
 
 @project(name="ecg_majority_baseline")
 class MajorityBaselineFlow(FlowSpec):
 
     mlflow_tracking_uri = Parameter("mlflow_tracking_uri",
-        default=os.getenv("MLFLOW_TRACKING_URI", "https://127.0.0.1:5000"))
+        default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     window_data_path = Parameter("window_data_path",
-        default="../data/interim/windowed_data.h5")
+        default=f"{os.path.join(DATA_PATH, 'interim', 'windowed_data.h5')}")
     seed = Parameter("seed", default=42)
 
     @step
