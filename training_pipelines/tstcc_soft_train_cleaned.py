@@ -156,14 +156,16 @@ def main(
 
     # IF we have forced retraining we will always retrain
     if (cached or os.path.exists(os.path.join(model_save_path, "tstcc_soft.pt"))) and not (force_retraining):
-        if cached:
+        try:
+            print("We found a pretrained model. Load the pretrained weights")
+            ckpt_path = os.path.join(model_save_path, "tstcc_soft.pt")
+
+        except FileNotFoundError:
+            # We try then the cached:
             print(f"Found cached encoder run {cached}; downloading…")
             uri = f"runs:/{cached}/tstcc_soft_model"
             ckpt_dir = mlflow.artifacts.download_artifacts(uri)
             ckpt_path = os.path.join(ckpt_dir, "tstcc_soft.pt")
-        else:
-            print("We found a pretrained model. Load the pretrained weights")
-            ckpt_path = os.path.join(model_save_path, "tstcc_soft.pt")
 
         # rebuild model
         cfg = ECGConfig()
