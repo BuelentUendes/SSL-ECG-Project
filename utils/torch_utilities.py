@@ -15,7 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from torchinfo import summary
-from sklearn.metrics import precision_recall_curve, auc, f1_score, roc_curve
+from sklearn.metrics import precision_recall_curve, auc, f1_score, roc_curve, roc_auc_score
 from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 from torcheval.metrics.functional import multiclass_f1_score
 
@@ -25,6 +25,8 @@ import mlflow.pytorch
 from mlflow.types import Schema, TensorSpec
 from mlflow.models import ModelSignature
 from mlflow.tracking import MlflowClient
+
+from models.supervised import LinearClassifier, MLPClassifier
 
 # MLflow helpers
 def build_supervised_fingerprint(cfg: dict[str, object]) -> dict[str, str]:
@@ -529,3 +531,54 @@ def set_seed(seed=42, deterministic=True):
 def create_directory(path):
     if not os.path.exists(path):
         os.makedirs(path)
+
+
+def train_classifier_for_optuna(classifier, train_loader, val_loader, optimizer, loss_fn,
+                                num_epochs=50, device='cuda', early_stopping_patience=10):
+    """Train classifier and return best validation F1 score for Optuna"""
+    best_val_score = 0
+    patience_counter = 0
+
+    for epoch in range(num_epochs):
+        # Training
+        classifier.train()
+        train_loss = 0
+        for batch_x, batch_y in train_loader:
+            optimizer.zero_grad()
+            outputs = classifier(batch_x)
+            loss = loss_fn(outputs.squeeze(), batch_y.float())
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item()
+
+        # Validation
+        classifier.eval()
+        val_probs = []
+        val_targets = []
+        val_loss = 0
+
+        with torch.no_grad():
+            for batch_x, batch_y in val_loader:
+                outputs = classifier(batch_x)
+                loss = loss_fn(outputs.squeeze(), batch_y.float())
+                val_loss += loss.item()
+
+                # Get probabilities for AUROC calculation
+                probs = torch.sigmoid(outputs.squeeze())
+                val_probs.extend(probs.cpu().numpy())
+                val_targets.extend(batch_y.cpu().numpy())
+
+        # Calculate AUROC score
+        val_auroc = roc_auc_score(val_targets, val_probs)
+
+        # Early stopping based on AUROC score
+        if val_auroc > best_val_score:
+            best_val_score = val_auroc
+            patience_counter = 0
+        else:
+            patience_counter += 1
+
+        if patience_counter >= early_stopping_patience:
+            break
+
+    return best_val_score
