@@ -1,5 +1,7 @@
+import os
 import tempfile
 from pathlib import Path
+os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 import os
 import random
