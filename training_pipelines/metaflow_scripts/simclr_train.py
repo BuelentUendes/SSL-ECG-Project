@@ -4,8 +4,9 @@ import mlflow.pytorch
 from torch.utils.data import TensorDataset, DataLoader
 from sklearn.model_selection import train_test_split
 from metaflow import FlowSpec, step, Parameter, current, project, resources
-from torch_utilities import (load_processed_data, split_indices_by_participant,
-                             set_seed)
+from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH
+from utils.torch_utilities import (load_processed_data, split_indices_by_participant,
+                             set_seed, create_directory)
 
 from models.simclr import (get_simclr_model, NTXentLoss, simclr_data_loaders, pretrain_one_epoch,
                     encode_representations, train_linear_classifier,
@@ -21,9 +22,10 @@ class ECGSimCLRFlow(FlowSpec):
 
     # MLflow and data parameters
     mlflow_tracking_uri = Parameter("mlflow_tracking_uri",
-                                    default=os.getenv("MLFLOW_TRACKING_URI", "https://127.0.0.1:5000"))
+                                    default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     window_data_path = Parameter("window_data_path",
-                                 default="../data/interim/windowed_data.h5")
+                                 default=f"{os.path.join(DATA_PATH, 'interim', 'windowed_data.h5')}")
+
     seed = Parameter("seed", default=42)
 
     # SimCLR pre‑training
