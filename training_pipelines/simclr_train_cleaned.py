@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import optuna
 import mlflow
 import mlflow.pytorch
 
@@ -21,6 +22,7 @@ from utils.torch_utilities import (
     split_indices_by_participant,
     set_seed,
     create_directory,
+    train_classifier_for_optuna,
 )
 
 from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH
@@ -44,6 +46,53 @@ from models.supervised import (
 )
 
 
+def optuna_objective(trial, train_repr, y_train, val_repr, y_val,
+                     classifier_batch_size, device, classifier_model, seed):
+    """Optuna objective function for hyperparameter tuning"""
+    set_seed(seed)
+
+    # Suggest hyperparameters
+    if classifier_model == "mlp":
+        hidden_dim = trial.suggest_int('hidden_dim', 16, 64, step=16)
+        dropout_rate = trial.suggest_float('dropout_rate', 0.1, 0.5)
+        lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
+
+        classifier = MLPClassifier(
+            train_repr.shape[-1],
+            hidden_dim=hidden_dim,
+            dropout=dropout_rate,
+        ).to(device)
+
+    else:  # linear
+        lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
+
+        classifier = LinearClassifier(
+            train_repr.shape[-1],
+        ).to(device)
+
+    # Create data loaders
+    tr_dl = DataLoader(
+        TensorDataset(torch.from_numpy(train_repr).float().to(device),
+                      torch.from_numpy(y_train).float().to(device)),
+        batch_size=classifier_batch_size, shuffle=True)
+    va_dl = DataLoader(
+        TensorDataset(torch.from_numpy(val_repr).float().to(device),
+                      torch.from_numpy(y_val).float().to(device)),
+        batch_size=classifier_batch_size, shuffle=False)
+
+    # Optimizer
+    optimizer = optim.AdamW(classifier.parameters(), lr=lr)
+    loss_fn = torch.nn.BCEWithLogitsLoss()
+
+    # Train and get validation score
+    val_score = train_classifier_for_optuna(
+        classifier, tr_dl, va_dl, optimizer, loss_fn,
+        num_epochs=25, device=device, early_stopping_patience=7
+    )
+
+    return val_score
+
+
 def main(
         window_data_path: str,
         mlflow_tracking_uri: str,
@@ -60,6 +109,8 @@ def main(
         classifier_lr: float,
         classifier_batch_size: int,
         label_fraction: float,
+        do_hyperparameter_tuning: bool = False,
+        n_trials: int = 50,
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -217,14 +268,72 @@ def main(
     # ── Step 4: Classifier Fine‑Tuning ──────────────────────────────────────────
     set_seed(seed)
 
-    if classifier_model == "linear":
-        classifier = LinearClassifier(train_repr.shape[-1]).to(device)
+    # Initialize variables for best parameters
+    best_params = None
+    best_val_score = 0
+
+    if do_hyperparameter_tuning:
+        print(f"Starting hyperparameter tuning with Optuna ({n_trials} trials)...")
+
+        # Create Optuna study
+        study_name = f"classifier_tuning_{classifier_model}_{seed}"
+        study = optuna.create_study(
+            direction='maximize',  # Maximize AUROC score
+            study_name=study_name,
+            sampler=optuna.samplers.TPESampler(seed=seed),
+            pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=10)
+        )
+
+        # Run optimization
+        study.optimize(
+            lambda trial: optuna_objective(
+                trial, train_repr, y_train, val_repr, y_val,
+                classifier_batch_size, device, classifier_model, seed
+            ),
+            n_trials=n_trials,
+            show_progress_bar=True
+        )
+
+        # Get best parameters
+        best_params = study.best_params
+        best_val_score = study.best_value
+
+        print(f"Best validation AUROC score: {best_val_score:.4f}")
+        print("Best parameters:")
+        for key, value in best_params.items():
+            print(f"  {key}: {value}")
+
+        # Log best parameters to MLflow
+        mlflow.log_params({f"best_{k}": v for k, v in best_params.items()})
+        mlflow.log_metric("best_val_auroc_optuna", best_val_score)
+
+        # Create final classifier with best parameters
+        if classifier_model == "mlp":
+            classifier = MLPClassifier(
+                train_repr.shape[-1],
+                hidden_dim=best_params['hidden_dim'],
+                dropout=best_params['dropout_rate'],
+            ).to(device)
+        else:
+            classifier = LinearClassifier(
+                train_repr.shape[-1],
+            ).to(device)
+
+        opt_clf = optim.AdamW(
+            classifier.parameters(),
+            lr=best_params['lr'],
+        )
+
     else:
-        classifier = MLPClassifier(train_repr.shape[-1]).to(device)
+        # Use original approach without hyperparameter tuning
+        if classifier_model == "linear":
+            classifier = LinearClassifier(train_repr.shape[-1]).to(device)
+        else:
+            classifier = MLPClassifier(train_repr.shape[-1]).to(device)
 
-    loss_fn = nn.BCEWithLogitsLoss()
-    opt_clf = optim.AdamW(classifier.parameters(), lr=classifier_lr)
+        opt_clf = optim.AdamW(classifier.parameters(), lr=classifier_lr)
 
+    # Build data loaders for final training
     # Create data loaders
     tr_dl = DataLoader(
         TensorDataset(torch.from_numpy(train_repr).float(),
@@ -235,24 +344,27 @@ def main(
                       torch.from_numpy(y_val).float()),
         batch_size=classifier_batch_size, shuffle=False)
 
+    loss_fn = torch.nn.BCEWithLogitsLoss()
+
+    # Log classifier parameters
     clf_params = {
         "classifier_model": "LinearClassifier" if classifier_model == "linear" else "MLP",
         "classifier_epochs": classifier_epochs,
-        "classifier_lr": classifier_lr,
+        "classifier_lr": classifier_lr if not do_hyperparameter_tuning else best_params['lr'],
         "classifier_batch_size": classifier_batch_size,
         "label_fraction": label_fraction,
         "seed": seed,
+        "do_hyperparameter_tuning": do_hyperparameter_tuning,
+        "n_trials": n_trials if do_hyperparameter_tuning else 0,
     }
     mlflow.log_params(clf_params)
 
-    # train & get best threshold
+    # Train classifier and get best threshold
     classifier, best_thr = train_linear_classifier(
         classifier, tr_dl, va_dl,
         opt_clf, loss_fn,
         classifier_epochs, device
     )
-
-    print("Classifier training complete.")
 
     # ── Step 5: Evaluation ──────────────────────────────────────────────────────
     te_dl = DataLoader(
@@ -280,11 +392,9 @@ def main(
         gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
 
     print(f"=== Done! Test Acc: {acc:.4f}, AUROC: {auroc:.4f}, PR-AUC: {pr_auc:.4f}, F1: {f1:.4f} ===")
     mlflow.end_run()
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SimCLR Training Pipeline")
@@ -313,6 +423,12 @@ if __name__ == "__main__":
     parser.add_argument("--classifier_lr", type=float, default=1e-4)
     parser.add_argument("--classifier_batch_size", type=int, default=32)
     parser.add_argument("--label_fraction", type=float, default=1.0)
+
+    # Optuna hyperparameter tuning
+    parser.add_argument("--do_hyperparameter_tuning", action="store_true",
+                        help="Enable hyperparameter tuning with Optuna")
+    parser.add_argument("--n_trials", type=int, default=25,
+                        help="Number of Optuna trials for hyperparameter tuning")
 
     args = parser.parse_args()
     main(**vars(args))
