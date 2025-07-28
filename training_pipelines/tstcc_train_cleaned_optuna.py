@@ -348,7 +348,7 @@ def main(
 
         opt_clf = optim.AdamW(
             classifier.parameters(),
-            lr=best_params['lr'],
+            lr=classifier_lr,
         )
 
     else:
