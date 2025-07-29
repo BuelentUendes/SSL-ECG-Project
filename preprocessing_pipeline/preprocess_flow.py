@@ -9,6 +9,10 @@ from common import (
     segment_data_into_windows,
 )
 
+from utils.helper_paths import DATA_PATH
+from utils.torch_utilities import create_directory
+
+
 @project(name="ecg_preprocessing")
 class ECGPreprocessFlow(FlowSpec):
     """
@@ -24,34 +28,24 @@ class ECGPreprocessFlow(FlowSpec):
         default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
     )
 
-    segmented_data_path = Parameter(
-        "segmented_data_path",
-        help="Output path for segmented ECG",
-        default="../data/interim/ecg_data_segmented.h5"
-    )
-
-    cleaned_data_path = Parameter(
-        "cleaned_data_path",
-        help="Output path for cleaned ECG",
-        default="../data/interim/ecg_data_cleaned.h5"
-    )
-
-    normalized_data_path = Parameter(
-        "normalized_data_path",
-        help="Output path for normalized ECG",
-        default="../data/interim/ecg_data_normalized.h5"
-    )
-
-    window_data_path = Parameter(
-        "window_data_path",
-        help="Final output: segmented & windowed HDF5",
-        default="../data/interim/windowed_data.h5"
+    downsample_signal = Parameter(
+        "downsample_signal",
+        help="Boolean. Downsample ECG signal",
+        default=False,
     )
 
     fs = Parameter(
         "fs",
         help="Sampling frequency (Hz)",
-        default=1000
+        default=1000,
+        type=int,
+    )
+
+    target_fs= Parameter(
+        "target_fs",
+        help="What target frequency (Hz) (if downsample_signal is set to True).",
+        default=64,
+        type=int,
     )
 
     window_size = Parameter(
@@ -70,6 +64,18 @@ class ECGPreprocessFlow(FlowSpec):
     def start(self):
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
         mlflow.set_experiment("ECGPreprocessing")
+
+        if self.downsample_signal:
+            self.ROOT_PATH = os.path.join(DATA_PATH, "interim", f"ECG_{self.target_fs}")
+        else:
+            self.ROOT_PATH = os.path.join(DATA_PATH, "interim")
+
+        create_directory(self.ROOT_PATH)
+
+        self.segmented_data_path = os.path.join(self.ROOT_PATH, "ecg_data_segmented.h5")
+        self.cleaned_data_path = os.path.join(self.ROOT_PATH, "ecg_data_cleaned.h5")
+        self.normalized_data_path = os.path.join(self.ROOT_PATH, "ecg_data_normalized.h5")
+        self.window_data_path = os.path.join(self.ROOT_PATH, "windowed_data.h5")
 
         try:
             run = mlflow.start_run(run_name=current.run_id)
@@ -91,10 +97,18 @@ class ECGPreprocessFlow(FlowSpec):
         else:
             print(f"Using existing segmented data: {self.segmented_data_path}")
 
-        # Step 2: Clean ECG signals
+        # Step 2: Clean ECG signals (downsample if specified
         if not os.path.exists(self.cleaned_data_path):
             print("Cleaning ECG data...")
-            process_save_cleaned_data(self.segmented_data_path, self.cleaned_data_path)
+            process_save_cleaned_data(
+                self.segmented_data_path,
+                self.cleaned_data_path,
+                fs=self.fs,
+                downsample_signal=self.downsample_signal,
+                target_fs=self.target_fs,
+            )
+            if self.downsample_signal:
+                self.fs = self.target_fs
         else:
             print(f"Using existing cleaned data: {self.cleaned_data_path}")
 

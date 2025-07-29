@@ -5,6 +5,7 @@ import mne
 import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt, iirnotch
+import neurokit2 as nk
 
 from config import CATEGORY_MAPPING, FOLDERPATH
 
@@ -91,7 +92,7 @@ def process_ecg_data(hdf5_path):
                     category_group = participant_group.create_group(label)
                 else:
                     category_group = participant_group[label]
-                
+
                 # Save this segment under a unique dataset name
                 seg_name = f"segment_{len(category_group.keys())}"
                 category_group.create_dataset(
@@ -103,6 +104,66 @@ def process_ecg_data(hdf5_path):
                 )
 
     print(f"ECG data successfully written to {hdf5_path}")
+
+###__________________________________________________
+# Downsample function
+###__________________________________________________
+
+def downsample_ecg_signal(signals, original_sampling_rate: int = 1000, target_sampling_rate: int = 64):
+    """
+    Downsample ECG signal with anti-aliasing filter.
+
+    Args:
+        signals: Can be 1D or 2D array. If 2D, uses first row.
+        original_sampling_rate: Original sampling rate in Hz
+        target_sampling_rate: Target sampling rate in Hz
+
+    Returns:
+        1D downsampled signal as numpy array
+    """
+    # Handle both 1D and 2D input signals
+    if signals.ndim == 1:
+        signal_to_process = signals
+    elif signals.ndim == 2:
+        signal_to_process = signals[0] if signals.shape[0] == 1 else signals.flatten()
+    else:
+        raise ValueError(f"Input signal must be 1D or 2D, got {signals.ndim}D")
+
+    # Ensure we have at least some data
+    if len(signal_to_process) == 0:
+        raise ValueError("Input signal is empty")
+
+    # Anti-aliasing filter: lowpass at Nyquist frequency of target sampling rate
+    nyquist_frequency = float(target_sampling_rate / 2)
+
+    try:
+        # Apply anti-aliasing filter
+        cleaned_signal = nk.signal_filter(
+            signal_to_process,
+            sampling_rate=original_sampling_rate,
+            highcut=nyquist_frequency,
+            order=2
+        )
+
+        # Downsample the signal
+        downsampled_ecg = nk.signal_resample(
+            cleaned_signal,
+            sampling_rate=original_sampling_rate,
+            desired_sampling_rate=target_sampling_rate,
+            method="interpolation",
+        )
+
+        # Handle any NaN values and ensure 1D output
+        downsampled_ecg = np.nan_to_num(downsampled_ecg)
+
+        return downsampled_ecg
+
+    except Exception as e:
+        print(f"Error in downsampling: {e}")
+        print(
+            f"Signal shape: {signal_to_process.shape}, Original SR: {original_sampling_rate}, Target SR: {target_sampling_rate}")
+        raise
+
 
 # ------------------------------------------------------
 # Cleaning functions
@@ -129,7 +190,13 @@ def clean_ecg_signal(signal, fs):
 # ------------------------------------------------------
 # Clean each individual segment and save the cleaned versions
 # ------------------------------------------------------
-def process_save_cleaned_data(segmented_data_path, output_hdf5_path, fs=1000):
+def process_save_cleaned_data(
+        segmented_data_path,
+        output_hdf5_path,
+        fs:int=1000,
+        downsample_signal: bool=False,
+        target_fs:int=64,
+):
     """
     Loads ECG data from segmented_data_path, cleans each individual segment,
     and saves the cleaned segments to output_hdf5_path preserving the structure.
@@ -145,6 +212,11 @@ def process_save_cleaned_data(segmented_data_path, output_hdf5_path, fs=1000):
                 for segment_name in category_in.keys():
                     signal = category_in[segment_name][...]
                     try:
+                        if downsample_signal:
+                            signal = downsample_ecg_signal(signal, fs, target_fs)
+                            # Set then the current fs to the target fs
+                            fs = target_fs
+
                         cleaned_signal = clean_ecg_signal(signal, fs)
                     except Exception as e:
                         print(f"Error cleaning signal for {participant}/{category}/{segment_name}: {e}")
@@ -164,8 +236,8 @@ def process_save_cleaned_data(segmented_data_path, output_hdf5_path, fs=1000):
 # ------------------------------------------------------
 def normalize_cleaned_data(cleaned_data_path, normalized_data_path):
     """
-    Loads cleaned ECG data from cleaned_data_path, computes user-specific z-score statistics 
-    for each participant (across all segments and categories), normalizes each segment, and saves 
+    Loads cleaned ECG data from cleaned_data_path, computes user-specific z-score statistics
+    for each participant (across all segments and categories), normalizes each segment, and saves
     the normalized data to normalized_data_path with the same structure.
     """
     with h5py.File(cleaned_data_path, "r") as f_in, h5py.File(normalized_data_path, "w") as f_out:
@@ -173,7 +245,7 @@ def normalize_cleaned_data(cleaned_data_path, normalized_data_path):
             print(f"Normalizing data for {participant}...")
             participant_in = f_in[participant]
             participant_out = f_out.create_group(participant)
-            
+
             # Collect all segments from all categories for this participant
             all_data = []
             for category in participant_in.keys():
@@ -189,7 +261,7 @@ def normalize_cleaned_data(cleaned_data_path, normalized_data_path):
             user_std = np.std(all_data_concat)
             if user_std == 0:
                 user_std = 1.0  # Avoid division by zero
-            
+
             # Normalize each segment using these user-specific statistics
             for category in participant_in.keys():
                 cat_group = participant_in[category]
@@ -233,7 +305,7 @@ def segment_data_into_windows(cleaned_data_path, hdf5_path, fs=1000, window_size
     """
     window_size_samples = window_size * fs
     step_size_samples = step_size * fs
-    
+
     with h5py.File(cleaned_data_path, "r") as f_in, h5py.File(hdf5_path, "w") as f_out:
         for participant in f_in.keys():
             print(f"Windowing data for {participant}...")
