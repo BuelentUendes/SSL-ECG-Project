@@ -169,7 +169,7 @@ if __name__ == "__main__":
     RAW_H5         = os.path.join(PPG_SAVE_PATH, "ppg_raw.h5")
     CLEAN_H5       = os.path.join(PPG_SAVE_PATH, "ppg_clean.h5")
     NORM_H5        = os.path.join(PPG_SAVE_PATH, "ppg_norm.h5")
-    WIN_H5         = os.path.join(PPG_SAVE_PATH, "windows.h5")
+    WIN_H5         = os.path.join(PPG_SAVE_PATH, "windowed_data.h5")
 
     METHOD = "neurokit" # option: "custom" or "neurokit" to preprocess
 
