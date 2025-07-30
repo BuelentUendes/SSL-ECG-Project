@@ -434,26 +434,6 @@ def prepare_model_signature(model, sample_input):
     
     return ModelSignature(inputs=input_schema, outputs=output_schema)
 
-# def set_seed(seed=42, deterministic=True):
-#     """
-#     Set seeds for reproducibility.
-    
-#     Args:
-#         seed (int): Seed number
-#         deterministic (bool): If True, use deterministic algorithms
-#     """
-#     random.seed(seed)
-#     np.random.seed(seed)
-#     torch.manual_seed(seed)
-    
-#     if torch.cuda.is_available():
-#         torch.cuda.manual_seed(seed)
-#         torch.cuda.manual_seed_all(seed)  # for multi-GPU
-        
-#         if deterministic:
-#             # Ensure deterministic behavior
-#             torch.backends.cudnn.deterministic = True
-#             torch.backends.cudnn.benchmark = False
 
 def set_seed(seed=42, deterministic=True):
     os.environ["PYTHONHASHSEED"] = str(seed)
