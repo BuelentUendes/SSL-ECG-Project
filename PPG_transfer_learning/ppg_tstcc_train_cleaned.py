@@ -150,7 +150,12 @@ def main(
     )
 
     # IF we have forced retraining we will always retraining
-    if (cached or os.path.exists(os.path.join(model_save_path, "tstcc.pt"))) and not (force_retraining):
+    model_files = [
+        os.path.join(model_save_path, "tstcc.pt"),
+        os.path.join(ecg_model_save_path, "tstcc.pt")
+    ]
+
+    if (cached or any(os.path.exists(f) for f in model_files)) and not force_retraining:
         if cached:
             print(f"Found cached encoder run {cached}; downloading…")
             uri = f"runs:/{cached}/tstcc_model"
@@ -323,7 +328,7 @@ def main(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="TS-TCC Training Pipeline (cleaned)")
+    parser = argparse.ArgumentParser(description="TS-TCC Training Pipeline (cleaned) PPG version")
     parser.add_argument("--window_data_path",
                         default=f"{os.path.join(DATA_PATH, 'interim', 'windowed_data.h5')}")
     parser.add_argument("--mlflow_tracking_uri",
