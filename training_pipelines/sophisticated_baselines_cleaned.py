@@ -21,8 +21,8 @@ from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH
 
 
 def main(
-        window_data_path: str,
         mlflow_tracking_uri: str,
+        fs: str,
         seed: int,
         pretrain_all_conditions: bool,
         label_fraction: float,
@@ -42,10 +42,11 @@ def main(
     # Check if directory for saving results exist, otherwise create it
     create_directory(SAVED_MODELS_PATH)
 
-    # We save results here via seeds
+    # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
-    results_save_path = os.path.join(SAVED_MODELS_PATH, "Baseline", pretrain_data, f"{seed}")
-    create_directory(results_save_path)
+
+    model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG", str(fs), "Baseline", pretrain_data, f"{seed}")
+    create_directory(model_save_path)
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
     if pretrain_all_conditions:
@@ -57,6 +58,9 @@ def main(
         }
     else:
         label_map = {"baseline": 0, "mental_stress": 1}
+
+    # Data path
+    window_data_path = os.path.join(DATA_PATH, "interim", "ECG", str(fs), 'windowed_data.h5')
 
     X, y, groups = load_processed_data(window_data_path, label_map=label_map)
     y = y.astype(np.int32)
@@ -239,10 +243,9 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Baseline Evaluation Pipeline")
-    parser.add_argument("--window_data_path",
-                        default=f"{os.path.join(DATA_PATH, 'interim', 'windowed_data.h5')}")
     parser.add_argument("--mlflow_tracking_uri",
                         default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
+    parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--pretrain_all_conditions", action="store_true")
     parser.add_argument("--label_fraction", type=float, default=1.0)
