@@ -60,6 +60,7 @@ def main(
     classifier_lr: float,
     classifier_batch_size: int,
     label_fraction: float,
+    use_downsampled: bool,
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -89,7 +90,11 @@ def main(
 
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
-    model_save_path = os.path.join(SAVED_MODELS_PATH, "TSTCC", pretrain_data, f"{seed}")
+
+    if use_downsampled:
+        model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG_64", "TSTCC", pretrain_data, f"{seed}")
+    else:
+        model_save_path = os.path.join(SAVED_MODELS_PATH, "TSTCC", pretrain_data, f"{seed}")
     create_directory(model_save_path)
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
@@ -334,6 +339,12 @@ if __name__ == "__main__":
     parser.add_argument("--classifier_lr",       type=float, default=1e-4)
     parser.add_argument("--classifier_batch_size", type=int, default=32)
     parser.add_argument("--label_fraction",      type=float, default=0.1)
+    parser.add_argument("--use_downsampled", action_store=True,
+                        help="If set, we use the downsampled version to 64Hz")
 
     args = parser.parse_args()
+
+    if args.use_downsampled:
+        args.window_data_path = f"{os.path.join(DATA_PATH, 'interim', 'ECG_64', 'windowed_data.h5')}"
+
     main(**vars(args))
