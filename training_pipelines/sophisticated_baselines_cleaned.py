@@ -44,9 +44,10 @@ def main(
 
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
-
     model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG", str(fs), "Baseline", pretrain_data, f"{seed}")
+    results_save_path = os.path.join(SAVED_MODELS_PATH, "Baseline", pretrain_data, f"{seed}")
     create_directory(model_save_path)
+    create_directory(results_save_path)
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
     if pretrain_all_conditions:
