@@ -289,14 +289,17 @@ if __name__ == "__main__":
 
     ROOT_DIR       = "../data/raw/Empatica Avro Files"
 
-    RAW_H5         = os.path.join(PPG_SAVE_PATH, "ppg_raw.h5")
+    RAW_H5  = os.path.join(PPG_SAVE_PATH, "ppg_raw.h5")
     CLEAN_H5       = os.path.join(PPG_SAVE_PATH, "ppg_clean.h5")
     NORM_H5        = os.path.join(PPG_SAVE_PATH, "ppg_norm.h5")
     WIN_H5         = os.path.join(PPG_SAVE_PATH, "windowed_data.h5")
 
     METHOD = "neurokit" # option: "custom" or "neurokit" to preprocess
 
+    WINDOW_SIZE = 10
+    STEP_SIZE = 5
+
     avro_to_hdf5(ROOT_DIR, RAW_H5)
     clean_hdf5(RAW_H5, CLEAN_H5, METHOD)
     normalize_hdf5(CLEAN_H5, NORM_H5)
-    window_hdf5(NORM_H5, WIN_H5, root_dir=ROOT_DIR, win_sec=10, step_sec=5)
+    window_hdf5(NORM_H5, WIN_H5, root_dir=ROOT_DIR, win_sec=WINDOW_SIZE, step_sec=STEP_SIZE)

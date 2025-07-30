@@ -37,8 +37,8 @@ from models.supervised import (
 )
 
 def main(
-        window_data_path: str,
         mlflow_tracking_uri: str,
+        fs: str,
         model_type: str = "cnn",
         gpu: int = 0,
         seed: int = 42,
@@ -82,11 +82,12 @@ def main(
     create_directory(SAVED_MODELS_PATH)
 
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
-    model_save_path = os.path.join(SAVED_MODELS_PATH, "PPG", f"{model_type}", f"{seed}", f"{label_fraction}")
+    model_save_path = os.path.join(SAVED_MODELS_PATH, "PPG", str(fs), f"{model_type}", f"{seed}", f"{label_fraction}")
     create_directory(model_save_path)
 
-    # load data
-    # ToDo: Check here the load_processed data function for PPG
+    # Data path
+    window_data_path = os.path.join(DATA_PATH, "interim", "ECG", str(fs), 'windowed_data.h5')
+
     X, y, groups = load_processed_data(
         window_data_path,
         label_map={"baseline": 0, "mental_stress": 1},
@@ -234,9 +235,8 @@ def main(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train ECG classifier")
-    parser.add_argument("--window_data_path",
-                        default=f"{os.path.join(DATA_PATH, 'interim', 'PPG', 'windowed_data.h5')}")
     parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
+    parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
     parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer"], default="cnn")
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
