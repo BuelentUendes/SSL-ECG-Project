@@ -14,7 +14,6 @@ import mlflow
 import mlflow.pytorch
 
 from torch.utils.data import DataLoader
-from sklearn.model_selection import train_test_split
 
 from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH
 
@@ -22,7 +21,7 @@ from utils.torch_utilities import (
     load_processed_data,
     split_indices_by_participant,
     build_supervised_fingerprint,
-    ECGDataset,
+    PhysiologicalDataset,
     set_seed,
     create_directory,
     train_one_epoch,
@@ -99,9 +98,9 @@ def main(
     print(f"windows: train {len(tr_idx)}, val {len(val_idx)}, test {len(te_idx)}")
 
     # datasets
-    tr_ds = ECGDataset(X[tr_idx], y[tr_idx])
-    va_ds = ECGDataset(X[val_idx], y[val_idx])
-    te_ds = ECGDataset(X[te_idx], y[te_idx])
+    tr_ds = PhysiologicalDataset(X[tr_idx], y[tr_idx])
+    va_ds = PhysiologicalDataset(X[val_idx], y[val_idx])
+    te_ds = PhysiologicalDataset(X[te_idx], y[te_idx])
 
     num_workers = min(8, os.cpu_count() or 2)
 
