@@ -197,7 +197,7 @@ def split_indices_by_participant(
         return train_idx, val_idx, test_idx
 
 
-class ECGDataset(Dataset):
+class PhysiologicalDataset(Dataset):
     """
     PyTorch Dataset for ECG data.
     """
