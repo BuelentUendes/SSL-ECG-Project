@@ -113,7 +113,7 @@ def main(
         label_map = {"baseline": 0, "mental_stress": 1}
 
     # Data path
-    window_data_path = os.path.join(DATA_PATH, "interim", "ECG", str(fs), 'windowed_data.h5')
+    window_data_path = os.path.join(DATA_PATH, "interim", "PPG", 'windowed_data.h5')
 
     X, y, groups = load_processed_data(window_data_path, label_map=label_map, ppg_data=True)
     y = y.astype(np.float32)
