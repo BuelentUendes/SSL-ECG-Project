@@ -335,7 +335,7 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TS-TCC Training Pipeline (cleaned) PPG version")
     parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
-    parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
+    parser.add_argument("--fs", default=64, type=str, help="What sample frequency used for training")
     parser.add_argument("--gpu",                 type=int, default=0)
     parser.add_argument("--seed",                type=int,   default=42)
     parser.add_argument("--force_retraining", action="store_true")
