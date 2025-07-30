@@ -55,10 +55,10 @@ def search_encoder_fp(fp: dict[str, str], experiment_name: str,
                               max_results=1)
     return None if hits.empty else hits.iloc[0]["run_id"]
 
-def load_processed_data(hdf5_path, label_map=None):
+def load_processed_data(hdf5_path, label_map=None, ppg_data=False):
     """
     Load windowed ECG data from an HDF5 file.
-    
+    if ppg_data: option to process also stored PPG data
     Returns:
         X (np.ndarray): shape (N, window_length, 1)
         y (np.ndarray): shape (N,)
@@ -71,7 +71,10 @@ def load_processed_data(hdf5_path, label_map=None):
     with h5py.File(hdf5_path, "r") as f:
         participants = list(f.keys())
         for participant_key in participants:
-            participant_id = participant_key.replace("participant_", "")
+            if ppg_data:
+                participant_id = participant_key.replace("P", "").replace("_empatica", "")
+            else:
+                participant_id = participant_key.replace("participant_", "")
             for cat in f[participant_key].keys():
                 if cat not in label_map:
                     continue
@@ -199,7 +202,7 @@ def split_indices_by_participant(
 
 class PhysiologicalDataset(Dataset):
     """
-    PyTorch Dataset for ECG data.
+    PyTorch Dataset for physiological signal data, including ECG and PPG data in our study.
     """
     def __init__(self, X, y, transform=None):
         self.X = X
@@ -486,27 +489,6 @@ def prepare_model_signature(model, sample_input):
     ])
     
     return ModelSignature(inputs=input_schema, outputs=output_schema)
-
-# def set_seed(seed=42, deterministic=True):
-#     """
-#     Set seeds for reproducibility.
-    
-#     Args:
-#         seed (int): Seed number
-#         deterministic (bool): If True, use deterministic algorithms
-#     """
-#     random.seed(seed)
-#     np.random.seed(seed)
-#     torch.manual_seed(seed)
-    
-#     if torch.cuda.is_available():
-#         torch.cuda.manual_seed(seed)
-#         torch.cuda.manual_seed_all(seed)  # for multi-GPU
-        
-#         if deterministic:
-#             # Ensure deterministic behavior
-#             torch.backends.cudnn.deterministic = True
-#             torch.backends.cudnn.benchmark = False
 
 def set_seed(seed=42, deterministic=True):
     os.environ["PYTHONHASHSEED"] = str(seed)
