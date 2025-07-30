@@ -21,5 +21,5 @@ CATEGORY_MAPPING = {
     "low_physical_activity": ["Standing", "Lying_supine", "Recov_standing"],
 }
 
-FOLDERPATH = "../data/raw/Raw ECG project"
+# FOLDERPATH = "../data/raw/Raw ECG project"
 OUTPUT_DIR_PATH = "../data/interim/"

@@ -7,16 +7,19 @@ import pandas as pd
 from scipy.signal import butter, filtfilt, iirnotch
 import neurokit2 as nk
 
-from config import CATEGORY_MAPPING, FOLDERPATH
+from config import CATEGORY_MAPPING
+from utils.helper_paths import RAW_DATA_PATH
 
 # ------------------------------------------------------
 # Match ECG data with labels and save segments individually
 # ------------------------------------------------------
-def process_ecg_data(hdf5_path):
+def process_ecg_data(hdf5_path, fs):
     """
     Process raw ECG data and write it to an HDF5 file at hdf5_path.
     Each segment is stored individually under its participant and category.
     """
+    FOLDERPATH = os.path.join(RAW_DATA_PATH, str(fs))
+
     filepaths = [
         os.path.join(FOLDERPATH, f)
         for f in os.listdir(FOLDERPATH)
@@ -27,7 +30,7 @@ def process_ecg_data(hdf5_path):
 
     # Read the metadata file
     timestamps = pd.read_csv(
-        os.path.join(FOLDERPATH, "TimeStamps_Merged.txt"), sep="\t", decimal="."
+        os.path.join(RAW_DATA_PATH, "TimeStamps_Merged.txt"), sep="\t", decimal="."
     )
     timestamps["LabelStart"] = pd.to_datetime(
         timestamps["LabelStart"], format="%Y-%m-%d %H:%M:%S", utc=True
@@ -211,9 +214,12 @@ def process_save_cleaned_data(
                     signal = category_in[segment_name][...]
                     try:
                         cleaned_signal = clean_ecg_signal(signal, fs)
-                    except Exception as e:
-                        print(f"Error cleaning signal for {participant}/{category}/{segment_name}: {e}")
-                        continue
+                    except Exception:
+                        try:
+                            cleaned_signal = nk.ecg_clean(signal, sampling_rate=fs)
+                        except Exception as e:
+                            print(f"Error cleaning signal for {participant}/{category}/{segment_name}: {e}")
+                            continue
                     # Save cleaned segment with same segment name
                     category_out.create_dataset(
                         segment_name,

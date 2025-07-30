@@ -53,6 +53,7 @@ class ECGPreprocessFlow(FlowSpec):
         mlflow.set_experiment("ECGPreprocessing")
 
         self.ROOT_PATH = os.path.join(DATA_PATH, "interim", "ECG", f"{self.fs}")
+        print(f"The data path is {self.ROOT_PATH}")
 
         create_directory(self.ROOT_PATH)
 
@@ -77,7 +78,7 @@ class ECGPreprocessFlow(FlowSpec):
         # Step 1: Segment raw data
         if not os.path.exists(self.segmented_data_path):
             print("Segmenting raw ECG data...")
-            process_ecg_data(self.segmented_data_path)
+            process_ecg_data(self.segmented_data_path, fs=self.fs)
         else:
             print(f"Using existing segmented data: {self.segmented_data_path}")
 
