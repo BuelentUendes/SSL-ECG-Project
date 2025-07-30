@@ -40,8 +40,6 @@ def process_ecg_data(hdf5_path, fs):
     )
     timestamps["Subject_ID"] = timestamps["Subject_ID"].astype(str)
 
-    fs = 1000  # sampling frequency
-
     # Create or overwrite HDF5 file
     with h5py.File(hdf5_path, "w") as f:
         for p, participant_id in enumerate(participants):  # all participants
