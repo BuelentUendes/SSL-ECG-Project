@@ -42,8 +42,8 @@ from models.supervised import LinearClassifier, MLPClassifier
 
 
 def main(
-    window_data_path: str,
     mlflow_tracking_uri: str,
+    fs: str,
     gpu: int,
     seed: int,
     force_retraining: bool,
@@ -60,7 +60,6 @@ def main(
     classifier_lr: float,
     classifier_batch_size: int,
     label_fraction: float,
-    use_downsampled: bool,
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -91,10 +90,7 @@ def main(
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
 
-    if use_downsampled:
-        model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG_64", "TSTCC", pretrain_data, f"{seed}")
-    else:
-        model_save_path = os.path.join(SAVED_MODELS_PATH, "TSTCC", pretrain_data, f"{seed}")
+    model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC", pretrain_data, f"{seed}")
     create_directory(model_save_path)
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
@@ -107,6 +103,9 @@ def main(
         }
     else:
         label_map = {"baseline": 0, "mental_stress": 1}
+
+    # Data path
+    window_data_path = os.path.join(DATA_PATH, "interim", "ECG", str(fs), 'windowed_data.h5')
 
     X, y, groups = load_processed_data(window_data_path, label_map=label_map)
     y = y.astype(np.float32)
@@ -290,7 +289,6 @@ def main(
     te_loader = build_linear_loaders(test_repr, y_test,
                                      classifier_batch_size, device,
                                      shuffle=False)
-    # with mlflow.start_run(run_id=run_id):
 
     acc, auroc, pr_auc, f1 = evaluate_classifier(
         model=classifier,
@@ -319,10 +317,9 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TS-TCC Training Pipeline (cleaned)")
-    parser.add_argument("--window_data_path",
-                        default=f"{os.path.join(DATA_PATH, 'interim', 'windowed_data.h5')}")
     parser.add_argument("--mlflow_tracking_uri",
                         default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
+    parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
     parser.add_argument("--gpu",                 type=int, default=0)
     parser.add_argument("--seed",                type=int,   default=42)
     parser.add_argument("--force_retraining", action="store_true")
@@ -339,12 +336,7 @@ if __name__ == "__main__":
     parser.add_argument("--classifier_lr",       type=float, default=1e-4)
     parser.add_argument("--classifier_batch_size", type=int, default=32)
     parser.add_argument("--label_fraction",      type=float, default=0.1)
-    parser.add_argument("--use_downsampled", action="store_true",
-                        help="If set, we use the downsampled version to 64Hz")
 
     args = parser.parse_args()
-
-    if args.use_downsampled:
-        args.window_data_path = f"{os.path.join(DATA_PATH, 'interim', 'ECG_64', 'windowed_data.h5')}"
 
     main(**vars(args))

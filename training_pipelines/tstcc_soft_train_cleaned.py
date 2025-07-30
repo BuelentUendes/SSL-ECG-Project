@@ -90,8 +90,8 @@ def optuna_objective(trial, train_repr, y_train, val_repr, y_val,
 
 
 def main(
-        window_data_path: str,
         mlflow_tracking_uri: str,
+        fs: str,
         gpu: int,
         seed: int,
         force_retraining: bool,
@@ -142,9 +142,12 @@ def main(
     # Check if directory for saving model parameters exist, otherwise create it
     create_directory(SAVED_MODELS_PATH)
 
-    # We save the model here via seeds
-    model_save_path = os.path.join(SAVED_MODELS_PATH, "TSTCC_soft", f"{seed}")
+    # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
+    pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
+
+    model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC_soft", pretrain_data, f"{seed}")
     create_directory(model_save_path)
+
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
     if pretrain_all_conditions:
@@ -156,6 +159,10 @@ def main(
         }
     else:
         label_map = {"baseline": 0, "mental_stress": 1}
+
+
+    # Data Path
+    window_data_path = os.path.join(DATA_PATH, "interim", "ECG", str(fs), 'windowed_data.h5')
 
     X, y, groups = load_processed_data(window_data_path, label_map=label_map)
     y = y.astype(np.float32)
@@ -449,10 +456,9 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TS-TCC Soft Training Pipeline")
-    parser.add_argument("--window_data_path",
-                        default=f"{os.path.join(DATA_PATH, 'interim', 'windowed_data.h5')}")
     parser.add_argument("--mlflow_tracking_uri",
                         default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
+    parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--force_retraining", action="store_true")
