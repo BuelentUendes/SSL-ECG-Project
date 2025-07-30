@@ -86,7 +86,7 @@ def main(
     create_directory(model_save_path)
 
     # Data path
-    window_data_path = os.path.join(DATA_PATH, "interim", "ECG", str(fs), 'windowed_data.h5')
+    window_data_path = os.path.join(DATA_PATH, "interim", "PPG", 'windowed_data.h5')
 
     X, y, groups = load_processed_data(
         window_data_path,
