@@ -339,7 +339,7 @@ if __name__ == "__main__":
     parser.add_argument("--classifier_lr",       type=float, default=1e-4)
     parser.add_argument("--classifier_batch_size", type=int, default=32)
     parser.add_argument("--label_fraction",      type=float, default=0.1)
-    parser.add_argument("--use_downsampled", action_store=True,
+    parser.add_argument("--use_downsampled", action="store_true",
                         help="If set, we use the downsampled version to 64Hz")
 
     args = parser.parse_args()
