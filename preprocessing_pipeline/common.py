@@ -194,8 +194,6 @@ def process_save_cleaned_data(
         segmented_data_path,
         output_hdf5_path,
         fs:int=1000,
-        downsample_signal: bool=False,
-        target_fs:int=64,
 ):
     """
     Loads ECG data from segmented_data_path, cleans each individual segment,
@@ -212,11 +210,6 @@ def process_save_cleaned_data(
                 for segment_name in category_in.keys():
                     signal = category_in[segment_name][...]
                     try:
-                        if downsample_signal:
-                            signal = downsample_ecg_signal(signal, fs, target_fs)
-                            # Set then the current fs to the target fs
-                            fs = target_fs
-
                         cleaned_signal = clean_ecg_signal(signal, fs)
                     except Exception as e:
                         print(f"Error cleaning signal for {participant}/{category}/{segment_name}: {e}")

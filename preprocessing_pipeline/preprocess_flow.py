@@ -28,23 +28,10 @@ class ECGPreprocessFlow(FlowSpec):
         default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
     )
 
-    downsample_signal = Parameter(
-        "downsample_signal",
-        help="Boolean. Downsample ECG signal",
-        default=False,
-    )
-
     fs = Parameter(
         "fs",
-        help="Sampling frequency (Hz)",
+        help="Sampling frequency (Hz) to use. If set to 64 for example, it will use the 64 Hz version. Original is 1,000",
         default=1000,
-        type=int,
-    )
-
-    target_fs= Parameter(
-        "target_fs",
-        help="What target frequency (Hz) (if downsample_signal is set to True).",
-        default=64,
         type=int,
     )
 
@@ -65,10 +52,7 @@ class ECGPreprocessFlow(FlowSpec):
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
         mlflow.set_experiment("ECGPreprocessing")
 
-        if self.downsample_signal:
-            self.ROOT_PATH = os.path.join(DATA_PATH, "interim", f"ECG_{self.target_fs}")
-        else:
-            self.ROOT_PATH = os.path.join(DATA_PATH, "interim")
+        self.ROOT_PATH = os.path.join(DATA_PATH, "interim", "ECG", f"{self.fs}")
 
         create_directory(self.ROOT_PATH)
 
@@ -104,11 +88,7 @@ class ECGPreprocessFlow(FlowSpec):
                 self.segmented_data_path,
                 self.cleaned_data_path,
                 fs=self.fs,
-                downsample_signal=self.downsample_signal,
-                target_fs=self.target_fs,
             )
-            if self.downsample_signal:
-                self.fs = self.target_fs
         else:
             print(f"Using existing cleaned data: {self.cleaned_data_path}")
 
