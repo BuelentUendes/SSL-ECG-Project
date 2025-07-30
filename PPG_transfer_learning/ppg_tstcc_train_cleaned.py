@@ -96,8 +96,9 @@ def main(
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
     model_save_path = os.path.join(SAVED_MODELS_PATH, "PPG", "TSTCC", pretrain_data, f"{seed}")
 
-    ecg_model_save_path = os.path.join(SAVED_MODELS_PATH, "PPG", "TSTCC", pretrain_data, f"{seed}")
+    ecg_model_save_path = os.path.join(SAVED_MODELS_PATH, "TSTCC", pretrain_data, f"{seed}")
     create_directory(model_save_path)
+    create_directory(ecg_model_save_path)
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
     if pretrain_all_conditions:
