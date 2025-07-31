@@ -36,6 +36,8 @@ from models.supervised import (
     TransformerECGClassifier,
 )
 
+from models.supervised_ppg import DilatedCNN
+
 def main(
         mlflow_tracking_uri: str,
         fs: str,
@@ -126,6 +128,8 @@ def main(
         model = Improved1DCNN_v2()
     elif model_type.lower() == "tcn":
         model = TCNClassifier()
+    elif model_type.lower() == "dilated_cnn":
+        model = DilatedCNN()
     else:
         model = TransformerECGClassifier()
     model = model.to(device)
@@ -237,7 +241,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train ECG classifier")
     parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     parser.add_argument("--fs", default=64, type=str, help="What sample frequency used for training")
-    parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer"], default="cnn")
+    parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer", "dilated_cnn"], default="cnn")
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--force_retraining", action="store_true")
