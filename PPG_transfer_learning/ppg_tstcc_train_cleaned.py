@@ -35,7 +35,7 @@ from models.tstcc import (
     Trainer,
     base_Model,
     TC,
-    Config as PPGConfig,
+    PPGConfig as PPGConfig,
     encode_representations,
     show_shape,
     build_tstcc_fingerprint,
@@ -178,8 +178,6 @@ def main(
         # rebuild model
         cfg = PPGConfig()
         cfg.num_epoch = tcc_epochs
-        if fs == 64:
-            cfg.features_len = 22  # We have 22 features only
         cfg.batch_size = tcc_batch_size
         cfg.TC.timesteps = tc_timesteps
         cfg.TC.hidden_dim = tc_hidden_dim
@@ -196,8 +194,6 @@ def main(
         print("No cached encoder; training TS-TCC from scratch")
         cfg = PPGConfig()
         cfg.num_epoch = tcc_epochs
-        if fs == 64:
-            cfg.features_len = 22 # We have 22 features only for sampling rate of 64
         cfg.batch_size = tcc_batch_size
         cfg.TC.timesteps = tc_timesteps
         cfg.TC.hidden_dim = tc_hidden_dim
@@ -363,6 +359,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     # For frequency rate of 64 Hz it should be changed to
-    # tc_timesteps to 10
+    # tc_timesteps 10 (as I only have feature len of 22 steps with the TSTCC)
+
     args.pretrain_all_conditions = True
     main(**vars(args))
