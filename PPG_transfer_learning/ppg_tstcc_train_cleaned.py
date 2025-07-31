@@ -290,9 +290,12 @@ def main(
     # ── Step 4: Classifier Fine‑Tuning ──────────────────────────────────────────
     set_seed(seed)
     tr_loader = build_linear_loaders(train_repr, y_train,
-                                     classifier_batch_size, device)
+                                     classifier_batch_size,
+                                     device, drop_last=True,
+                                     )
     va_loader = build_linear_loaders(val_repr, y_val,
                                      classifier_batch_size, device,
+                                     drop_last=False,
                                      shuffle=False)
 
     if classifier_model == "linear":
@@ -327,6 +330,7 @@ def main(
     # ── Step 5: Evaluation ──────────────────────────────────────────────────────
     te_loader = build_linear_loaders(test_repr, y_test,
                                      classifier_batch_size, device,
+                                     drop_last=False,
                                      shuffle=False)
     # with mlflow.start_run(run_id=run_id):
 
@@ -374,12 +378,14 @@ if __name__ == "__main__":
     parser.add_argument("--classifier_epochs",   type=int,   default=25)
     parser.add_argument("--classifier_lr",       type=float, default=1e-4)
     parser.add_argument("--classifier_batch_size", type=int, default=32)
-    parser.add_argument("--label_fraction",      type=float, default=0.1)
+    parser.add_argument("--label_fraction",      type=float, default=0.25)
     parser.add_argument("--transfer_ecg_representation", action="store_true",
                         help="If we want to transfer the learned ECG representation to PPG setup")
 
     args = parser.parse_args()
     # For frequency rate of 64 Hz it should be changed to
     # tc_timesteps 10 (as I only have feature len of 22 steps with the TSTCC)
+
+    args.pretrain_all_conditions = True
 
     main(**vars(args))

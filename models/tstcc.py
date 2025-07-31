@@ -162,14 +162,14 @@ def data_generator_from_arrays(
 
 def build_linear_loaders(
     X_repr: np.ndarray, y: np.ndarray,
-    batch_size: int, device: str, shuffle: bool = True,
+    batch_size: int, device: str, shuffle: bool = True, drop_last=False
 ) -> DataLoader:
     ds = TensorDataset(
         torch.from_numpy(X_repr).float().to(device),
         torch.from_numpy(y).float().to(device)
     )
     # We use drop last to prevent empty batches!
-    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, drop_last=True)
+    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last)
 
 # ----------------------------------------------------------------------
 # loss.py
