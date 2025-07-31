@@ -34,9 +34,8 @@ from models.supervised import (
     Improved1DCNN_v2,
     TCNClassifier,
     TransformerECGClassifier,
+    DilatedCNN
 )
-
-from models.supervised_ppg import DilatedCNN
 
 def main(
         mlflow_tracking_uri: str,
