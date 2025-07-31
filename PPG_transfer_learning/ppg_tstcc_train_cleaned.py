@@ -35,7 +35,7 @@ from models.tstcc import (
     Trainer,
     base_Model,
     TC,
-    Config as ECGConfig,
+    Config as PPGConfig,
     encode_representations,
     show_shape,
     build_tstcc_fingerprint,
@@ -96,7 +96,9 @@ def main(
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
 
     model_save_path = os.path.join(SAVED_MODELS_PATH, "PPG", str(fs), "TSTCC", pretrain_data, f"{seed}")
-    ecg_model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC", pretrain_data, f"{seed}")
+
+    # ToDo: We need to set the fs_ecg and so we can choose pre-trained 640 or 10,000
+    ecg_model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG", str(1000), "TSTCC", pretrain_data, f"{seed}")
 
     create_directory(model_save_path)
     create_directory(ecg_model_save_path)
@@ -174,8 +176,10 @@ def main(
             ckpt_path = os.path.join(model_save_path, "tstcc.pt")
 
         # rebuild model
-        cfg = ECGConfig()
+        cfg = PPGConfig()
         cfg.num_epoch = tcc_epochs
+        if fs == 64:
+            cfg.features_len = 22  # We have 22 features only
         cfg.batch_size = tcc_batch_size
         cfg.TC.timesteps = tc_timesteps
         cfg.TC.hidden_dim = tc_hidden_dim
@@ -190,8 +194,10 @@ def main(
 
     else:
         print("No cached encoder; training TS-TCC from scratch")
-        cfg = ECGConfig()
+        cfg = PPGConfig()
         cfg.num_epoch = tcc_epochs
+        if fs == 64:
+            cfg.features_len = 22 # We have 22 features only for sampling rate of 64
         cfg.batch_size = tcc_batch_size
         cfg.TC.timesteps = tc_timesteps
         cfg.TC.hidden_dim = tc_hidden_dim
@@ -356,4 +362,7 @@ if __name__ == "__main__":
                         help="If we want to transfer the learned ECG representation to PPG setup")
 
     args = parser.parse_args()
+
+    args.pretrain_all_conditions = True
+    args.transfer_ecg_representation = True
     main(**vars(args))
