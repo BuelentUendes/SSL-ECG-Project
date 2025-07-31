@@ -22,7 +22,7 @@ class DilatedCNN(nn.Module):
         self.kernel_size = 8
         self.dilation_rates = [1, 2, 4, 8, 16, 32, 64, 128]
         self.dropout_rate = 0.5
-        self.num_classes = 2
+        self.num_classes = 1 #Binary classification
 
         # Build the convolutional layers
         self.conv_layers = nn.ModuleList()
@@ -63,7 +63,6 @@ class DilatedCNN(nn.Module):
 
         # Dense output layer
         self.output_layer = nn.Linear(self.num_filters[-1], self.num_classes)
-        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         """
@@ -73,7 +72,7 @@ class DilatedCNN(nn.Module):
             x: Input tensor of shape (batch_size, 1, 640)
 
         Returns:
-            Output tensor of shape (batch_size, 2) with sigmoid activation
+            Output tensor of shape (batch_size, 1) with sigmoid activation
         """
         # Pass through all 8 convolutional blocks
         for i in range(8):
@@ -89,8 +88,7 @@ class DilatedCNN(nn.Module):
         # Flatten: (batch_size, 512, 1) -> (batch_size, 512)
         x = x.squeeze(-1)
 
-        # Dense output layer with sigmoid activation
+        # Dense output layer - raw logits for BCEWithLogitsLoss
         x = self.output_layer(x)
-        x = self.sigmoid(x)
 
         return x
