@@ -382,7 +382,4 @@ if __name__ == "__main__":
     # For frequency rate of 64 Hz it should be changed to
     # tc_timesteps 10 (as I only have feature len of 22 steps with the TSTCC)
 
-    args.pretrain_all_conditions = True
-    args.transfer_ecg_representation = True
-
     main(**vars(args))
