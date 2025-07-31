@@ -119,7 +119,7 @@ def main(
 
     if transfer_ecg_representation:
         window_data_path_ecg = os.path.join(DATA_PATH, "interim", "ECG", f"{fs}" 'windowed_data.h5')
-        X_ecg, y_ecg, groups_ecg = load_processed_data(window_data_path, label_map=label_map, ppg_data=True)
+        X_ecg, y_ecg, groups_ecg = load_processed_data(window_data_path_ecg, label_map=label_map, ppg_data=True)
         y_ecg = y_ecg.astype(np.float32)
 
         train_idx_ecg, train_idx_all_ecg, val_idx_ecg, test_idx_ecg = split_indices_by_participant(
@@ -383,5 +383,7 @@ if __name__ == "__main__":
     # tc_timesteps 10 (as I only have feature len of 22 steps with the TSTCC)
 
     args.pretrain_all_conditions = True
+    args.transfer_ecg_representation = True
+    args.force_retraining = True
 
     main(**vars(args))
