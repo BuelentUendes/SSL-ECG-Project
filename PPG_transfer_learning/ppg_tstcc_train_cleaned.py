@@ -362,7 +362,7 @@ if __name__ == "__main__":
                         help="If we want to transfer the learned ECG representation to PPG setup")
 
     args = parser.parse_args()
-
+    # For frequency rate of 64 Hz it should be changed to
+    # tc_timesteps to 10
     args.pretrain_all_conditions = True
-    args.transfer_ecg_representation = True
     main(**vars(args))
