@@ -384,6 +384,5 @@ if __name__ == "__main__":
 
     args.pretrain_all_conditions = True
     args.transfer_ecg_representation = True
-    args.force_retraining = True
 
     main(**vars(args))
