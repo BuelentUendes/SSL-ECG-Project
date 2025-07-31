@@ -118,7 +118,7 @@ def main(
     window_data_path = os.path.join(DATA_PATH, "interim", "PPG", 'windowed_data.h5')
 
     if transfer_ecg_representation:
-        window_data_path_ecg = os.path.join(DATA_PATH, "interim", "ECG", f"{fs}" 'windowed_data.h5')
+        window_data_path_ecg = os.path.join(DATA_PATH, "interim", "ECG", f"{fs}", 'windowed_data.h5')
         X_ecg, y_ecg, groups_ecg = load_processed_data(window_data_path_ecg, label_map=label_map, ppg_data=True)
         y_ecg = y_ecg.astype(np.float32)
 
