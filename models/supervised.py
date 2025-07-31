@@ -39,153 +39,6 @@ class MLPClassifier(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-# ----------------------
-# CNN Model Class
-# ----------------------
-class Simple1DCNN(nn.Module):
-    """
-    A very simple 1D CNN with two convolutional layers and a single dense layer.
-    Intended for quick tests and validation with minimal training time.
-    """
-    def __init__(self):
-        super(Simple1DCNN, self).__init__()
-        # Conv block 1: 1 -> 8 channels
-        self.conv1 = nn.Conv1d(in_channels=1, out_channels=8, kernel_size=3, padding=1)
-        self.pool1 = nn.MaxPool1d(kernel_size=2)
-        # Conv block 2: 8 -> 16 channels
-        self.conv2 = nn.Conv1d(in_channels=8, out_channels=16, kernel_size=3, padding=1)
-        self.pool2 = nn.MaxPool1d(kernel_size=2)
-        # Global average pooling to get a single feature per channel
-        self.gap = nn.AdaptiveAvgPool1d(output_size=1)
-        # Final fully-connected layer for binary classification
-        self.fc1 = nn.Linear(16, 1)
-
-    def forward(self, x):
-        # x shape: (batch_size, 1, sequence_length)
-        x = F.relu(self.conv1(x))
-        x = self.pool1(x)
-        x = F.relu(self.conv2(x))
-        x = self.pool2(x)
-        x = self.gap(x)  # shape: (batch_size, 16, 1)
-        x = x.view(x.size(0), -1)  # flatten to (batch_size, 16)
-        x = torch.sigmoid(self.fc1(x))  # shape: (batch_size, 1)
-        return x
-
-class Simple1DCNN_v2(nn.Module):
-    """
-    A balanced CNN architecture between Simple1DCNN and Improved1DCNN
-    with moderate capacity and regularization for ECG stress classification.
-    """
-    def __init__(self, dropout_rate=0.2):
-        super(Simple1DCNN_v2, self).__init__()
-        self.bn_input = nn.BatchNorm1d(1)
-        
-        # Block 1
-        self.conv1 = nn.Conv1d(1, 16, kernel_size=5, padding=2)
-        self.bn1 = nn.BatchNorm1d(16)
-        self.pool1 = nn.MaxPool1d(kernel_size=4)  # More aggressive pooling
-        self.dropout1 = nn.Dropout(dropout_rate)
-        
-        # Block 2
-        self.conv2 = nn.Conv1d(16, 32, kernel_size=7, padding=3)
-        self.bn2 = nn.BatchNorm1d(32)
-        self.pool2 = nn.MaxPool1d(kernel_size=4)  # More aggressive pooling
-        self.dropout2 = nn.Dropout(dropout_rate)
-        
-        # Global pooling
-        self.gap = nn.AdaptiveAvgPool1d(1)
-        
-        # Classifier
-        self.fc1 = nn.Linear(32, 16)
-        self.dropout3 = nn.Dropout(dropout_rate)
-        self.fc2 = nn.Linear(16, 1)
-    
-    def forward(self, x):
-        # Input normalization
-        x = self.bn_input(x)
-        
-        # Block 1
-        x = F.relu(self.conv1(x))
-        x = self.bn1(x)
-        x = self.pool1(x)
-        x = self.dropout1(x)
-        
-        # Block 2
-        x = F.relu(self.conv2(x))
-        x = self.bn2(x)
-        x = self.pool2(x)
-        x = self.dropout2(x)
-        
-        # Global pooling
-        x = self.gap(x)
-        x = x.view(x.size(0), -1)  # Flatten
-        
-        # Classifier
-        x = F.relu(self.fc1(x))
-        x = self.dropout3(x)
-        x = torch.sigmoid(self.fc2(x))  
-        
-        return x
-    
-class Improved1DCNN(nn.Module):
-    """
-    A more complex 1D CNN model with 3 convolutional blocks with 
-    3-layer classification head with dropout.
-    """
-    def __init__(self):
-        super(Improved1DCNN, self).__init__()
-        self.bn_input = nn.BatchNorm1d(1)
-        # Block 1
-        self.conv1_1 = nn.Conv1d(1, 32, kernel_size=5, padding=2, bias=False)
-        self.conv1_2 = nn.Conv1d(32, 32, kernel_size=5, padding=2)
-        self.pool1 = nn.MaxPool1d(kernel_size=2)
-        self.bn1 = nn.BatchNorm1d(32)
-        self.dropout1 = nn.Dropout(0.2)
-        # Block 2
-        self.conv2_1 = nn.Conv1d(32, 64, kernel_size=5, padding=2, bias=False)
-        self.conv2_2 = nn.Conv1d(64, 64, kernel_size=5, padding=2)
-        self.pool2 = nn.MaxPool1d(kernel_size=2)
-        self.bn2 = nn.BatchNorm1d(64)
-        self.dropout2 = nn.Dropout(0.2)
-        # Block 3
-        self.conv3_1 = nn.Conv1d(64, 128, kernel_size=5, padding=2, bias=False)
-        self.conv3_2 = nn.Conv1d(128, 128, kernel_size=5, padding=2)
-        self.gap = nn.AdaptiveAvgPool1d(1)
-        # Dense layers
-        self.fc1 = nn.Linear(128, 64)
-        self.dropout3 = nn.Dropout(0.4)
-        self.fc2 = nn.Linear(64, 32)
-        self.dropout4 = nn.Dropout(0.4)
-        self.fc3 = nn.Linear(32, 1)
-    
-    def forward(self, x):
-        # Input x: (batch, channels, length)
-        x = self.bn_input(x)
-        # Block 1
-        x = F.relu(self.conv1_1(x))
-        x = F.relu(self.conv1_2(x))
-        x = self.pool1(x)
-        x = self.bn1(x)
-        x = self.dropout1(x)
-        # Block 2
-        x = F.relu(self.conv2_1(x))
-        x = F.relu(self.conv2_2(x))
-        x = self.pool2(x)
-        x = self.bn2(x)
-        x = self.dropout2(x)
-        # Block 3
-        x = F.relu(self.conv3_1(x))
-        x = F.relu(self.conv3_2(x))
-        x = self.gap(x)  # shape: (batch, 128, 1)
-        x = x.view(x.size(0), -1)  # flatten to (batch, 128)
-        # Dense layers
-        x = F.relu(self.fc1(x))
-        x = self.dropout3(x)
-        x = F.relu(self.fc2(x))
-        x = self.dropout4(x)
-        x = torch.sigmoid(self.fc3(x))
-        return x
-
 
 # from: Sarkar, P., Etemad, A.: Self-Supervised ECG Representation Learning for Emotion Recognition. 
 # IEEE Transactions on Affective Computing \textbf{13}(3), 1541--1554 (2020). \doi{10.1109/TAFFC.2020.3014842}
@@ -299,7 +152,6 @@ class Improved1DCNN_v2(nn.Module):
         x = F.gelu(self.fc2(x))
         x = self.dropout4(x)
         x = self.fc3(x)
-        #x = torch.sigmoid(self.fc3(x))
         return x
     
 # ----------------------
@@ -430,9 +282,6 @@ class TransformerECGClassifier(nn.Module):
         x = self.dropout_fc2(x)
         x = self.fc3(x)
         return x
-        # Sigmoid activation for binary classification
-        #return torch.sigmoid(x)
-
 
 # adapted from: Ingolfsson, T.M., Wang, X., Hersche, M., Burrello, A., Cavigelli, L., Benini, L.: 
 # ECG-TCN: Wearable Cardiac Arrhythmia Detection with a Temporal Convolutional Network. 
@@ -554,7 +403,6 @@ class TCNClassifier(nn.Module):
         # Flatten and classify
         x = x.flatten(1)
         x = self.linear(x)
-        #return torch.sigmoid(x)
         return x
     
 
@@ -674,3 +522,96 @@ def xresnet1d101(num_classes=1, in_channels=1):
     For ResNet101, the block configuration is [3, 4, 23, 3] using Bottleneck1D blocks.
     """
     return XResNet1D(Bottleneck1D, [3, 4, 23, 3], num_classes=num_classes, in_channels=in_channels)
+
+
+class DilatedCNN(nn.Module):
+    """
+    Dilated CNN for ECG-based stress detection as specified in the architecture.
+    Architecture based on: https://ietresearch.onlinelibrary.wiley.com/doi/epdf/10.1049/wss2.70004
+
+    Architecture:
+    - Input: (batch_size, 1, 640) - 1D ECG signal
+    - 8 Dilated Conv1D layers with increasing filters and dilation rates
+    - Batch normalization and dropout after each conv layer
+    - Global max pooling
+    - Dense output layer with sigmoid activation
+    """
+
+    def __init__(self):
+        super(DilatedCNN, self).__init__()
+
+        # Architecture parameters
+        self.num_filters = [16, 32, 64, 96, 128, 256, 320, 512]
+        self.kernel_size = 8
+        self.dilation_rates = [1, 2, 4, 8, 16, 32, 64, 128]
+        self.dropout_rate = 0.5
+        self.num_classes = 1 #Binary classification
+
+        # Build the convolutional layers
+        self.conv_layers = nn.ModuleList()
+        self.bn_layers = nn.ModuleList()
+        self.dropout_layers = nn.ModuleList()
+
+        # Input has 1 channel (single ECG signal)
+        in_channels = 1
+
+        for i in range(8):  # 8 convolutional layers
+            # Dilated 1D Convolution
+            conv = nn.Conv1d(
+                in_channels=in_channels,
+                out_channels=self.num_filters[i],
+                kernel_size=self.kernel_size,
+                dilation=self.dilation_rates[i],
+                padding='same'  # Keep same length
+            )
+
+            # Batch Normalization
+            bn = nn.BatchNorm1d(self.num_filters[i])
+
+            # Dropout
+            dropout = nn.Dropout(self.dropout_rate)
+
+            self.conv_layers.append(conv)
+            self.bn_layers.append(bn)
+            self.dropout_layers.append(dropout)
+
+            # Update input channels for next layer
+            in_channels = self.num_filters[i]
+
+        # ReLU activation
+        self.relu = nn.ReLU()
+
+        # Global Max Pooling 1D
+        self.global_max_pool = nn.AdaptiveMaxPool1d(1)
+
+        # Dense output layer
+        self.output_layer = nn.Linear(self.num_filters[-1], self.num_classes)
+
+    def forward(self, x):
+        """
+        Forward pass through the network.
+
+        Args:
+            x: Input tensor of shape (batch_size, 1, 640)
+
+        Returns:
+            Output tensor of shape (batch_size, 1) with sigmoid activation
+        """
+        # Pass through all 8 convolutional blocks
+        for i in range(8):
+            # Conv1D -> BatchNorm -> ReLU -> Dropout
+            x = self.conv_layers[i](x)
+            x = self.bn_layers[i](x)
+            x = self.relu(x)
+            x = self.dropout_layers[i](x)
+
+        # Global Max Pooling: (batch_size, 512, seq_len) -> (batch_size, 512, 1)
+        x = self.global_max_pool(x)
+
+        # Flatten: (batch_size, 512, 1) -> (batch_size, 512)
+        x = x.squeeze(-1)
+
+        # Dense output layer - raw logits for BCEWithLogitsLoss
+        x = self.output_layer(x)
+
+        return x
