@@ -72,6 +72,7 @@ def main(
         "cnn": "Supervised_CNN (PPG)",
         "tcn": "Supervised_TCN (PPG)",
         "transformer": "Supervised_Transformer (PPG)",
+        "dilated_cnn": "Supervised Dilated CNN (PPG)"
     }
     experiment_name = exp_map.get(model_type.lower())
     if experiment_name is None:
