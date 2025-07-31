@@ -117,6 +117,15 @@ def main(
     # Data path
     window_data_path = os.path.join(DATA_PATH, "interim", "PPG", 'windowed_data.h5')
 
+    if transfer_ecg_representation:
+        window_data_path_ecg = os.path.join(DATA_PATH, "interim", "ECG", f"{fs}" 'windowed_data.h5')
+        X_ecg, y_ecg, groups_ecg = load_processed_data(window_data_path, label_map=label_map, ppg_data=True)
+        y_ecg = y_ecg.astype(np.float32)
+
+        train_idx_ecg, train_idx_all_ecg, val_idx_ecg, test_idx_ecg = split_indices_by_participant(
+            groups_ecg, label_fraction=label_fraction, self_supervised_method=True, seed=seed
+        )
+
     X, y, groups = load_processed_data(window_data_path, label_map=label_map, ppg_data=True)
     y = y.astype(np.float32)
 
@@ -201,13 +210,25 @@ def main(
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
 
         # data loaders
-        Xtr = X[train_idx_all].astype(np.float32)
-        Xva = X[val_idx].astype(np.float32)
-        Xte = X[test_idx].astype(np.float32)
-        tr_dl, va_dl, te_dl = data_generator_from_arrays(
-            Xtr, y[train_idx_all], Xva, y[val_idx], Xte, y[test_idx],
-            cfg, training_mode="self_supervised"
-        )
+        if transfer_ecg_representation:
+            Xtr = X_ecg[train_idx_all_ecg].astype(np.float32)
+            Xva = X_ecg[val_idx_ecg].astype(np.float32)
+            Xte = X_ecg[test_idx_ecg].astype(np.float32)
+
+            tr_dl, va_dl, te_dl = data_generator_from_arrays(
+                Xtr, y_ecg[train_idx_all_ecg], Xva, y_ecg[val_idx_ecg], Xte, y_ecg[test_idx_ecg],
+                cfg, training_mode="self_supervised"
+            )
+
+        else:
+            Xtr = X[train_idx_all].astype(np.float32)
+            Xva = X[val_idx].astype(np.float32)
+            Xte = X[test_idx].astype(np.float32)
+
+            tr_dl, va_dl, te_dl = data_generator_from_arrays(
+                Xtr, y[train_idx_all], Xva, y[val_idx], Xte, y[test_idx],
+                cfg, training_mode="self_supervised"
+            )
 
         # models & optimizers
         model   = base_Model(cfg).to(device)
