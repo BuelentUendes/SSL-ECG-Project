@@ -98,7 +98,7 @@ def main(
     model_save_path = os.path.join(SAVED_MODELS_PATH, "PPG", str(fs), "TSTCC", pretrain_data, f"{seed}")
 
     # ToDo: We need to set the fs_ecg and so we can choose pre-trained 640 or 10,000
-    ecg_model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG", str(1000), "TSTCC", pretrain_data, f"{seed}")
+    ecg_model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC", pretrain_data, f"{seed}")
 
     create_directory(model_save_path)
     create_directory(ecg_model_save_path)
@@ -362,4 +362,5 @@ if __name__ == "__main__":
     # tc_timesteps 10 (as I only have feature len of 22 steps with the TSTCC)
 
     args.pretrain_all_conditions = True
+
     main(**vars(args))
