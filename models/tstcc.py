@@ -168,7 +168,8 @@ def build_linear_loaders(
         torch.from_numpy(X_repr).float().to(device),
         torch.from_numpy(y).float().to(device)
     )
-    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle)
+    # We use drop last to prevent empty batches!
+    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, drop_last=True)
 
 # ----------------------------------------------------------------------
 # loss.py
