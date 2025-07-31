@@ -427,6 +427,7 @@ class base_Model(nn.Module):
         )
 
         model_output_dim = configs.features_len
+        input_dim = model_output_dim * configs.final_out_channels
         self.logits = nn.Linear(model_output_dim * configs.final_out_channels, configs.num_classes)
 
     def forward(self, x_in):
@@ -747,6 +748,45 @@ class Config(object):
         self.augmentation        = augmentations()
 
 
+class PPGConfig(object):
+    """
+    Hyper-parameters tuned for windowed ECG segments
+    (shape = [N, 640, 1])
+    """
+    def __init__(self):
+
+        # ─────────────────── CNN encoder ────────────────────
+        self.input_channels      = 1         # PPG is univariate
+        self.kernel_size         = 8        # same as pFD → good for long series
+        self.stride              = 1
+        self.final_out_channels  = 128       # feature maps after last conv
+        self.dropout             = 0.35
+
+        # Length of the sequence that reaches the projection head
+        # 10 000 → 315 after the conv + pool stack
+        self.features_len        = 82
+        self.num_classes         = 2
+
+        # ─────────────────── Training ───────────────────────
+        self.num_epoch           = 40
+
+        # Optimiser
+        self.beta1, self.beta2   = 0.9, 0.99
+        self.lr                  = 3e-4
+
+        # Data loader
+        self.batch_size          = 64
+        self.drop_last           = True      # match original repo
+
+        # ─────────────────── SSL blocks ─────────────────────
+        # Contextual contrastive loss
+        self.Context_Cont        = Context_Cont_configs()
+        # Temporal contrasting
+        self.TC                  = TCConfig()      # hidden=100, timesteps=50
+        # Data augmentations
+        self.augmentation        = augmentations()
+
+
 class augmentations(object):
     """
     ECG is quite sensitive to amplitude changes; we therefore keep
@@ -983,6 +1023,7 @@ def encode_representations(X, y, model, temporal_contr_model, tcc_batch_size, de
             xb = xb.to(device)
             if xb.shape.index(min(xb.shape)) != 1:
                 xb = xb.permute(0, 2, 1)
+                # The xb is now in B, D, T
             # conv encoder
             _, feats = model(xb)
             feats = F.normalize(feats, dim=1)
