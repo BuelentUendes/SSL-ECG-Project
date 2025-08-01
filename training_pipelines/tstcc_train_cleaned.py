@@ -161,7 +161,7 @@ def main(
         cfg = ECGConfig()
 
         #ToDo: make it automatic!
-        if fs == 700:
+        if int(fs) == 700:
             cfg.features_len = 221
 
         cfg.num_epoch = tcc_epochs
@@ -182,7 +182,7 @@ def main(
         cfg = ECGConfig()
 
         #ToDo: make it automatic!
-        if fs == 700:
+        if int(fs) == 700:
             cfg.features_len = 221
 
         cfg.num_epoch = tcc_epochs
