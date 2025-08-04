@@ -32,6 +32,7 @@ from models.tstcc import (
     base_Model,
     TC,
     Config as ECGConfig,
+    PPGConfig,
     encode_representations,
     show_shape,
     build_tstcc_fingerprint,
@@ -162,7 +163,7 @@ def main(
             ckpt_path = os.path.join(model_save_path, "tstcc.pt")
 
         # rebuild model
-        cfg = ECGConfig()
+        cfg = ECGConfig() if modality == "ECG" else PPGConfig()
 
         #ToDo: make it automatic!
         if int(fs) == 700:
@@ -183,7 +184,8 @@ def main(
 
     else:
         print("No cached encoder; training TS-TCC from scratch")
-        cfg = ECGConfig()
+        # rebuild model
+        cfg = ECGConfig() if modality == "ECG" else PPGConfig()
 
         #ToDo: make it automatic!
         if int(fs) == 700:
