@@ -270,6 +270,7 @@ def main(
                                      classifier_batch_size, device)
     va_loader = build_linear_loaders(val_repr, y_val,
                                      classifier_batch_size, device,
+                                     drop_last=True,
                                      shuffle=False)
 
     if classifier_model == "linear":
