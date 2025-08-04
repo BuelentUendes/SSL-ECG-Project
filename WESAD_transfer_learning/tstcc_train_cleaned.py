@@ -268,7 +268,7 @@ def main(
     set_seed(seed)
     tr_loader = build_linear_loaders(train_repr, y_train,
                                      classifier_batch_size,
-                                     drop_last=True,
+                                     drop_last=False,
                                      device=device)
     va_loader = build_linear_loaders(val_repr, y_val,
                                      classifier_batch_size, device,
@@ -339,8 +339,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TS-TCC Training Pipeline (cleaned)")
     parser.add_argument("--mlflow_tracking_uri",
                         default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
-    parser.add_argument("--fs", default=700, type=str, help="What sample frequency used for training")
-    parser.add_argument("--modality", choices=("BVP", "ECG"), default="ECG",
+    parser.add_argument("--fs", default=64, type=str, help="What sample frequency used for training")
+    parser.add_argument("--modality", choices=("BVP", "ECG"), default="BVP",
                         help="What physiological sensor to use for the WESAD datasets")
     parser.add_argument("--gpu",                 type=int, default=0)
     parser.add_argument("--seed",                type=int,   default=42)
