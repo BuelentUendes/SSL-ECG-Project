@@ -208,7 +208,7 @@ def main(args):
         process_save_cleaned_data_ppg(RAW_H5, CLEAN_H5, fs=args.fs, )
 
     normalize_cleaned_data(CLEAN_H5, NORM_H5)
-    segment_data_into_windows(NORM_H5, WIN_H5, fs=700, window_size=args.window_size, step_size=args.step_size)
+    segment_data_into_windows(NORM_H5, WIN_H5, fs=args.fs, window_size=args.window_size, step_size=args.step_size)
 
 # ────────────────────────────────────────────────────────────────
 # main script for preprocessing of the WESAD dataset
@@ -235,6 +235,7 @@ if __name__ == "__main__":
         "--placement",
         help="Where is the sensor placed? chest or wrist",
         default="chest",
+        choices=("chest", "wrist"),
         type=str,
     )
 
