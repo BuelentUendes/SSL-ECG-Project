@@ -267,7 +267,9 @@ def main(
     # ── Step 4: Classifier Fine‑Tuning ──────────────────────────────────────────
     set_seed(seed)
     tr_loader = build_linear_loaders(train_repr, y_train,
-                                     classifier_batch_size, device)
+                                     classifier_batch_size,
+                                     drop_last=True,
+                                     device=device)
     va_loader = build_linear_loaders(val_repr, y_val,
                                      classifier_batch_size, device,
                                      drop_last=True,
@@ -304,7 +306,8 @@ def main(
 
     # ── Step 5: Evaluation ──────────────────────────────────────────────────────
     te_loader = build_linear_loaders(test_repr, y_test,
-                                     classifier_batch_size, device,
+                                     classifier_batch_size, device=device,
+                                     drop_last=True,
                                      shuffle=False)
 
     acc, auroc, pr_auc, f1 = evaluate_classifier(
