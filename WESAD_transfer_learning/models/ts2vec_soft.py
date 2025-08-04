@@ -1438,7 +1438,7 @@ def evaluate_classifier(
     with torch.no_grad():
         for X, y in test_loader:
             X, y = X.to(device), y.to(device)
-            logits = model(X).squeeze()
+            logits = model(X).squeeze(-1)
             probs  = torch.sigmoid(logits)
 
             if loss_fn is not None:
