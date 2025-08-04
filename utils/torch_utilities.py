@@ -55,7 +55,7 @@ def search_encoder_fp(fp: dict[str, str], experiment_name: str,
                               max_results=1)
     return None if hits.empty else hits.iloc[0]["run_id"]
 
-def load_processed_data(hdf5_path, label_map=None, ppg_data=False):
+def load_processed_data(hdf5_path, label_map=None, ppg_data=False, domain_features=False):
     """
     Load windowed ECG data from an HDF5 file.
     if ppg_data: option to process also stored PPG data
@@ -102,7 +102,8 @@ def load_processed_data(hdf5_path, label_map=None, ppg_data=False):
     groups = np.concatenate(groups_list, axis=0)
 
     # Expand dims for CNN: (N, window_length, 1)
-    X = np.expand_dims(X, axis=-1)
+    if not domain_features:
+        X = np.expand_dims(X, axis=-1)
     return X, y, groups
 
 
@@ -564,3 +565,83 @@ def train_classifier_for_optuna(classifier, train_loader, val_loader, optimizer,
             break
 
     return best_val_score
+
+
+# Utility functions to calculate the output dimensions of Conv Architectures automatically
+
+# Calculate automatically the output sizes of a Conv architecture
+def calculate_conv1d_output_size(input_size, kernel_size, stride, padding):
+    """Calculate output size for Conv1d layer"""
+    return math.floor((input_size + 2 * padding - kernel_size) / stride) + 1
+
+def calculate_maxpool1d_output_size(input_size, kernel_size, stride, padding):
+    """Calculate output size for MaxPool1d layer"""
+    return math.floor((input_size + 2 * padding - kernel_size) / stride) + 1
+
+def calculate_model_output_dims_flexible(input_length, layer_configs, final_out_channels):
+    """
+    Calculate output dimensions through variable number of conv blocks
+
+    Args:
+        input_length: Input sequence length
+        layer_configs: List of layer configurations. Each config is a dict with:
+                      - 'type': 'conv' or 'maxpool'
+                      - 'kernel_size': kernel size
+                      - 'stride': stride
+                      - 'padding': padding (or 'auto' for conv layers)
+                      - 'name': optional name for tracking
+        final_out_channels: Number of output channels from final conv layer
+
+    Returns:
+        dict: Dictionary with dimensions after each layer
+
+    Example layer_configs:
+    [
+        {'type': 'conv', 'kernel_size': 32, 'stride': 4, 'padding': 'auto', 'name': 'conv1'},
+        {'type': 'maxpool', 'kernel_size': 2, 'stride': 2, 'padding': 1, 'name': 'maxpool1'},
+        {'type': 'conv', 'kernel_size': 8, 'stride': 1, 'padding': 4, 'name': 'conv2'},
+        {'type': 'maxpool', 'kernel_size': 2, 'stride': 2, 'padding': 1, 'name': 'maxpool2'},
+    ]
+    """
+
+    current_length = input_length
+    dims_history = {'input': current_length}
+
+    for i, layer_config in enumerate(layer_configs):
+        layer_type = layer_config['type']
+        kernel_size = layer_config['kernel_size']
+        stride = layer_config['stride']
+        padding = layer_config['padding']
+
+        # Generate layer name if not provided
+        if 'name' in layer_config:
+            layer_name = layer_config['name']
+        else:
+            layer_name = f"{layer_type}_{i + 1}"
+
+        if layer_type == 'conv':
+            # Handle auto padding (kernel_size // 2)
+            if padding == 'auto':
+                padding = kernel_size // 2
+
+            current_length = calculate_conv1d_output_size(
+                current_length, kernel_size, stride, padding
+            )
+
+        elif layer_type == 'maxpool':
+            current_length = calculate_maxpool1d_output_size(
+                current_length, kernel_size, stride, padding
+            )
+
+        else:
+            raise ValueError(f"Unknown layer type: {layer_type}")
+
+        dims_history[layer_name] = current_length
+
+    # Final dimensions
+    dims_history['final_features_len'] = current_length
+    dims_history['final_channels'] = final_out_channels
+    dims_history['flattened_size'] = current_length * final_out_channels
+
+    return dims_history
+
