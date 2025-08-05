@@ -3,6 +3,7 @@
 ###
 
 import os
+import json
 import gc
 import argparse
 
@@ -15,7 +16,7 @@ import mlflow.pytorch
 
 from torch.utils.data import DataLoader
 
-from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH
+from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
 from utils.torch_utilities import (
     load_processed_data,
@@ -80,10 +81,14 @@ def main(
 
     # Check if directory for saving model parameters exist, otherwise create it
     create_directory(SAVED_MODELS_PATH)
+    create_directory(RESULTS_PATH)
 
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG", str(fs), f"{model_type}", f"{seed}", f"{label_fraction}")
+    results_save_path = os.path.join(RESULTS_PATH, "ECG", "Supervised", model_type, f"{seed}", f"{label_fraction}")
+
     create_directory(model_save_path)
+    create_directory(results_save_path)
 
     # Data path
     window_data_path = os.path.join(DATA_PATH, "interim", "ECG", str(fs), 'windowed_data.h5')
@@ -218,6 +223,12 @@ def main(
         model, test_loader, device,
         threshold=best_t, loss_fn=loss_fn,
     )
+
+
+    with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+        classification_results = {"accuracy": acc,"auroc": auroc, "pr_auc": prauc, "f1": f1}
+        json.dump(classification_results, f)
+
     print(f"Test acc: {acc:.4f}, AUROC: {auroc:.4f}, F1: {f1:.4f}")
     mlflow.log_metrics({"test_loss": loss, "test_acc": acc, "test_auroc": auroc, "test_f1": f1})
 
