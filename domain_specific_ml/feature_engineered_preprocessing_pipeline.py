@@ -1,5 +1,6 @@
 import os, glob, h5py
 import argparse
+from pyexpat import features
 
 import numpy as np
 import pandas as pd
@@ -71,6 +72,11 @@ def csv_to_hdf5(root_dir, out_h5):
                     # I i should drop category and label and store the segment as npflot (it is a df of 687, 19) then
                     # Drop category and label columns, then convert to numpy
                     segment_df = labeled_segment_df.drop(columns=['category', 'label'])
+                    feature_names = list(segment_df.columns)
+
+                    # Add feature names as attribute to participant group, for later as we then want to normalize the features
+                    participant_group.attrs['feature_names'] = feature_names
+
                     segment = segment_df.to_numpy()
 
                     # Create or get category group under participant
