@@ -62,6 +62,8 @@ def main(
     classifier_lr: float,
     classifier_batch_size: int,
     label_fraction: float,
+    transfer_ECG: bool,
+    zero_shot: bool,
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -92,7 +94,12 @@ def main(
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
 
-    model_save_path = os.path.join(SAVED_MODELS_PATH, "WESAD", f"{modality}", str(fs), "TSTCC", pretrain_data, f"{seed}")
+    if not transfer_ECG:
+        model_save_path = os.path.join(SAVED_MODELS_PATH, "WESAD", f"{modality}", str(fs), "TSTCC", pretrain_data, f"{seed}")
+
+    else:
+        model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC", pretrain_data, f"{seed}")
+
     create_directory(model_save_path)
 
     # 0 = not defined / transient, 1 = baseline, 2 = stress, 3 = amusement, 4 = meditation,
@@ -296,11 +303,12 @@ def main(
     # Do hyperparameter-tuning of hidden dimension, lr? dropout rate?
 
     # train & get best threshold
-    classifier, best_thr = train_linear_classifier(
-        classifier, tr_loader, va_loader,
-        opt_clf, loss_fn,
-        classifier_epochs, device
-    )
+    if not zero_shot:
+        classifier, best_thr = train_linear_classifier(
+            classifier, tr_loader, va_loader,
+            opt_clf, loss_fn,
+            classifier_epochs, device
+        )
 
     # train & get best threshold
 
@@ -358,7 +366,15 @@ if __name__ == "__main__":
     parser.add_argument("--classifier_lr",       type=float, default=1e-4)
     parser.add_argument("--classifier_batch_size", type=int, default=32)
     parser.add_argument("--label_fraction",      type=float, default=0.1)
+    parser.add_argument("--transfer_ECG", action="store_true",
+                        help="If set, we transfer the learned ECG representations to the WESAD case")
+    parser.add_argument("--zero_shot", action="store_true",
+                        help="if set, and transfer_ECG is set, we do zero-shot transfer.")
 
     args = parser.parse_args()
+
+    #ToDo:
+    # Add the leaned classifier on the ECG data for the zero-shot transfer!
+    # So we fine-tune then the linear classifier that was already trained on the ECG (but this might be less interesting!)
 
     main(**vars(args))
