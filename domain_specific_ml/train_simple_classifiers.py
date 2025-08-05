@@ -14,6 +14,7 @@ import mlflow
 import mlflow.pytorch
 import optuna
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, QuantileTransformer
 
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
@@ -47,10 +48,42 @@ def create_data_loaders(X, y, batch_size, device, shuffle=True):
     return loader
 
 
-def prepare_features(X):
-    """Prepare features for baseline models (already flattened)"""
-    # X shape: (n_samples, num_features) - already in the right format
-    return X
+def standardize_features(X_train, X_val, X_test, feature_names):
+    # Initialize scalers
+    standard_scaler = StandardScaler()
+    minmax_scaler = MinMaxScaler()
+
+    # Create copies to avoid modifying original data
+    X_train_scaled = X_train.copy()
+    X_val_scaled = X_val.copy()
+    X_test_scaled = X_test.copy()
+
+    # Identify nn20 and nn50 indices
+    nn_indices = []
+    standard_indices = []
+
+    for i, name in enumerate(feature_names):
+        if name.lower() == 'nn20' or  name.lower() == 'nn50':
+            nn_indices.append(i)
+        else:
+            standard_indices.append(i)
+
+    # Apply StandardScaler to most features (fit only on train)
+    if standard_indices:
+        standard_scaler.fit(X_train[:, standard_indices])
+        X_train_scaled[:, standard_indices] = standard_scaler.transform(X_train[:, standard_indices])
+        X_val_scaled[:, standard_indices] = standard_scaler.transform(X_val[:, standard_indices])
+        X_test_scaled[:, standard_indices] = standard_scaler.transform(X_test[:, standard_indices])
+
+    # Apply MinMaxScaler to nn20/nn50 features (fit only on train)
+    if nn_indices:
+        minmax_scaler.fit(X_train[:, nn_indices])
+        X_train_scaled[:, nn_indices] = minmax_scaler.transform(X_train[:, nn_indices])
+        X_val_scaled[:, nn_indices] = minmax_scaler.transform(X_val[:, nn_indices])
+        X_test_scaled[:, nn_indices] = minmax_scaler.transform(X_test[:, nn_indices])
+
+    return X_train_scaled, X_val_scaled, X_test_scaled
+
 
 
 def optuna_objective(trial, X_train, y_train, X_val, y_val,
@@ -142,7 +175,7 @@ def main(
     # Data Path
     window_data_path = os.path.join(DATA_PATH, "interim", "ECG_features",'windowed_data.h5')
 
-    X, y, groups = load_processed_data(window_data_path, label_map=label_map, domain_features=True)
+    X, y, groups, feature_names = load_processed_data(window_data_path, label_map=label_map, domain_features=True)
     y = y.astype(np.float32)
 
     # Split data by participant
@@ -165,6 +198,8 @@ def main(
     y_val = y[val_idx][downstream_mask["val"]]
     X_test = X[test_idx][downstream_mask["test"]]
     y_test = y[test_idx][downstream_mask["test"]]
+
+    X_train, X_val, X_test = standardize_features(X_train, X_val, X_test, feature_names)
 
     print(f"Train samples: {len(X_train)}, Val samples: {len(X_val)}, Test samples: {len(X_test)}")
     print(f"Input shape: {X_train.shape}")
