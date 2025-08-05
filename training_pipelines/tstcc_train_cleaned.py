@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import json
 import sys
 import argparse
 import logging
@@ -22,7 +23,7 @@ from utils.torch_utilities import (
     create_directory,
 )
 
-from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH
+from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
 from models.tstcc import (
     data_generator_from_arrays,
@@ -86,12 +87,16 @@ def main(
 
     # Check if directory for saving model parameters exist, otherwise create it
     create_directory(SAVED_MODELS_PATH)
+    create_directory(RESULTS_PATH)
 
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
 
     model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC", pretrain_data, f"{seed}")
+    results_save_path = os.path.join(RESULTS_PATH, "ECG", "TSTCC", classifier_model, f"{seed}", f"{label_fraction}")
+
     create_directory(model_save_path)
+    create_directory(results_save_path)
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
     if pretrain_all_conditions:
@@ -307,6 +312,10 @@ def main(
         threshold=best_thr,
         loss_fn=loss_fn,
     )
+
+    with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+        classification_results = {"accuracy": acc,"auroc": auroc, "pr_auc": pr_auc, "f1": f1}
+        json.dump(classification_results, f)
 
     mlflow.log_metrics({
         "test_accuracy": acc,
