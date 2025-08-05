@@ -55,7 +55,12 @@ def search_encoder_fp(fp: dict[str, str], experiment_name: str,
                               max_results=1)
     return None if hits.empty else hits.iloc[0]["run_id"]
 
-def load_processed_data(hdf5_path, label_map=None, ppg_data=False, domain_features=False):
+def load_processed_data(
+        hdf5_path,
+        label_map=None,
+        ppg_data=False,
+        domain_features=False
+):
     """
     Load windowed ECG data from an HDF5 file.
     if ppg_data: option to process also stored PPG data
@@ -70,6 +75,11 @@ def load_processed_data(hdf5_path, label_map=None, ppg_data=False, domain_featur
     X_list, y_list, groups_list = [], [], []
     with h5py.File(hdf5_path, "r") as f:
         participants = list(f.keys())
+
+        if domain_features:
+        # Extract feature names from first participant
+            feature_names = f[participants[0]].attrs['feature_names']
+
         for participant_key in participants:
             if ppg_data:
                 participant_id = participant_key.replace("P", "").replace("_empatica", "")
@@ -104,7 +114,12 @@ def load_processed_data(hdf5_path, label_map=None, ppg_data=False, domain_featur
     # Expand dims for CNN: (N, window_length, 1)
     if not domain_features:
         X = np.expand_dims(X, axis=-1)
+
+    if domain_features:
+        return X, y, groups, feature_names
+
     return X, y, groups
+
 
 
 def split_data_by_participant(X, y, groups, train_ratio=0.6, val_ratio=0.2, seed=42):
