@@ -394,7 +394,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--classifier_model", type=str, default="linear",
                         choices=("linear", "mlp", "logistic_regression"))
-    parser.add_argument("--classifier_epochs", type=int, default=1)
+    parser.add_argument("--classifier_epochs", type=int, default=25)
     parser.add_argument("--classifier_lr", type=float, default=1e-4)
     parser.add_argument("--classifier_batch_size", type=int, default=32)
     parser.add_argument("--label_fraction", type=float, default=1.0)
