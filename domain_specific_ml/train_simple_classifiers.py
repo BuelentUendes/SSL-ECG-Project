@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import json
 import sys
 import argparse
 import logging
@@ -29,7 +30,7 @@ from utils.torch_utilities import (
     train_classifier_for_optuna,
 )
 
-from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH
+from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
 from models.supervised import LinearClassifier, MLPClassifier
 from models.tstcc import (
@@ -166,9 +167,13 @@ def main(
 
     # Check if directory for saving model parameters exist, otherwise create it
     create_directory(SAVED_MODELS_PATH)
+    create_directory(RESULTS_PATH)
 
     model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG_features", str(fs), "Feature_based_classifiers", classifier_model, f"{seed}")
+    results_save_path = os.path.join(RESULTS_PATH, "ECG_features", classifier_model, f"{seed}", f"{label_fraction}")
+
     create_directory(model_save_path)
+    create_directory(results_save_path)
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
     # Binary classification: baseline vs mental stress
@@ -358,6 +363,10 @@ def main(
         loss_fn=loss_fn,
     )
 
+    with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+        classification_results = {"accuracy": acc,"auroc": auroc, "pr_auc": pr_auc, "f1": f1}
+        json.dump(classification_results, f)
+
     mlflow.log_metrics({
         "test_accuracy": acc,
         "test_auroc": auroc,
@@ -385,7 +394,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--classifier_model", type=str, default="linear",
                         choices=("linear", "mlp", "logistic_regression"))
-    parser.add_argument("--classifier_epochs", type=int, default=25)
+    parser.add_argument("--classifier_epochs", type=int, default=1)
     parser.add_argument("--classifier_lr", type=float, default=1e-4)
     parser.add_argument("--classifier_batch_size", type=int, default=32)
     parser.add_argument("--label_fraction", type=float, default=1.0)
