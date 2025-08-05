@@ -13,7 +13,9 @@ import torch.optim as optim
 import mlflow
 import mlflow.pytorch
 import optuna
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+from sklearn.metrics import average_precision_score
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, QuantileTransformer
 
 from torch.utils.data import DataLoader, TensorDataset
@@ -201,6 +203,14 @@ def main(
 
     X_train, X_val, X_test = standardize_features(X_train, X_val, X_test, feature_names)
 
+    # Shuffle all data here X_train!
+    # After standardization, shuffle training data
+    shuffle_idx = np.random.RandomState(seed).permutation(len(X_train))
+    X_train = X_train[shuffle_idx]
+    y_train = y_train[shuffle_idx]
+
+    print(f"Training data shuffled with seed {seed}")
+
     print(f"Train samples: {len(X_train)}, Val samples: {len(X_val)}, Test samples: {len(X_test)}")
     print(f"Input shape: {X_train.shape}")
 
@@ -265,6 +275,26 @@ def main(
         # Use default parameters without hyperparameter tuning
         if classifier_model == "linear":
             classifier = LinearClassifier(input_dim).to(device)
+
+        elif classifier_model == "logistic_regression":
+            classifier_model = LogisticRegression(C=0.17261329421352023)
+            classifier_model.fit(X_train, y_train)
+
+            # Evaluate on test set: AUROC
+            y_test_proba = classifier_model.predict_proba(X_test)[:, 1]  # Get probabilities for positive class
+            y_test_pred = classifier_model.predict(X_test)  # Get binary predictions
+
+            # Calculate metrics
+            acc = accuracy_score(y_test, y_test_pred)
+            auroc = roc_auc_score(y_test, y_test_proba)
+            f1 = f1_score(y_test, y_test_pred)
+            pr_auc = average_precision_score(y_test, y_test_proba)
+
+            print(f"Test Accuracy: {acc:.4f}")
+            print(f"Test AUROC: {auroc:.4f}")
+            print(f"Test F1: {f1:.4f}")
+            print(f"Test PR-AUC: {pr_auc:.4f}")
+
         else:
             classifier = MLPClassifier(input_dim).to(device)
 
@@ -353,11 +383,12 @@ if __name__ == "__main__":
     parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--classifier_model", type=str, default="linear", choices=("linear", "mlp"))
+    parser.add_argument("--classifier_model", type=str, default="linear",
+                        choices=("linear", "mlp", "logistic_regression"))
     parser.add_argument("--classifier_epochs", type=int, default=25)
     parser.add_argument("--classifier_lr", type=float, default=1e-4)
     parser.add_argument("--classifier_batch_size", type=int, default=32)
-    parser.add_argument("--label_fraction", type=float, default=0.1)
+    parser.add_argument("--label_fraction", type=float, default=1.0)
 
     parser.add_argument("--do_hyperparameter_tuning", action="store_true",
                         help="Enable hyperparameter tuning with Optuna")
