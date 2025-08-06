@@ -106,7 +106,7 @@ def csv_to_hdf5(root_dir, out_h5):
 
 def main(args):
     # Setup the pipeline
-    ECG_FEATURES_SAVE_PATH = os.path.join(DATA_PATH, "interim","ECG_features")
+    ECG_FEATURES_SAVE_PATH = os.path.join(DATA_PATH, "interim","ECG_features", str(args.window_size))
     create_directory(ECG_FEATURES_SAVE_PATH)
 
     ROOT_DIR        = os.path.join(DATA_PATH, "features", f"{str(args.fs)}", str(args.window_size), str(args.step_size))
@@ -133,13 +133,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--window_size",
         help="Size of each window (seconds)",
-        default=10,
+        default=30,
         type=int
     )
     parser.add_argument(
         "--step_size",
         help="Stride between windows (seconds)",
-        default=5,
+        default=10,
         type=int
     )
 
