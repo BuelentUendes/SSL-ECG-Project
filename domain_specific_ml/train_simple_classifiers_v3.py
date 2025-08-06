@@ -12,8 +12,6 @@ import mlflow
 import mlflow.pytorch
 
 from sklearn.linear_model import LogisticRegression
-from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import KNNImputer, IterativeImputer
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from sklearn.metrics import average_precision_score
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
@@ -454,62 +452,77 @@ def run_mlp_with_cv_and_test(X_train, y_train, groups_train, X_test, y_test,
     best_params = None
     best_cv_score = 0
 
+    default_best_params = {
+        'hidden_dim': 16,
+        'dropout': 0.2,
+    }
+
     print("Running manual CV for MLP hyperparameters...")
 
-    # Manual grid search (since sklearn GridSearchCV doesn't work with PyTorch)
-    for hidden_dim in hidden_dims:
-        for dropout_rate in dropout_rates:
-            print(f"Testing hidden_dim={hidden_dim}, dropout={dropout_rate}")
+    if cv_splitter is None:
+        print("cv_splitter is None (single participant). Using default best parameters...")
+        print(f"Default parameters: {default_best_params}")
 
-            fold_scores = []
+        cv_results = None
+        best_model = None
+        best_params = default_best_params
+        best_cv_score = 0.0
 
-            # Run CV for this parameter combination
-            for fold, (train_idx, val_idx) in enumerate(cv_splitter.split(X_train_scaled, y_train, groups_train)):
-                X_fold_train, X_fold_val = X_train_scaled[train_idx], X_train_scaled[val_idx]
-                y_fold_train, y_fold_val = y_train[train_idx], y_train[val_idx]
+    else:
+        # Manual grid search (since sklearn GridSearchCV doesn't work with PyTorch)
+        for hidden_dim in hidden_dims:
+            for dropout_rate in dropout_rates:
+                print(f"Testing hidden_dim={hidden_dim}, dropout={dropout_rate}")
 
-                # Create and train model
-                input_dim = X_fold_train.shape[-1]
-                model = MLPClassifier(input_dim, hidden_dim=hidden_dim, dropout=dropout_rate).to(device)
+                fold_scores = []
 
-                tr_loader = build_linear_loaders(X_fold_train, y_fold_train, 32, device)
-                val_loader = build_linear_loaders(X_fold_val, y_fold_val, 32, device, shuffle=False)
+                # Run CV for this parameter combination
+                for fold, (train_idx, val_idx) in enumerate(cv_splitter.split(X_train_scaled, y_train, groups_train)):
+                    X_fold_train, X_fold_val = X_train_scaled[train_idx], X_train_scaled[val_idx]
+                    y_fold_train, y_fold_val = y_train[train_idx], y_train[val_idx]
 
-                optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
-                loss_fn = torch.nn.BCEWithLogitsLoss()
+                    # Create and train model
+                    input_dim = X_fold_train.shape[-1]
+                    model = MLPClassifier(input_dim, hidden_dim=hidden_dim, dropout=dropout_rate).to(device)
 
-                # Training loop
-                for epoch in range(classifier_epochs):
-                    model.train()
-                    for X_batch, y_batch in tr_loader:
-                        optimizer.zero_grad()
-                        logits = model(X_batch).squeeze(-1)
-                        loss = loss_fn(logits, y_batch)
-                        loss.backward()
-                        optimizer.step()
+                    tr_loader = build_linear_loaders(X_fold_train, y_fold_train, 32, device)
+                    val_loader = build_linear_loaders(X_fold_val, y_fold_val, 32, device, shuffle=False)
 
-                # Validation evaluation
-                model.eval()
-                val_probs = []
-                val_labels = []
+                    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+                    loss_fn = torch.nn.BCEWithLogitsLoss()
 
-                with torch.no_grad():
-                    for X_batch, y_batch in val_loader:
-                        logits = model(X_batch).squeeze(-1)
-                        probs = torch.sigmoid(logits)
-                        val_probs.extend(probs.cpu().numpy())
-                        val_labels.extend(y_batch.cpu().numpy())
+                    # Training loop
+                    for epoch in range(classifier_epochs):
+                        model.train()
+                        for X_batch, y_batch in tr_loader:
+                            optimizer.zero_grad()
+                            logits = model(X_batch).squeeze(-1)
+                            loss = loss_fn(logits, y_batch)
+                            loss.backward()
+                            optimizer.step()
 
-                fold_auroc = roc_auc_score(val_labels, val_probs)
-                fold_scores.append(fold_auroc)
+                    # Validation evaluation
+                    model.eval()
+                    val_probs = []
+                    val_labels = []
 
-            # Average CV score for this parameter combination
-            mean_cv_score = np.mean(fold_scores)
-            print(f"  Mean CV AUROC: {mean_cv_score:.4f}")
+                    with torch.no_grad():
+                        for X_batch, y_batch in val_loader:
+                            logits = model(X_batch).squeeze(-1)
+                            probs = torch.sigmoid(logits)
+                            val_probs.extend(probs.cpu().numpy())
+                            val_labels.extend(y_batch.cpu().numpy())
 
-            if mean_cv_score > best_cv_score:
-                best_cv_score = mean_cv_score
-                best_params = {'hidden_dim': hidden_dim, 'dropout': dropout_rate}
+                    fold_auroc = roc_auc_score(val_labels, val_probs)
+                    fold_scores.append(fold_auroc)
+
+                # Average CV score for this parameter combination
+                mean_cv_score = np.mean(fold_scores)
+                print(f"  Mean CV AUROC: {mean_cv_score:.4f}")
+
+                if mean_cv_score > best_cv_score:
+                    best_cv_score = mean_cv_score
+                    best_params = {'hidden_dim': hidden_dim, 'dropout': dropout_rate}
 
     print(f"\nBest parameters: {best_params}")
     print(f"Best CV score: {best_cv_score:.4f}")
@@ -592,7 +605,6 @@ def main(
         window_size: int,
         classifier_epochs: int,
         label_fraction: float,
-        missing_value_strategy: str = "drop",
         k_folds: int = 5,
         min_participants_for_kfold: int = 5,
 ):
@@ -631,20 +643,16 @@ def main(
     y = y.astype(np.float32)
 
     # Handle missing values
-    if missing_value_strategy == "drop":
-        print("=== Handling missing values ===")
-        X_clean = handle_missing_data(X, drop_values=True, verbose=True)
+    print("=== Handling missing values (Drop missing values) ===")
+    X_clean = handle_missing_data(X, drop_values=True, verbose=True)
 
-        if len(X_clean) != len(X):
-            print(f"Updating labels and groups after dropping {len(X) - len(X_clean)} samples")
-            X_df = pd.DataFrame(X)
-            valid_rows = ~(X_df.isin([np.inf, -np.inf]).any(axis=1) | X_df.isna().any(axis=1))
-            y = y[valid_rows]
-            groups = groups[valid_rows]
-            X = X_clean
-
-    elif missing_value_strategy == "knn":
-        raise NotImplementedError(f"{missing_value_strategy} is not yet implemented!")
+    if len(X_clean) != len(X):
+        print(f"Updating labels and groups after dropping {len(X) - len(X_clean)} samples")
+        X_df = pd.DataFrame(X)
+        valid_rows = ~(X_df.isin([np.inf, -np.inf]).any(axis=1) | X_df.isna().any(axis=1))
+        y = y[valid_rows]
+        groups = groups[valid_rows]
+        X = X_clean
 
     # Split by participant to get train/test split
     train_idx, train_p, test_idx, test_p = split_indices_by_participant_groups(
@@ -732,7 +740,6 @@ def main(
         "seed": seed,
         "k_folds": k_folds,
         "n_cv_splits": n_splits,
-        "missing_value_strategy": missing_value_strategy,
         "window_size": window_size,
     })
 
@@ -757,8 +764,6 @@ if __name__ == "__main__":
     parser.add_argument("--window_size", help="Window size in seconds", default=30, type=int)
     parser.add_argument("--classifier_epochs", type=int, default=25)
     parser.add_argument("--label_fraction", type=float, default=0.1)
-    parser.add_argument("--missing_value_strategy", type=str, default="drop",
-                        choices=("drop", "knn", "iterative"))
     parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
     parser.add_argument("--min_participants_for_kfold", type=int, default=5,
                         help="Minimum participants needed for k-fold (otherwise use LOGO)")
