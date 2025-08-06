@@ -149,6 +149,7 @@ def split_data_by_participant(X, y, groups, train_ratio=0.6, val_ratio=0.2, seed
     
     return (X[train_mask], y[train_mask]), (X[val_mask], y[val_mask]), (X[test_mask], y[test_mask])
 
+
 def split_indices_by_participant(
         groups,
         train_ratio=0.6,
@@ -214,6 +215,57 @@ def split_indices_by_participant(
         return train_idx, train_idx_all, val_idx, test_idx,
     else:
         return train_idx, val_idx, test_idx
+
+
+def split_indices_by_participant_groups(
+        groups,
+        train_ratio=0.8,
+        label_fraction=0.1,
+        seed=42
+):
+    """
+    Return index arrays for train / val / test
+    """
+    uniq = np.unique(groups)
+    rng  = np.random.default_rng(seed)
+    rng.shuffle(uniq)
+
+    n_train = int(len(uniq) * train_ratio)
+    n_test   = int(len(uniq) * (1-train_ratio))
+
+    train_p, test_p = np.split(uniq, [n_train])
+
+    if label_fraction < 1.:
+        # Select subset of training participants to be labeled
+        n_labeled_participants = max(1, int(len(train_p) * label_fraction))
+
+        # Random selection if no labels provided
+        labeled_participants = rng.choice(train_p, size=n_labeled_participants, replace=False)
+        train_p = labeled_participants.copy()
+        train_idx = np.flatnonzero(np.isin(groups, labeled_participants))
+
+    else:
+        train_idx = np.flatnonzero(np.isin(groups, train_p))
+
+    test_idx  = np.flatnonzero(np.isin(groups, test_p))
+
+    # Verify index splits are non-overlapping and complete
+    assert len(train_idx) > 0, "Training indices cannot be empty"
+    assert len(test_idx) > 0, "Test indices cannot be empty"
+
+    # Check no overlap in indices
+    assert len(np.intersect1d(train_idx, test_idx)) == 0, "Training and test indices overlap"
+
+    # Verify participant isolation: check that each split contains only its assigned participants
+    train_participants_in_split = np.unique(groups[train_idx])
+    test_participants_in_split = np.unique(groups[test_idx])
+
+    assert np.array_equal(np.sort(train_participants_in_split),
+                          np.sort(train_p)), "Training split contains wrong participants"
+    assert np.array_equal(np.sort(test_participants_in_split),
+                          np.sort(test_p)), "Test split contains wrong participants"
+
+    return train_idx, train_p, test_idx, test_p
 
 
 class PhysiologicalDataset(Dataset):
