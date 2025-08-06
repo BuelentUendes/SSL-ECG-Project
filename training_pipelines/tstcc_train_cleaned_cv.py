@@ -438,7 +438,7 @@ if __name__ == "__main__":
     parser.add_argument("--cc_temperature", type=float, default=0.07)
     parser.add_argument("--cc_use_cosine", action="store_true")
     parser.add_argument("--classifier_model", type=str, default="logistic_regression",
-                        choices=("logistic_regression"))
+                        choices=("logistic_regression", "mlp"))
     parser.add_argument("--classifier_epochs", type=int, default=25)
     parser.add_argument("--classifier_lr", type=float, default=1e-4)
     parser.add_argument("--classifier_batch_size", type=int, default=32)
