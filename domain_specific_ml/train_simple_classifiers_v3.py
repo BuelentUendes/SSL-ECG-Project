@@ -455,8 +455,8 @@ def run_mlp_with_cv_and_test(X_train, y_train, groups_train, X_test, y_test,
     X_train_scaled, _, X_test_scaled = standardize_features(X_train, None, X_test, feature_names)
 
     # Simple hyperparameter options for MLP
-    hidden_dims = [16, 32, 64, 128]
-    dropout_rates = [0.1, 0.3, 0.5]
+    hidden_dims = [16, 32, 64]
+    dropout_rates = [0.1, 0.2, 0.3, 0.5]
 
     best_params = None
     best_cv_score = 0
@@ -490,7 +490,7 @@ def run_mlp_with_cv_and_test(X_train, y_train, groups_train, X_test, y_test,
                     model.train()
                     for X_batch, y_batch in tr_loader:
                         optimizer.zero_grad()
-                        logits = model(X_batch).squeeze()
+                        logits = model(X_batch).squeeze(-1)
                         loss = loss_fn(logits, y_batch)
                         loss.backward()
                         optimizer.step()
@@ -502,7 +502,7 @@ def run_mlp_with_cv_and_test(X_train, y_train, groups_train, X_test, y_test,
 
                 with torch.no_grad():
                     for X_batch, y_batch in val_loader:
-                        logits = model(X_batch).squeeze()
+                        logits = model(X_batch).squeeze(-1)
                         probs = torch.sigmoid(logits)
                         val_probs.extend(probs.cpu().numpy())
                         val_labels.extend(y_batch.cpu().numpy())
