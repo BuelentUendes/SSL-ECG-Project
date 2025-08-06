@@ -1,38 +1,31 @@
 #!/usr/bin/env python
 import os
 import json
-import sys
 import argparse
 import logging
-import tempfile
 import gc
 
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import mlflow
 import mlflow.pytorch
-import optuna
+
 from sklearn.linear_model import LogisticRegression
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import KNNImputer, IterativeImputer
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from sklearn.metrics import average_precision_score
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, QuantileTransformer
-from sklearn.model_selection import GroupKFold, LeaveOneGroupOut, ParameterGrid, GridSearchCV
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.model_selection import GroupKFold, LeaveOneGroupOut,  GridSearchCV
 
 from torch.utils.data import DataLoader, TensorDataset
-from sklearn.model_selection import train_test_split
 
 from utils.torch_utilities import (
     load_processed_data,
-    split_indices_by_participant,
     split_indices_by_participant_groups,
     set_seed,
     create_directory,
-    train_classifier_for_optuna,
 )
 
 from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
@@ -541,7 +534,7 @@ def run_mlp_with_cv_and_test(X_train, y_train, groups_train, X_test, y_test,
         final_model.train()
         for X_batch, y_batch in tr_loader:
             optimizer.zero_grad()
-            logits = final_model(X_batch).squeeze()
+            logits = final_model(X_batch).squeeze(-1)
             loss = loss_fn(logits, y_batch)
             loss.backward()
             optimizer.step()
@@ -554,7 +547,7 @@ def run_mlp_with_cv_and_test(X_train, y_train, groups_train, X_test, y_test,
 
     with torch.no_grad():
         for X_batch, y_batch in te_loader:
-            logits = final_model(X_batch).squeeze()
+            logits = final_model(X_batch).squeeze(-1)
             probs = torch.sigmoid(logits)
             preds = (probs > 0.5).float()
 
@@ -650,6 +643,9 @@ def main(
             groups = groups[valid_rows]
             X = X_clean
 
+    elif missing_value_strategy == "knn":
+        raise NotImplementedError(f"{missing_value_strategy} is not yet implemented!")
+
     # Split by participant to get train/test split
     train_idx, train_p, test_idx, test_p = split_indices_by_participant_groups(
         groups,
@@ -691,13 +687,6 @@ def main(
     # ── Step 3: Run Model Selection + Final Training + Test Evaluation ─────────
     if classifier_model == "logistic_regression":
 
-        # More verbose solution:
-        # results = run_logistic_regression_with_gridsearch_verbose(
-        #     X_train_all, y_train_all, groups_train_all, X_test, y_test,
-        #     feature_names, cv_splitter, seed=42
-        # )
-
-        # This worked
         results = run_logistic_regression_with_gridsearch(
             X_train_all, y_train_all, groups_train_all,
             X_test, y_test, feature_names, cv_splitter, seed
