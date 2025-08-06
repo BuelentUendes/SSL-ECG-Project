@@ -231,7 +231,8 @@ def split_indices_by_participant_groups(
         groups,
         train_ratio=0.8,
         label_fraction=0.1,
-        seed=42
+        seed=42,
+        return_all_train_p=False,
 ):
     """
     Return index arrays for train / val / test
@@ -243,19 +244,21 @@ def split_indices_by_participant_groups(
     n_train = int(len(uniq) * train_ratio)
     n_test   = int(len(uniq) * (1-train_ratio))
 
-    train_p, test_p = np.split(uniq, [n_train])
+    all_train_p, test_p = np.split(uniq, [n_train])
+    all_train_idx = np.flatnonzero(np.isin(groups, all_train_p))
 
     if label_fraction < 1.:
         # Select subset of training participants to be labeled
-        n_labeled_participants = max(1, int(len(train_p) * label_fraction))
+        n_labeled_participants = max(1, int(len(all_train_p) * label_fraction))
 
         # Random selection if no labels provided
-        labeled_participants = rng.choice(train_p, size=n_labeled_participants, replace=False)
+        labeled_participants = rng.choice(all_train_p, size=n_labeled_participants, replace=False)
         train_p = labeled_participants.copy()
         train_idx = np.flatnonzero(np.isin(groups, labeled_participants))
 
     else:
-        train_idx = np.flatnonzero(np.isin(groups, train_p))
+        train_p = all_train_p.copy()
+        train_idx = np.flatnonzero(np.isin(groups, all_train_p))
 
     test_idx  = np.flatnonzero(np.isin(groups, test_p))
 
@@ -275,7 +278,10 @@ def split_indices_by_participant_groups(
     assert np.array_equal(np.sort(test_participants_in_split),
                           np.sort(test_p)), "Test split contains wrong participants"
 
-    return train_idx, train_p, test_idx, test_p
+    if return_all_train_p:
+        return train_idx, train_p, all_train_p, all_train_idx, test_idx, test_p
+    else:
+        return train_idx, train_p, test_idx, test_p
 
 
 class PhysiologicalDataset(Dataset):
