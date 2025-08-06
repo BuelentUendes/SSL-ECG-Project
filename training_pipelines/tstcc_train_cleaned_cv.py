@@ -136,10 +136,10 @@ def main(
 
     logging.basicConfig(level=logging.INFO)
     mlflow.set_tracking_uri(mlflow_tracking_uri)
-    mlflow.set_experiment("TSTCC with CV and Logistic Regression")
+    mlflow.set_experiment(f"TSTCC with CV {classifier_model}")
 
     # Start top‑level run
-    run = mlflow.start_run(run_name=f"tstcc_cv_lr_{seed}_lf_{label_fraction}")
+    run = mlflow.start_run(run_name=f"tstcc_cv_{classifier_model}_{seed}_lf_{label_fraction}")
     run_id = run.info.run_id
     logging.info(f"MLflow run_id: {run_id}")
     print(f"Using device: {device}")
@@ -176,15 +176,47 @@ def main(
 
     # We first get all train idx for the SSL method (label fraction 1.0) as we do not use the labels
     # train_idx_all (represents all training samples as we do not use their labels)
-    train_idx, train_idx_all, val_idx, test_idx = split_indices_by_participant(
-        groups, label_fraction=label_fraction, self_supervised_method=True, seed=seed
+    # Split by participant to get train/test split
+    # train_idx to the labeled ones!
+    # train_p refers to the labeled training participant!
+    train_idx, train_p, all_train_p, all_train_idx, test_idx, test_p = split_indices_by_participant_groups(
+        groups,
+        train_ratio=0.8,
+        label_fraction=label_fraction,
+        seed=seed,
+        return_all_train_p=True
     )
-    print(f"windows: train {len(train_idx)}, val {len(val_idx)}, test {len(test_idx)}")
+
+    # Now we can split the
+    # This is the dataset we use for training
+    groups_train_all = groups[all_train_idx]
+
+    # These are the labeled training participant
+    groups_train = groups[train_idx]
+
+    train_idx_rep, train_p_rep, val_idx_rep, val_p  = split_indices_by_participant_groups(
+        groups_train_all,
+        train_ratio=0.75, #This will give a split of 60/20/20
+        label_fraction=1.0, # We will discard anyways all labels
+        seed=seed,
+        return_all_train_p=False,
+    )
+
+    # Map back to original indices
+    train_idx_rep = groups_train_all[train_idx_rep]  # 60% of original data
+    val_idx_rep = groups_train_all[val_idx_rep]  # 20% of original data
+
+    print(f"Len training group {len(np.unique(train_idx_rep))}")
+    print(f"Len val group {len(np.unique(val_idx_rep))}")
+    print(f"Len test group {len(np.unique(groups[test_idx]))}")
+
+    #ToDo: This is correct! Implement it properly now!
+
+    print(f"windows: train {len(train_idx)}, test {len(test_idx)}")
 
     # Keep binary‐task mask for later
     downstream_mask = {
         "train": np.isin(y[train_idx], [0, 1]),
-        "val": np.isin(y[val_idx], [0, 1]),
         "test": np.isin(y[test_idx], [0, 1]),
     }
 
@@ -257,11 +289,11 @@ def main(
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
 
         # data loaders
-        Xtr = X[train_idx_all].astype(np.float32)
-        Xva = X[val_idx].astype(np.float32)
+        Xtr = X[train_idx_rep].astype(np.float32)
+        Xva = X[val_idx_rep].astype(np.float32)
         Xte = X[test_idx].astype(np.float32)
         tr_dl, va_dl, te_dl = data_generator_from_arrays(
-            Xtr, y[train_idx_all], Xva, y[val_idx], Xte, y[test_idx],
+            Xtr, y[train_idx_rep], Xva, y[val_idx_rep], Xte, y[test_idx],
             cfg, training_mode="self_supervised"
         )
 
@@ -301,14 +333,12 @@ def main(
         )
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────
-    model.eval();
+    model.eval()
     tc_head.eval()
 
     with torch.no_grad():
         train_repr, _ = encode_representations(X[train_idx], y[train_idx],
                                                model, tc_head, tcc_batch_size, device)
-        val_repr, _ = encode_representations(X[val_idx], y[val_idx],
-                                             model, tc_head, tcc_batch_size, device)
         test_repr, _ = encode_representations(X[test_idx], y[test_idx],
                                               model, tc_head, tcc_batch_size, device)
 
@@ -317,31 +347,31 @@ def main(
     y_train = y[train_idx][downstream_mask["train"]]
     groups_train = groups[train_idx][downstream_mask["train"]]
 
-    val_repr = val_repr[downstream_mask["val"]]
-    y_val = y[val_idx][downstream_mask["val"]]
-    groups_val = groups[val_idx][downstream_mask["val"]]
+    # val_repr = val_repr[downstream_mask["val"]]
+    # y_val = y[val_idx][downstream_mask["val"]]
+    # groups_val = groups[val_idx][downstream_mask["val"]]
 
     test_repr = test_repr[downstream_mask["test"]]
     y_test = y[test_idx][downstream_mask["test"]]
     groups_test = groups[test_idx][downstream_mask["test"]]
 
     print(f"train_repr shape = {train_repr.shape}")
-    show_shape("val/test repr", (val_repr, test_repr))
+    # show_shape("val/test repr", (val_repr, test_repr))
 
     # ── Step 4: Combine Training and Validation for CV ─────────────────────────
     # Combine train and val sets for cross-validation
-    X_train_all = np.vstack([train_repr, val_repr])
-    y_train_all = np.concatenate([y_train, y_val])
-    groups_train_all = np.concatenate([groups_train, groups_val])
+    # X_train_all = np.vstack([train_repr, val_repr])
+    # y_train_all = np.concatenate([y_train, y_val])
+    # groups_train_all = np.concatenate([groups_train, groups_val])
 
-    print(f"Combined training data: {X_train_all.shape}")
+    # print(f"Combined training data: {X_train_all.shape}")
     print(f"Test data: {test_repr.shape}")
-    print(f"Training participants: {len(np.unique(groups_train_all))}")
+    print(f"Training participants: {len(np.unique(groups_train))}")
     print(f"Test participants: {len(np.unique(groups_test))}")
 
     # ── Step 5: Set up Cross-Validation Splitter ───────────────────────────────
     cv_splitter, n_splits = get_participant_cv_splitter(
-        groups_train_all,
+        groups_train,
         min_participants_for_kfold=min_participants_for_kfold,
         k=k_folds
     )
@@ -350,18 +380,18 @@ def main(
     set_seed(seed)
 
     # Create feature names for representations (just numbered features)
-    feature_names = [f"repr_{i}" for i in range(X_train_all.shape[1])]
+    feature_names = [f"repr_{i}" for i in range(X_train.shape[1])]
 
     if classifier_model == "logistic_regression":
         # Verbose option:
         if verbose:
             results = run_logistic_regression_with_gridsearch_verbose(
-                X_train_all, y_train_all, groups_train_all, test_repr, y_test,
+                train_repr, y_train, groups_train, test_repr, y_test,
                 feature_names, cv_splitter, False, seed
             )
         else:
             results = run_logistic_regression_with_gridsearch(
-                X_train_all, y_train_all, groups_train_all,
+                train_repr, y_train, groups_train,
                 test_repr, y_test, feature_names, cv_splitter, False, seed,
             )
 
@@ -378,7 +408,7 @@ def main(
 
     else:
         results = run_mlp_with_cv_and_test(
-            X_train_all, y_train_all, groups_train_all,
+            train_repr, y_train, groups_train,
             test_repr, y_test, feature_names, cv_splitter,
             device, classifier_epochs, seed
         )
