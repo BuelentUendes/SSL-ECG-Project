@@ -289,21 +289,12 @@ def run_logistic_regression_with_gridsearch_verbose(X_train, y_train, groups_tra
         val_participants = np.unique(groups_train[val_idx])
 
         print(f"Fold {fold_idx + 1}:")
-        print(f"  Train participants: {train_participants} ({len(train_participants)} participants)")
-        print(f"  Val participants: {val_participants} ({len(val_participants)} participants)")
+        print(f"  Train participants: {train_participants} \n({len(train_participants)} participants)")
+        print(f"  Val participants: {val_participants} \n({len(val_participants)} participants)")
         print(f"  Train samples: {len(train_idx)}, Val samples: {len(val_idx)}")
         print(f"  Train label distribution: {np.bincount(y_train[train_idx].astype(int))}")
         print(f"  Val label distribution: {np.bincount(y_train[val_idx].astype(int))}")
         print()
-
-    # Custom scorer that provides more details
-    def detailed_auroc_scorer(estimator, X, y):
-        y_pred_proba = estimator.predict_proba(X)[:, 1]
-        auroc = roc_auc_score(y, y_pred_proba)
-        return auroc
-
-    # Create base model
-    base_model = LogisticRegression(random_state=seed, n_jobs=1)  # n_jobs=1 for cleaner output
 
     # Manual grid search with detailed logging
     print("=== MANUAL GRID SEARCH WITH DETAILED LOGGING ===")
@@ -350,8 +341,10 @@ def run_logistic_regression_with_gridsearch_verbose(X_train, y_train, groups_tra
                 f1 = f1_score(y_fold_val, y_val_pred)
 
                 print(f"    Fold {fold_idx + 1} results: AUROC={auroc:.4f}, Acc={acc:.4f}, F1={f1:.4f}")
-                print(f"    Participants - Train: {np.unique(groups_train[train_idx])}")
-                print(f"    Participants - Val: {np.unique(groups_train[val_idx])}")
+                print(f"    \nParticipants - Train: {np.unique(groups_train[train_idx])}")
+                print(f"    \nNumber Participants - Train: {len(np.unique(groups_train[train_idx]))}")
+                print(f"    \nParticipants - Val: {np.unique(groups_train[val_idx])}")
+                print(f"    \nNumber Participants - Val: {len(np.unique(groups_train[val_idx]))}")
 
             # Calculate mean CV score for this parameter combination
             mean_score = np.mean(fold_scores)
@@ -607,6 +600,7 @@ def main(
         label_fraction: float,
         k_folds: int = 5,
         min_participants_for_kfold: int = 5,
+        verbose: bool = False,
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -682,8 +676,8 @@ def main(
 
     print(f"Training data: {X_train_all.shape}")
     print(f"Test data: {X_test.shape}")
-    print(f"Training participants: {np.unique(groups_train_all)}")
-    print(f"Test participants: {np.unique(groups[test_idx][test_binary_mask])}")
+    print(f"Training participants: {len(np.unique(groups_train_all))}")
+    print(f"Test participants: {len(np.unique(groups[test_idx][test_binary_mask]))}")
 
     # ── Step 2: Set up Cross-Validation Splitter ───────────────────────────────
     cv_splitter, n_splits = get_participant_cv_splitter(
@@ -695,10 +689,18 @@ def main(
     # ── Step 3: Run Model Selection + Final Training + Test Evaluation ─────────
     if classifier_model == "logistic_regression":
 
-        results = run_logistic_regression_with_gridsearch(
-            X_train_all, y_train_all, groups_train_all,
-            X_test, y_test, feature_names, cv_splitter, seed
-        )
+        #Verbose option:
+        if verbose:
+            results = run_logistic_regression_with_gridsearch_verbose(
+                X_train_all, y_train_all, groups_train_all, X_test, y_test,
+                feature_names, cv_splitter, seed
+            )
+
+        else:
+            results = run_logistic_regression_with_gridsearch(
+                X_train_all, y_train_all, groups_train_all,
+                X_test, y_test, feature_names, cv_splitter, seed
+            )
 
         # Log metrics
         mlflow.log_metrics({
@@ -767,6 +769,9 @@ if __name__ == "__main__":
     parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
     parser.add_argument("--min_participants_for_kfold", type=int, default=5,
                         help="Minimum participants needed for k-fold (otherwise use LOGO)")
+    parser.add_argument("--verbose", action="store_true",
+                        help="If set, we show a verbose output of CV. Only applicable for LR. "
+                             "Important: This slows down the fitting!")
 
     args = parser.parse_args()
     main(**vars(args))
