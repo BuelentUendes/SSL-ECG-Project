@@ -120,6 +120,7 @@ def main(
         k_folds: int = 5,
         min_participants_for_kfold: int = 5,
         verbose: bool = False,
+        standardize_input: bool = False,
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -207,8 +208,6 @@ def main(
     # Test that we have all 127 participants moved in one of the categories
     assert len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) + len(np.unique(groups[test_idx])) == 127, \
         "Something went wrong with the participant split!"
-
-    #ToDo: This is correct! Implement it properly now!
 
     print(f"Labelled windows for training classifier: train {len(train_idx)}, test {len(test_idx)}")
 
@@ -362,19 +361,19 @@ def main(
     set_seed(seed)
 
     # Create feature names for representations (just numbered features)
-    feature_names = [f"repr_{i}" for i in range(X[train_idx].shape[1])]
+    feature_names = [f"repr_{i}" for i in range(train_repr.shape[1])]
 
     if classifier_model == "logistic_regression":
         # Verbose option:
         if verbose:
             results = run_logistic_regression_with_gridsearch_verbose(
                 train_repr, y_train, groups_train, test_repr, y_test,
-                feature_names, cv_splitter, False, seed
+                feature_names, cv_splitter, standardize_input, seed
             )
         else:
             results = run_logistic_regression_with_gridsearch(
                 train_repr, y_train, groups_train,
-                test_repr, y_test, feature_names, cv_splitter, False, seed,
+                test_repr, y_test, feature_names, cv_splitter, standardize_input, seed,
             )
 
         # Log metrics
@@ -407,7 +406,8 @@ def main(
         mlflow.log_params(results['best_params'])
 
     # ── Step 7: Save Results ────────────────────────────────────────────────────
-    with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+    file_name = "test_results_standardized.json" if standardize_input else "test_results.json"
+    with open(os.path.join(results_save_path, file_name), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
     # Log additional parameters
@@ -460,6 +460,8 @@ if __name__ == "__main__":
                         help="Minimum participants needed for k-fold (otherwise use LOGO)")
     parser.add_argument("--verbose", action="store_true",
                         help="If set, we show a verbose output of CV for logistic regression")
+    parser.add_argument("--standardize_input", action="store_true",
+                        help="If set, we standardize the output of the encoder prior to MLP or LR")
 
     args = parser.parse_args()
 
