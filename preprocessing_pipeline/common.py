@@ -10,6 +10,32 @@ import neurokit2 as nk
 from config import CATEGORY_MAPPING
 from utils.helper_paths import RAW_DATA_PATH
 
+
+def clean_and_filter_ecg(ecg_signal, sampling_rate, threshold=0.25, method="neurokit"):
+
+    # Sanitize and clean input
+    ecg_signal = nk.signal_sanitize(ecg_signal)
+    ecg_cleaned = nk.ecg_clean(ecg_signal, sampling_rate=sampling_rate)
+
+    # Detect R-peaks
+    instant_peaks, info = nk.ecg_peaks(
+        ecg_cleaned=ecg_cleaned,
+        sampling_rate=sampling_rate,
+        method=method,
+        correct_artifacts=True,
+    )
+
+    # Assess signal quality
+    quality = nk.ecg_quality(
+        ecg_cleaned, rpeaks=info["ECG_R_Peaks"], sampling_rate=sampling_rate
+    )
+
+    # Get the indices with quality higher than threshold, set here to 0.25
+    good_indices = np.where(quality > threshold)
+
+    cleaned_filtered_signal = ecg_cleaned[good_indices[0]]
+    return cleaned_filtered_signal
+
 # ------------------------------------------------------
 # Match ECG data with labels and save segments individually
 # ------------------------------------------------------
@@ -47,6 +73,9 @@ def process_ecg_data(hdf5_path, fs):
 
             ecg_edf = mne.io.read_raw_edf(filepaths[p], preload=True, verbose=False)
             ecg_signal = ecg_edf.get_data()[0]
+            # We already clean and filter data here
+            ecg_signal = clean_and_filter_ecg(ecg_signal, sampling_rate=fs)
+
             n_samples = len(ecg_signal)
             start_time = ecg_edf.annotations.orig_time
 
