@@ -254,12 +254,7 @@ def main(
             ckpt_path = os.path.join(model_save_path, "tstcc.pt")
 
         # rebuild model
-        cfg = ECGConfig()
-
-        # ToDo: make it automatic!
-        if int(fs) == 700:
-            cfg.features_len = 221
-
+        cfg = ECGConfig(fs, window_size)
         cfg.num_epoch = tcc_epochs
         cfg.batch_size = tcc_batch_size
         cfg.TC.timesteps = tc_timesteps
@@ -519,4 +514,8 @@ if __name__ == "__main__":
 
     # Parse arguments and run main function
     args = parser.parse_args()
+
+    #Important:
+    args.pretrain_all_conditions = True
+
     main(**vars(args))
