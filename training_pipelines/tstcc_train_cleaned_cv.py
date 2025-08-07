@@ -179,6 +179,7 @@ def main(
     # Split by participant to get train/test split
     # train_idx to the labeled ones!
     # train_p refers to the labeled training participant!
+    # all_train_idx refer to all the training samples (irrespective of labeled or not)
     train_idx, train_p, all_train_p, all_train_idx, test_idx, test_p = split_indices_by_participant_groups(
         groups,
         train_ratio=0.8,
@@ -186,16 +187,13 @@ def main(
         seed=seed,
         return_all_train_p=True
     )
-
     # Now we can split the
-    # This is the dataset we use for training
-    groups_train_all = groups[all_train_idx]
+    # This is the dataset we use for training of the encoder!
+    groups_train_all_encoder = groups[all_train_idx]
 
-    # These are the labeled training participant
-    groups_train = groups[train_idx]
-
-    train_idx_rep, train_p_rep, val_idx_rep, val_p  = split_indices_by_participant_groups(
-        groups_train_all,
+    # Rep is the one that we train the encoder on, for these we do not need the labels, so label fraction is set to 1.0
+    train_idx_encoder, train_p_rep, val_idx_encoder, val_p  = split_indices_by_participant_groups(
+        groups_train_all_encoder,
         train_ratio=0.75, #This will give a split of 60/20/20
         label_fraction=1.0, # We will discard anyways all labels
         seed=seed,
@@ -203,16 +201,16 @@ def main(
     )
 
     # Map back to original indices
-    train_idx_rep = groups_train_all[train_idx_rep]  # 60% of original data
-    val_idx_rep = groups_train_all[val_idx_rep]  # 20% of original data
+    groups_train_idx_encoder = groups_train_all_encoder[train_idx_encoder]  # 60% of original data
+    groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
 
-    print(f"Len training group {len(np.unique(train_idx_rep))}")
-    print(f"Len val group {len(np.unique(val_idx_rep))}")
-    print(f"Len test group {len(np.unique(groups[test_idx]))}")
+    # Test that we have all 127 participants moved in one of the categories
+    assert len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) + len(np.unique(groups[test_idx])) == 127, \
+        "Something went wrong with the participant split!"
 
     #ToDo: This is correct! Implement it properly now!
 
-    print(f"windows: train {len(train_idx)}, test {len(test_idx)}")
+    print(f"Labelled windows for training classifier: train {len(train_idx)}, test {len(test_idx)}")
 
     # Keep binary‐task mask for later
     downstream_mask = {
@@ -289,11 +287,11 @@ def main(
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
 
         # data loaders
-        Xtr = X[train_idx_rep].astype(np.float32)
-        Xva = X[val_idx_rep].astype(np.float32)
+        Xtr = X[train_idx_encoder].astype(np.float32)
+        Xva = X[val_idx_encoder].astype(np.float32)
         Xte = X[test_idx].astype(np.float32)
         tr_dl, va_dl, te_dl = data_generator_from_arrays(
-            Xtr, y[train_idx_rep], Xva, y[val_idx_rep], Xte, y[test_idx],
+            Xtr, y[train_idx_encoder], Xva, y[val_idx_encoder], Xte, y[test_idx],
             cfg, training_mode="self_supervised"
         )
 
@@ -347,40 +345,24 @@ def main(
     y_train = y[train_idx][downstream_mask["train"]]
     groups_train = groups[train_idx][downstream_mask["train"]]
 
-    # val_repr = val_repr[downstream_mask["val"]]
-    # y_val = y[val_idx][downstream_mask["val"]]
-    # groups_val = groups[val_idx][downstream_mask["val"]]
-
     test_repr = test_repr[downstream_mask["test"]]
     y_test = y[test_idx][downstream_mask["test"]]
     groups_test = groups[test_idx][downstream_mask["test"]]
 
     print(f"train_repr shape = {train_repr.shape}")
-    # show_shape("val/test repr", (val_repr, test_repr))
 
-    # ── Step 4: Combine Training and Validation for CV ─────────────────────────
-    # Combine train and val sets for cross-validation
-    # X_train_all = np.vstack([train_repr, val_repr])
-    # y_train_all = np.concatenate([y_train, y_val])
-    # groups_train_all = np.concatenate([groups_train, groups_val])
-
-    # print(f"Combined training data: {X_train_all.shape}")
-    print(f"Test data: {test_repr.shape}")
-    print(f"Training participants: {len(np.unique(groups_train))}")
-    print(f"Test participants: {len(np.unique(groups_test))}")
-
-    # ── Step 5: Set up Cross-Validation Splitter ───────────────────────────────
+    # ── Step 4: Set up Cross-Validation Splitter ───────────────────────────────
     cv_splitter, n_splits = get_participant_cv_splitter(
         groups_train,
         min_participants_for_kfold=min_participants_for_kfold,
         k=k_folds
     )
 
-    # ── Step 6: Run CV with Logistic Regression ─────────────────────────────────
+    # ── Step 5: Run CV with Logistic Regression or MLP ─────────────────────────────────
     set_seed(seed)
 
     # Create feature names for representations (just numbered features)
-    feature_names = [f"repr_{i}" for i in range(X_train.shape[1])]
+    feature_names = [f"repr_{i}" for i in range(X[train_idx].shape[1])]
 
     if classifier_model == "logistic_regression":
         # Verbose option:
