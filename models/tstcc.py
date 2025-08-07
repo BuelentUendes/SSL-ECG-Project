@@ -883,7 +883,7 @@ def train_linear_classifier(
         for X, y in train_loader:
             X, y = X.to(device), y.to(device)
             optimizer.zero_grad()
-            logits = model(X).squeeze()
+            logits = model(X).squeeze(-1)
             loss   = loss_fn(logits, y)
             loss.backward(); optimizer.step()
 
