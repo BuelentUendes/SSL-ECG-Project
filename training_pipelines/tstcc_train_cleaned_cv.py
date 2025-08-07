@@ -97,6 +97,8 @@ def handle_missing_data(data, drop_values=True, verbose=True):
 def main(
         mlflow_tracking_uri: str,
         fs: str,
+        window_size:int,
+        step_size: int,
         gpu: int,
         seed: int,
         force_retraining: bool,
@@ -368,9 +370,7 @@ def main(
         else:
             results = run_logistic_regression_with_gridsearch(
                 train_repr, y_train, groups_train,
-                test_repr, y_test, feature_names, cv_splitter,
-                classifier_epochs, classifier_batch_size,
-                classifier_lr, False, seed,
+                test_repr, y_test, feature_names, cv_splitter, False, seed,
             )
 
         # Log metrics
@@ -388,7 +388,7 @@ def main(
         results = run_mlp_with_cv_and_test(
             train_repr, y_train, groups_train,
             test_repr, y_test, feature_names, cv_splitter,
-            device, classifier_epochs, False, seed
+            device, classifier_epochs, classifier_batch_size,classifier_lr, False, seed
         )
 
         # Log metrics
@@ -430,33 +430,87 @@ def main(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="TS-TCC Training Pipeline with CV and Logistic Regression")
-    parser.add_argument("--mlflow_tracking_uri",
-                        default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
-    parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
-    parser.add_argument("--gpu", type=int, default=0)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--force_retraining", action="store_true")
-    parser.add_argument("--tcc_epochs", type=int, default=40)
-    parser.add_argument("--tcc_lr", type=float, default=3e-4)
-    parser.add_argument("--tcc_batch_size", type=int, default=128)
-    parser.add_argument("--pretrain_all_conditions", action="store_true")
-    parser.add_argument("--tc_timesteps", type=int, default=70)
-    parser.add_argument("--tc_hidden_dim", type=int, default=128)
-    parser.add_argument("--cc_temperature", type=float, default=0.07)
-    parser.add_argument("--cc_use_cosine", action="store_true")
-    parser.add_argument("--classifier_model", type=str, default="logistic_regression",
-                        choices=("logistic_regression", "mlp"))
-    parser.add_argument("--classifier_epochs", type=int, default=25)
-    parser.add_argument("--classifier_lr", type=float, default=1e-4)
-    parser.add_argument("--classifier_batch_size", type=int, default=32)
-    parser.add_argument("--label_fraction", type=float, default=0.1)
-    parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
-    parser.add_argument("--min_participants_for_kfold", type=int, default=5,
-                        help="Minimum participants needed for k-fold (otherwise use LOGO)")
-    parser.add_argument("--verbose", action="store_true",
-                        help="If set, we show a verbose output of CV for logistic regression")
+    parser = argparse.ArgumentParser(
+        description="TS-TCC Training Pipeline with CV and Logistic Regression",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
 
+    # ══════════════════════════════════════════════════════════════════════════════
+    # General Setup
+    # ══════════════════════════════════════════════════════════════════════════════
+    general_group = parser.add_argument_group('General Setup')
+    general_group.add_argument("--mlflow_tracking_uri",
+                              default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"),
+                              help="MLflow tracking URI for experiment logging")
+    general_group.add_argument("--gpu", type=int, default=0,
+                              help="GPU device ID to use")
+    general_group.add_argument("--seed", type=int, default=42,
+                              help="Random seed for reproducibility")
+    general_group.add_argument("--verbose", action="store_true",
+                              help="Show verbose output of CV for logistic regression")
+    general_group.add_argument("--force_retraining", action="store_true",
+                              help="Force retraining even if cached model exists")
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Data Configuration
+    # ══════════════════════════════════════════════════════════════════════════════
+    data_group = parser.add_argument_group('Data Configuration')
+    data_group.add_argument("--fs", default=1000, type=str,
+                           help="Sampling frequency used for training")
+    data_group.add_argument("--window_size", type=int, default=30,
+                           help="Window size in seconds")
+    data_group.add_argument("--step_size", type=int, default=10,
+                           help="Step size in seconds for sliding window")
+    data_group.add_argument("--label_fraction", type=float, default=0.1,
+                           help="Fraction of labeled participants to use (0.0-1.0)")
+    data_group.add_argument("--pretrain_all_conditions", action="store_true",
+                           help="Pretrain on all conditions (not just baseline/mental_stress)")
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # TS-TCC Encoder Training
+    # ══════════════════════════════════════════════════════════════════════════════
+    tstcc_group = parser.add_argument_group('TS-TCC Encoder Training')
+    tstcc_group.add_argument("--tcc_epochs", type=int, default=40,
+                            help="Number of epochs for TS-TCC pretraining")
+    tstcc_group.add_argument("--tcc_lr", type=float, default=3e-4,
+                            help="Learning rate for TS-TCC training")
+    tstcc_group.add_argument("--tcc_batch_size", type=int, default=128,
+                            help="Batch size for TS-TCC training")
+
+    # TS-TCC Architecture Parameters
+    tstcc_arch_group = parser.add_argument_group('TS-TCC Architecture')
+    tstcc_arch_group.add_argument("--tc_timesteps", type=int, default=70,
+                                 help="Number of timesteps for temporal contrasting")
+    tstcc_arch_group.add_argument("--tc_hidden_dim", type=int, default=128,
+                                 help="Hidden dimension for temporal contrasting")
+    tstcc_arch_group.add_argument("--cc_temperature", type=float, default=0.07,
+                                 help="Temperature parameter for contrastive learning")
+    tstcc_arch_group.add_argument("--cc_use_cosine", action="store_true",
+                                 help="Use cosine similarity for contrastive learning")
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Downstream Classifier Configuration
+    # ══════════════════════════════════════════════════════════════════════════════
+    classifier_group = parser.add_argument_group('Downstream Classifier')
+    classifier_group.add_argument("--classifier_model", type=str, default="logistic_regression",
+                                 choices=("logistic_regression", "mlp"),
+                                 help="Type of downstream classifier to use")
+    classifier_group.add_argument("--classifier_epochs", type=int, default=25,
+                                 help="Number of epochs for MLP classifier training")
+    classifier_group.add_argument("--classifier_lr", type=float, default=1e-4,
+                                 help="Learning rate for MLP classifier")
+    classifier_group.add_argument("--classifier_batch_size", type=int, default=32,
+                                 help="Batch size for MLP classifier training")
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Cross-Validation Configuration
+    # ══════════════════════════════════════════════════════════════════════════════
+    cv_group = parser.add_argument_group('Cross-Validation')
+    cv_group.add_argument("--k_folds", type=int, default=5,
+                         help="Number of folds for cross-validation")
+    cv_group.add_argument("--min_participants_for_kfold", type=int, default=5,
+                         help="Minimum participants needed for k-fold (otherwise use Leave-one-participant-out-CV)")
+
+    # Parse arguments and run main function
     args = parser.parse_args()
-
     main(**vars(args))
