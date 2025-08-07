@@ -149,8 +149,12 @@ def main(
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
 
-    model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC", pretrain_data, f"{seed}")
-    results_save_path = os.path.join(RESULTS_PATH, "ECG", "TSTCC", classifier_model, f"{seed}", f"{label_fraction}")
+    model_save_path = os.path.join(
+        SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC", pretrain_data, f"{seed}", f"{window_size}", f"{step_size}"
+    )
+    results_save_path = os.path.join(
+        RESULTS_PATH, "ECG", "TSTCC", classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
+    )
 
     create_directory(model_save_path)
     create_directory(results_save_path)
@@ -167,7 +171,9 @@ def main(
         label_map = {"baseline": 0, "mental_stress": 1}
 
     # Data path
-    window_data_path = os.path.join(DATA_PATH, "interim", "ECG", str(fs), 'windowed_data.h5')
+    window_data_path = os.path.join(
+        DATA_PATH, "interim", "ECG", str(fs), str(window_size), str(step_size), 'windowed_data.h5'
+    )
 
     X, y, groups = load_processed_data(window_data_path, label_map=label_map)
     y = y.astype(np.float32)
