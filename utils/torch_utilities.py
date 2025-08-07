@@ -1093,11 +1093,12 @@ def run_logistic_regression_with_gridsearch_verbose(
     }
 
 def run_mlp_with_cv_and_test(X_train, y_train, groups_train, X_test, y_test,
-                             feature_names, cv_splitter, device, classifier_epochs=25, seed=42):
+                             feature_names, cv_splitter, device, classifier_epochs=25, standardize=False, seed=42):
     """Run CV for MLP hyperparameter selection, then train final model and test."""
 
     # Standardize features
-    X_train, _, X_test = standardize_features(X_train, None, X_test, feature_names)
+    if standardize:
+        X_train, _, X_test = standardize_features(X_train, None, X_test, feature_names)
 
     # Simple hyperparameter options for MLP
     hidden_dims = [16, 32, 64]
@@ -1195,13 +1196,16 @@ def run_mlp_with_cv_and_test(X_train, y_train, groups_train, X_test, y_test,
     loss_fn = torch.nn.BCEWithLogitsLoss()
 
     # Train final model
-    for epoch in range(classifier_epochs):
+    for idx, epoch in enumerate(range(classifier_epochs), start=1):
+        print(f"Epoch {idx} / {classifier_epochs}")
         final_model.train()
         for X_batch, y_batch in tr_loader:
             optimizer.zero_grad()
             logits = final_model(X_batch).squeeze(-1)
             loss = loss_fn(logits, y_batch)
             loss.backward()
+            if epoch % 5 == 0:
+                print(f"The loss is {loss}")
             optimizer.step()
 
     # Test evaluation
