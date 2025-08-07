@@ -352,7 +352,7 @@ class TC(nn.Module):
         super(TC, self).__init__()
         self.num_channels = configs.final_out_channels
         self.timestep = configs.TC.timesteps
-        self.Wk = nn.ModuleList([nn.Linear(configs.TC.hidden_dim, self.num_channels) for i in range(self.timestep)])
+        self.Wk = nn.ModuleList([nn.Linear(configs.TC.hidden_dim, self.num_channels) for _ in range(self.timestep)])
         self.lsoftmax = nn.LogSoftmax()
         self.device = device
         
@@ -726,19 +726,19 @@ class Config(object):
         # Length of the sequence that reaches the projection head
         # 10 000 → 315 after the conv + pool stack
 
-        if fs == 1000:
+        if int(fs) == 1000:
             if window_size == 30:
                 self.features_len = 940
             elif window_size == 10:
                 self.features_len = 315
 
-        elif fs == 700:
+        elif int(fs) == 700:
             if window_size == 30:
                 self.features_len = 658
             elif window_size == 10:
                 self.features_len = 221
 
-        elif fs == 500:
+        elif int(fs) == 500:
             if window_size == 30:
                 self.features_len = 471
             elif window_size == 10:
