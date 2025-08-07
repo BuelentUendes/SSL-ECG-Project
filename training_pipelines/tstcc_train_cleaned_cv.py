@@ -392,7 +392,7 @@ def main(
         results = run_mlp_with_cv_and_test(
             train_repr, y_train, groups_train,
             test_repr, y_test, feature_names, cv_splitter,
-            device, classifier_epochs, seed
+            device, classifier_epochs, False, seed
         )
 
         # Log metrics
