@@ -428,7 +428,6 @@ class base_Model(nn.Module):
         )
 
         model_output_dim = configs.features_len
-        input_dim = model_output_dim * configs.final_out_channels
         self.logits = nn.Linear(model_output_dim * configs.final_out_channels, configs.num_classes)
 
     def forward(self, x_in):
@@ -715,7 +714,7 @@ class Config(object):
     Hyper-parameters tuned for windowed ECG segments
     (shape = [N, 10 000, 1])
     """
-    def __init__(self):
+    def __init__(self, fs:int=1000, window_size:int=10):
 
         # ─────────────────── CNN encoder ────────────────────
         self.input_channels      = 1         # ECG is univariate
@@ -726,7 +725,25 @@ class Config(object):
 
         # Length of the sequence that reaches the projection head
         # 10 000 → 315 after the conv + pool stack
-        self.features_len        = 315
+
+        if fs == 1000:
+            if window_size == 30:
+                self.features_len = 940
+            elif window_size == 10:
+                self.features_len = 315
+
+        elif fs == 700:
+            if window_size == 30:
+                self.features_len = 658
+            elif window_size == 10:
+                self.features_len = 221
+
+        elif fs == 500:
+            if window_size == 30:
+                self.features_len = 471
+            elif window_size == 10:
+                self.features_len = 158
+
         self.num_classes         = 2
 
         # ─────────────────── Training ───────────────────────
