@@ -47,16 +47,15 @@ def run_supervised_model_with_cv_and_test(
 ):
     """Run CV for Supervised model  then train final model and test."""
 
-    # Simple hyperparameter options for MLP
-    hidden_dims = [16, 32, 64]
-    dropout_rates = [0.1, 0.2, 0.3, 0.5]
+    lr_rates = [1e-3, 1e-4]
+    dropout_rates = [0.1]
 
     best_params = None
     best_cv_score = 0
 
     default_best_params = {
-        'hidden_dim': 16,
-        'dropout': 0.2,
+        "dropout": [0.3],
+        "lr": [1e-5],
     }
 
     print(f"Running manual CV for supervised model {model_type} hyperparameters...")
@@ -66,13 +65,14 @@ def run_supervised_model_with_cv_and_test(
         print(f"Default parameters: {default_best_params}")
 
         best_params = default_best_params
+        #ToDo!
+        # model_factory = create_default_model_factory(model_type)
         best_cv_score = 0.0
 
     else:
-        # Manual grid search (since sklearn GridSearchCV doesn't work with PyTorch)
-        for hidden_dim in hidden_dims:
+        for lr in lr_rates:
             for dropout_rate in dropout_rates:
-                print(f"Testing hidden_dim={hidden_dim}, dropout={dropout_rate}")
+                print(f"Testing lr={lr}, dropout={dropout_rate}")
 
                 fold_scores = []
 
@@ -91,7 +91,7 @@ def run_supervised_model_with_cv_and_test(
 
                     model = model.to(device)
 
-                    optimizer = optim.AdamW(model.parameters(), lr=classifier_lr)
+                    optimizer = optim.AdamW(model.parameters(), lr=lr)
                     loss_fn = torch.nn.BCEWithLogitsLoss()
 
                     #ToDo: Rename the loader! It is basically a data loader
@@ -130,7 +130,7 @@ def run_supervised_model_with_cv_and_test(
 
                 if mean_cv_score > best_cv_score:
                     best_cv_score = mean_cv_score
-                    best_params = {'hidden_dim': hidden_dim, 'dropout': dropout_rate}
+                    best_params = {'lr': lr, 'dropout': dropout_rate}
 
     print(f"\nBest parameters: {best_params}")
     print(f"Best CV score: {best_cv_score:.4f}")
@@ -138,6 +138,7 @@ def run_supervised_model_with_cv_and_test(
     # Train final model with best parameters on full training set
     print("Training final model on full training set...")
 
+    #ToDo: Add here the model factory!
     if model_type.lower() == "cnn":
         final_model = Improved1DCNN_v2().to(device)
     elif model_type.lower() == "tcn":
@@ -152,7 +153,7 @@ def run_supervised_model_with_cv_and_test(
     tr_loader = build_linear_loaders(X_train, y_train, 32, device)
     te_loader = build_linear_loaders(X_test, y_test, 32, device, shuffle=False)
 
-    optimizer = torch.optim.AdamW(final_model.parameters(), lr=1e-4)
+    optimizer = torch.optim.AdamW(final_model.parameters(), lr=best_params["lr"])
     loss_fn = torch.nn.BCEWithLogitsLoss()
 
     # Train final model
@@ -216,6 +217,9 @@ def main(
         mlflow_tracking_uri: str,
         fs: str,
         model_type: str = "cnn",
+        label_fraction: float = 0.1,
+        window_size: int = 10,
+        step_size: int =5,
         gpu: int = 0,
         seed: int = 42,
         force_retraining: bool = True,
@@ -227,10 +231,8 @@ def main(
         scheduler_factor: float = 0.1,
         scheduler_patience: int = 2,
         scheduler_min_lr: float = 1e-11,
-        label_fraction: float = 1.0,
         k_folds: int = 5,
         min_participants_for_kfold: int = 5,
-        verbose: bool = False,
 ):
     set_seed(seed)
 
@@ -263,17 +265,19 @@ def main(
 
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     model_save_path = os.path.join(
-        SAVED_MODELS_PATH, "ECG", str(fs), f"{model_type}", f"{seed}", f"{label_fraction}"
+        SAVED_MODELS_PATH, "ECG", str(fs), f"{model_type}", f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
     )
     results_save_path = os.path.join(
-        RESULTS_PATH, "ECG", "Supervised", model_type, f"{seed}", f"{label_fraction}"
+        RESULTS_PATH, "ECG", "Supervised", model_type, f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
     )
 
     create_directory(model_save_path)
     create_directory(results_save_path)
 
     # Data path
-    window_data_path = os.path.join(DATA_PATH, "interim", "ECG", str(fs), 'windowed_data.h5')
+    window_data_path = os.path.join(
+        DATA_PATH, "interim", "ECG", str(fs), f"{window_size}", f"{step_size}", 'windowed_data.h5'
+    )
 
     # load data
     X, y, groups = load_processed_data(
@@ -324,7 +328,6 @@ def main(
     )
 
     # --Step 3: Training if set (force retraining) --------
-
     if force_retraining:
         results = run_supervised_model_with_cv_and_test(
             model_type, X_train, y_train, groups_train, X_test, y_test,
@@ -390,6 +393,12 @@ if __name__ == "__main__":
     parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
     parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer"], default="cnn")
+    parser.add_argument("--label_fraction", type=float, default=0.1,
+                        help="Percent of labeled participants in the training stage.")
+    parser.add_argument("--window_size", type=int, default=10,
+                           help="Window size in seconds")
+    parser.add_argument("--step_size", type=int, default=5,
+                           help="Step size in seconds for sliding window")
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--force_retraining", action="store_true")
@@ -401,15 +410,9 @@ if __name__ == "__main__":
     parser.add_argument("--scheduler_factor", type=float, default=0.5)
     parser.add_argument("--scheduler_patience", type=int, default=2)
     parser.add_argument("--scheduler_min_lr", type=float, default=1e-9)
-    parser.add_argument("--label_fraction", type=float, default=0.1,
-                        help="Percent of labeled participants in the training stage.")
-
     parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
     parser.add_argument("--min_participants_for_kfold", type=int, default=5,
                         help="Minimum participants needed for k-fold (otherwise use Leave one participant out)")
-    parser.add_argument("--verbose", action="store_true",
-                        help="If set, we show a verbose output of CV. Only applicable for LR. "
-                             "Important: This slows down the fitting!")
 
     args = parser.parse_args()
     main(**vars(args))
