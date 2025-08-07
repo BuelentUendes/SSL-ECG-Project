@@ -1092,8 +1092,11 @@ def run_logistic_regression_with_gridsearch_verbose(
         'final_model': final_model
     }
 
-def run_mlp_with_cv_and_test(X_train, y_train, groups_train, X_test, y_test,
-                             feature_names, cv_splitter, device, classifier_epochs=25, standardize=False, seed=42):
+def run_mlp_with_cv_and_test(
+        X_train, y_train, groups_train, X_test, y_test,
+        feature_names, cv_splitter, device, classifier_epochs=25, classifier_batch_size=32,
+        classifier_lr=1e-4, standardize=False, seed=42
+):
     """Run CV for MLP hyperparameter selection, then train final model and test."""
 
     # Standardize features
@@ -1138,10 +1141,10 @@ def run_mlp_with_cv_and_test(X_train, y_train, groups_train, X_test, y_test,
                     input_dim = X_fold_train.shape[-1]
                     model = MLPClassifier(input_dim, hidden_dim=hidden_dim, dropout=dropout_rate).to(device)
 
-                    tr_loader = build_linear_loaders(X_fold_train, y_fold_train, 32, device)
-                    val_loader = build_linear_loaders(X_fold_val, y_fold_val, 32, device, shuffle=False)
+                    tr_loader = build_linear_loaders(X_fold_train, y_fold_train, classifier_batch_size, device)
+                    val_loader = build_linear_loaders(X_fold_val, y_fold_val, classifier_batch_size, device, shuffle=False)
 
-                    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+                    optimizer = torch.optim.AdamW(model.parameters(), lr=classifier_lr)
                     loss_fn = torch.nn.BCEWithLogitsLoss()
 
                     # Training loop
