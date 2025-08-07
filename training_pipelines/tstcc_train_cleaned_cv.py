@@ -270,12 +270,7 @@ def main(
 
     else:
         print("No cached encoder; training TS-TCC from scratch")
-        cfg = ECGConfig()
-
-        # ToDo: make it automatic!
-        if int(fs) == 700:
-            cfg.features_len = 221
-
+        cfg = ECGConfig(fs, window_size)
         cfg.num_epoch = tcc_epochs
         cfg.batch_size = tcc_batch_size
         cfg.TC.timesteps = tc_timesteps
