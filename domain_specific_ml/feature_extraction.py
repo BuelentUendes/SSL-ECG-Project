@@ -59,7 +59,13 @@ def main(args):
             TimeFeature.NK_CVNN, TimeFeature.NK_CVSD
         ], sampling_rate=args.sample_frequency)) \
             .extract(frequency_domain(sampling_rate=args.sample_frequency)) \
-            .extract(nonlinear_domain([NonlinearFeature.ENTROPY], sampling_rate=args.sample_frequency)) \
+            .extract(nonlinear_domain([
+        NonlinearFeature.DFA, NonlinearFeature.ENTROPY, NonlinearFeature.POINCARE,
+        NonlinearFeature.RQA, NonlinearFeature.FRAGMENTATION, NonlinearFeature.HEART_ASYMMETRY,
+    ], sampling_rate=args.sample_frequency)) \
+        .use('tpeaks',
+             lambda ECG_Clean: extract_peaks(delineate(Waves.T_Peak)(ECG_Clean, sampling_rate=args.sample_frequency))) \
+        .extract(morphology_domain([MorphologyFeature.TWA], sampling_rate=args.sample_frequency)) \
         .to(write_csv(os.path.join(output_path, '[0-9]{5}.csv'), use_parquet=False))
 
 
@@ -67,8 +73,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Pipeline for extracting features of the cleaned ECG data")
     parser.add_argument("--sample_frequency", type=int, default=1_000,
                         help="Sampling rate used for the dataset")
-    parser.add_argument("--window_size", type=int, default=10, help="How many seconds we consider")
-    parser.add_argument("--window_shift", type=float, default=5,
+    parser.add_argument("--window_size", type=int, default=30, help="How many seconds we consider")
+    parser.add_argument("--window_shift", type=float, default=10,
                         help="How much shift in seconds between consecutive windows.")
     parser.add_argument("--participant_number", type=int, help="which specific number to run. Set -1 for all",
                         default=30100)
