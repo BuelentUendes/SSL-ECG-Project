@@ -46,8 +46,8 @@ def run_supervised_model_with_cv_and_test(
 ):
     """Run CV for Supervised model  then train final model and test."""
 
-    lr_rates = [1e-4, 1e-5, 1e-3]
-    dropout_rates = [0.1]
+    lr_rates = [1e-3, 1e-4, 1e-5]
+    dropout_rates = [0.1, 0.2, 0.3, 0.5]
 
     num_workers = min(8, os.cpu_count() or 2)
 
@@ -82,11 +82,11 @@ def run_supervised_model_with_cv_and_test(
 
                     # model
                     if model_type.lower() == "cnn":
-                        model = Improved1DCNN_v2()
+                        model = Improved1DCNN_v2(dropout=dropout_rate)
                     elif model_type.lower() == "tcn":
-                        model = TCNClassifier()
+                        model = TCNClassifier(dropout=dropout_rate)
                     else:
-                        model = TransformerECGClassifier()
+                        model = TransformerECGClassifier(dropout=dropout_rate)
 
                     model = model.to(device)
 
@@ -152,13 +152,12 @@ def run_supervised_model_with_cv_and_test(
     # Train final model with best parameters on full training set
     print("Training final model on full training set...")
 
-    #ToDo: Add here the model factory!
     if model_type.lower() == "cnn":
-        final_model = Improved1DCNN_v2().to(device)
+        final_model = Improved1DCNN_v2(dropout=best_params["dropout"]).to(device)
     elif model_type.lower() == "tcn":
-        final_model = TCNClassifier().to(device)
+        final_model = TCNClassifier(dropout=best_params["dropout"]).to(device)
     else:
-        final_model = TransformerECGClassifier().to(device)
+        final_model = TransformerECGClassifier(dropout=best_params["dropout"]).to(device)
 
     total_params = sum(p.numel() for p in final_model.parameters())
     trainable_params = sum(p.numel() for p in final_model.parameters() if p.requires_grad)
@@ -167,11 +166,11 @@ def run_supervised_model_with_cv_and_test(
     tr_ds = PhysiologicalDataset(X_train, y_train)
     te_ds = PhysiologicalDataset(X_test, y_test)
     tr_loader = DataLoader(
-        tr_ds, batch_size=32, shuffle=True, drop_last=True, 
+        tr_ds, batch_size=classifier_batch_size, shuffle=True, drop_last=True,
         pin_memory=pin_memory, num_workers=num_workers
     )
     te_loader = DataLoader(
-        te_ds, batch_size=32, shuffle=False, drop_last=False, 
+        te_ds, batch_size=classifier_batch_size, shuffle=False, drop_last=False,
         pin_memory=pin_memory, num_workers=num_workers
     )
 
