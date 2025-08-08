@@ -55,8 +55,8 @@ def run_supervised_model_with_cv_and_test(
     best_cv_score = 0
 
     default_best_params = {
-        "dropout": 0.3,
-        "lr": 1e-4,
+        "dropout": 0.5,
+        "lr": 1e-5,
     }
 
     print(f"Running manual CV for supervised model {model_type} hyperparameters...")
@@ -237,9 +237,8 @@ def run_supervised_model_with_cv_and_test(
             'f1': test_f1,
             'pr_auc': test_pr_auc
         },
-        'model': final_model,
         'total_params': total_params,
-    }
+    }, final_model
 
 def main(
         mlflow_tracking_uri: str,
@@ -357,7 +356,7 @@ def main(
 
     # --Step 3: Training if set (force retraining) --------
     if force_retraining:
-        results = run_supervised_model_with_cv_and_test(
+        results, final_model = run_supervised_model_with_cv_and_test(
             model_type, X_train, y_train, groups_train, X_test, y_test,
             cv_splitter, device, classifier_epochs=num_epochs, classifier_batch_size=batch_size,
             classifier_lr=lr, pin_memory=pin_memory)
@@ -372,6 +371,12 @@ def main(
         # Save the results:
         with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
             json.dump(results, f)
+
+        saved_results = os.path.join(model_save_path, f"{model_type}.pt")
+        torch.save(
+            {"model_parameters": final_model.state_dict()},
+            saved_results
+        )
 
     else:
         # Load parameters from saved results
