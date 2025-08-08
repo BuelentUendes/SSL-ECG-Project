@@ -46,7 +46,7 @@ def run_supervised_model_with_cv_and_test(
 ):
     """Run CV for Supervised model  then train final model and test."""
 
-    lr_rates = [1e-3, 1e-4]
+    lr_rates = [1e-4, 1e-5, 1e-3]
     dropout_rates = [0.1]
 
     num_workers = min(8, os.cpu_count() or 2)
@@ -56,7 +56,7 @@ def run_supervised_model_with_cv_and_test(
 
     default_best_params = {
         "dropout": [0.3],
-        "lr": [1e-5],
+        "lr": [1e-4],
     }
 
     print(f"Running manual CV for supervised model {model_type} hyperparameters...")
@@ -66,8 +66,6 @@ def run_supervised_model_with_cv_and_test(
         print(f"Default parameters: {default_best_params}")
 
         best_params = default_best_params
-        #ToDo!
-        # model_factory = create_default_model_factory(model_type)
         best_cv_score = 0.0
 
     else:
@@ -400,8 +398,8 @@ def main(
 
         test_ds = PhysiologicalDataset(X_test, y_test)
         test_loader = DataLoader(
-            test_ds, batch_size=32, shuffle=False, drop_last=False,
-            pin_memory=pin_memory, num_workers=num_workers
+            test_ds, batch_size=batch_size, shuffle=False, drop_last=False,
+            pin_memory=pin_memory
         )
         loss_fn = torch.nn.BCEWithLogitsLoss()
 
@@ -436,7 +434,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--force_retraining", action="store_true")
     parser.add_argument("--lr", type=float, default=1e-5) #lr 1e-4 was good
-    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--num_epochs", type=int, default=25)
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--scheduler_mode", default="min")
