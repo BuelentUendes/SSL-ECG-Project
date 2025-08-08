@@ -1191,6 +1191,7 @@ def run_mlp_with_cv_and_test(
 
                 # Average CV score for this parameter combination
                 mean_cv_score = np.mean(fold_scores)
+                print()
                 print(f"  Mean CV AUROC: {mean_cv_score:.4f}")
 
                 if mean_cv_score > best_cv_score:
