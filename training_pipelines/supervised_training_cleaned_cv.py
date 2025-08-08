@@ -78,7 +78,7 @@ def run_supervised_model_with_cv_and_test(
                 fold_scores = []
 
                 # Run CV for this parameter combination
-                for fold, (train_idx, val_idx) in enumerate(cv_splitter.split(X_train, y_train, groups_train)):
+                for fold, (train_idx, val_idx) in enumerate(cv_splitter.split(X_train, y_train, groups_train), 1):
                     X_fold_train, X_fold_val = X_train[train_idx], X_train[val_idx]
                     y_fold_train, y_fold_val = y_train[train_idx], y_train[val_idx]
 
@@ -111,7 +111,7 @@ def run_supervised_model_with_cv_and_test(
 
                     # Training loop
                     for idx, epoch in enumerate(range(classifier_epochs), 1):
-                        print(f"Epoch {idx} / {classifier_epochs}")
+                        print(f"Fold: {fold}: Processing Epoch {idx} / {classifier_epochs}")
                         model.train()
                         for X_batch, y_batch in tr_loader:
                             X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
