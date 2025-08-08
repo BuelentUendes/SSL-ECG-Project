@@ -1177,6 +1177,8 @@ def run_mlp_with_cv_and_test(
 
                     with torch.no_grad():
                         for X_batch, y_batch in val_loader:
+                            X_batch = X_batch.to(device, non_blocking=non_blocking_bool)
+                            y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
                             logits = model(X_batch).squeeze(-1)
                             probs = torch.sigmoid(logits)
                             val_probs.extend(probs.cpu().numpy())
