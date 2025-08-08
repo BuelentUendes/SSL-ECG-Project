@@ -335,7 +335,7 @@ class TCNClassifier(nn.Module):
         self.conv5 = nn.Conv1d(in_channels=Ft, out_channels=Ft, kernel_size=Kt, dilation=dilation, bias=False)
         self.batchnorm5 = nn.BatchNorm1d(num_features=Ft)
         self.act5 = nn.ReLU()
-        self.dropout5 = nn.Dropout(p=pt)
+        self.dropout5 = nn.Dropout(p=dropout)
         self.pad6 = nn.ConstantPad1d(padding=((Kt-1) * dilation, 0), value=0)
         self.conv6 = nn.Conv1d(in_channels=Ft, out_channels=Ft, kernel_size=Kt, dilation=dilation, bias=False)
         self.batchnorm6 = nn.BatchNorm1d(num_features=Ft)
