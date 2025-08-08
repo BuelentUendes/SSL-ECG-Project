@@ -119,7 +119,6 @@ def run_supervised_model_with_cv_and_test(
                             optimizer.zero_grad()
                             logits = model(X_batch).squeeze(-1)
                             loss = loss_fn(logits, y_batch)
-                            print(f"The loss is {loss}")
                             loss.backward()
                             optimizer.step()
 
