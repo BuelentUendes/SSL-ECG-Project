@@ -55,8 +55,8 @@ def run_supervised_model_with_cv_and_test(
     best_cv_score = 0
 
     default_best_params = {
-        "dropout": [0.3],
-        "lr": [1e-4],
+        "dropout": 0.3,
+        "lr": 1e-4,
     }
 
     print(f"Running manual CV for supervised model {model_type} hyperparameters...")
@@ -425,7 +425,7 @@ if __name__ == "__main__":
     parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
     parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer"], default="cnn")
-    parser.add_argument("--label_fraction", type=float, default=0.1,
+    parser.add_argument("--label_fraction", type=float, default=0.05,
                         help="Percent of labeled participants in the training stage.")
     parser.add_argument("--window_size", type=int, default=10,
                            help="Window size in seconds")
