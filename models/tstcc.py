@@ -161,15 +161,22 @@ def data_generator_from_arrays(
     return train_loader, valid_loader, test_loader
 
 def build_linear_loaders(
-    X_repr: np.ndarray, y: np.ndarray,
-    batch_size: int, device: str, shuffle: bool = True, drop_last=False
+        X_repr: np.ndarray, y: np.ndarray,
+        batch_size: int, device: str, shuffle: bool = True, drop_last=False,
 ) -> DataLoader:
+
     ds = TensorDataset(
         torch.from_numpy(X_repr).float().to(device),
         torch.from_numpy(y).float().to(device)
     )
-    # We use drop last to prevent empty batches!
-    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last)
+
+    num_workers = min(8, os.cpu_count() or 2)
+    use_cuda = (device.type == "cuda")
+    pin_memory = use_cuda
+
+    return DataLoader(
+        ds, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, pin_memory=pin_memory, num_workers=num_workers
+    )
 
 # ----------------------------------------------------------------------
 # loss.py
