@@ -42,7 +42,7 @@ from models.supervised import (
 def run_supervised_model_with_cv_and_test(
         model_type, X_train, y_train, groups_train, X_test, y_test,
         cv_splitter, device, classifier_epochs=25, classifier_batch_size=32,
-        classifier_lr=1e-4, pin_memory=True
+        classifier_lr=1e-4, pin_memory=False
 ):
     """Run CV for Supervised model  then train final model and test."""
 
@@ -275,7 +275,6 @@ def main(
         device = torch.device("cpu")
     use_cuda = (device.type == "cuda")
     pin_memory = use_cuda
-    num_workers = min(8, os.cpu_count() or 2) if use_cuda else 0
 
     # mlflow setup
     exp_map = {
@@ -363,7 +362,7 @@ def main(
         results = run_supervised_model_with_cv_and_test(
             model_type, X_train, y_train, groups_train, X_test, y_test,
             cv_splitter, device, classifier_epochs=num_epochs, classifier_batch_size=batch_size,
-            classifier_lr=lr, pin_memory=pin_memory, num_workers=num_workers)
+            classifier_lr=lr, pin_memory=pin_memory)
 
         # log the results:
         mlflow.log_metrics({
