@@ -321,12 +321,12 @@ class TCNClassifier(nn.Module):
         self.conv3 = nn.Conv1d(in_channels=Ft, out_channels=Ft, kernel_size=Kt, dilation=dilation, bias=False)
         self.batchnorm3 = nn.BatchNorm1d(num_features=Ft)
         self.act3 = nn.ReLU()
-        self.dropout3 = nn.Dropout(p=pt)
+        self.dropout3 = nn.Dropout(p=dropout)
         self.pad4 = nn.ConstantPad1d(padding=((Kt-1) * dilation, 0), value=0)
         self.conv4 = nn.Conv1d(in_channels=Ft, out_channels=Ft, kernel_size=Kt, dilation=dilation, bias=False)
         self.batchnorm4 = nn.BatchNorm1d(num_features=Ft)
         self.act4 = nn.ReLU()
-        self.dropout4 = nn.Dropout(p=pt)
+        self.dropout4 = nn.Dropout(p=dropout)
         self.reluadd2 = nn.ReLU()
         
         # Third residual block (dilation = 4)
@@ -340,7 +340,7 @@ class TCNClassifier(nn.Module):
         self.conv6 = nn.Conv1d(in_channels=Ft, out_channels=Ft, kernel_size=Kt, dilation=dilation, bias=False)
         self.batchnorm6 = nn.BatchNorm1d(num_features=Ft)
         self.act6 = nn.ReLU()
-        self.dropout6 = nn.Dropout(p=pt)
+        self.dropout6 = nn.Dropout(p=dropout)
         self.reluadd3 = nn.ReLU()
         
         # Final linear layer: flattened feature map has shape Ft * input_length
