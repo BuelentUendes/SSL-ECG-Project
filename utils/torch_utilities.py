@@ -34,7 +34,6 @@ from mlflow.tracking import MlflowClient
 
 from models.supervised import LinearClassifier, MLPClassifier
 
-from models.tstcc import build_linear_loaders
 
 
 # MLflow helpers
@@ -1115,6 +1114,9 @@ def run_mlp_with_cv_and_test(
     }
 
     non_blocking_bool = torch.cuda.is_available()
+    pin_memory = torch.cuda.is_available()
+    # Use 0 workers to avoid CUDA multiprocessing issues with SSL representations
+    num_workers = 0
 
     print("Running manual CV for MLP hyperparameters...")
 
@@ -1141,8 +1143,17 @@ def run_mlp_with_cv_and_test(
                     input_dim = X_fold_train.shape[-1]
                     model = MLPClassifier(input_dim, hidden_dim=hidden_dim, dropout=dropout_rate).to(device)
 
-                    tr_loader = build_linear_loaders(X_fold_train, y_fold_train, classifier_batch_size, device)
-                    val_loader = build_linear_loaders(X_fold_val, y_fold_val, classifier_batch_size, device, shuffle=False)
+                    # Create datasets that don't pre-load to GPU (avoids multiprocessing CUDA issues)
+                    tr_ds = PhysiologicalDataset(X_fold_train, y_fold_train)
+                    val_ds = PhysiologicalDataset(X_fold_val, y_fold_val)
+                    tr_loader = DataLoader(
+                        tr_ds, batch_size=classifier_batch_size, shuffle=True,
+                        pin_memory=pin_memory, num_workers=num_workers
+                    )
+                    val_loader = DataLoader(
+                        val_ds, batch_size=classifier_batch_size, shuffle=False,
+                        pin_memory=pin_memory, num_workers=num_workers
+                    )
 
                     optimizer = torch.optim.AdamW(model.parameters(), lr=classifier_lr)
                     loss_fn = torch.nn.BCEWithLogitsLoss()
@@ -1194,8 +1205,17 @@ def run_mlp_with_cv_and_test(
         dropout=best_params['dropout']
     ).to(device)
 
-    tr_loader = build_linear_loaders(X_train, y_train, 32, device)
-    te_loader = build_linear_loaders(X_test, y_test, 32, device, shuffle=False)
+    # Create final datasets that don't pre-load to GPU
+    tr_ds = PhysiologicalDataset(X_train, y_train)
+    te_ds = PhysiologicalDataset(X_test, y_test)
+    tr_loader = DataLoader(
+        tr_ds, batch_size=32, shuffle=True,
+        pin_memory=pin_memory, num_workers=num_workers
+    )
+    te_loader = DataLoader(
+        te_ds, batch_size=32, shuffle=False,
+        pin_memory=pin_memory, num_workers=num_workers
+    )
 
     optimizer = torch.optim.AdamW(final_model.parameters(), lr=1e-4)
     loss_fn = torch.nn.BCEWithLogitsLoss()
