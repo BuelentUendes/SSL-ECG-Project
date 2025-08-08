@@ -21,8 +21,7 @@ from torcheval.metrics.functional import multiclass_f1_score
 
 #Scikit learn imports
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, average_precision_score
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.model_selection import GroupKFold, LeaveOneGroupOut,  GridSearchCV
 
@@ -1115,6 +1114,8 @@ def run_mlp_with_cv_and_test(
         'dropout': 0.2,
     }
 
+    non_blocking_bool = torch.cuda.is_available()
+
     print("Running manual CV for MLP hyperparameters...")
 
     if cv_splitter is None:
@@ -1125,7 +1126,6 @@ def run_mlp_with_cv_and_test(
         best_cv_score = 0.0
 
     else:
-        # Manual grid search (since sklearn GridSearchCV doesn't work with PyTorch)
         for hidden_dim in hidden_dims:
             for dropout_rate in dropout_rates:
                 print(f"Testing hidden_dim={hidden_dim}, dropout={dropout_rate}")
@@ -1151,6 +1151,8 @@ def run_mlp_with_cv_and_test(
                     for epoch in range(classifier_epochs):
                         model.train()
                         for X_batch, y_batch in tr_loader:
+                            X_batch = X_batch.to(device, non_blocking=non_blocking_bool)
+                            y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
                             optimizer.zero_grad()
                             logits = model(X_batch).squeeze(-1)
                             loss = loss_fn(logits, y_batch)
@@ -1203,6 +1205,8 @@ def run_mlp_with_cv_and_test(
         print(f"Epoch {idx} / {classifier_epochs}")
         final_model.train()
         for X_batch, y_batch in tr_loader:
+            X_batch = X_batch.to(device, non_blocking=non_blocking_bool)
+            y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
             optimizer.zero_grad()
             logits = final_model(X_batch).squeeze(-1)
             loss = loss_fn(logits, y_batch)
@@ -1219,6 +1223,8 @@ def run_mlp_with_cv_and_test(
 
     with torch.no_grad():
         for X_batch, y_batch in te_loader:
+            X_batch = X_batch.to(device, non_blocking=non_blocking_bool)
+            y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
             logits = final_model(X_batch).squeeze(-1)
             probs = torch.sigmoid(logits)
             preds = (probs > 0.5).float()
