@@ -1,5 +1,6 @@
 import os
 import tempfile
+import sys
 from pathlib import Path
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
@@ -1160,7 +1161,7 @@ def run_mlp_with_cv_and_test(
 
                     # Training loop
                     for idx, epoch in enumerate(range(classifier_epochs), 1):
-                        print(f"Processing fold {fold}: Epoch: {idx} / {classifier_epochs}")
+                        print(f"Processing fold {fold}: Epoch: {idx} / {classifier_epochs}", flush=True, end="\r")
                         model.train()
                         for X_batch, y_batch in tr_loader:
                             X_batch = X_batch.to(device, non_blocking=non_blocking_bool)
@@ -1225,7 +1226,7 @@ def run_mlp_with_cv_and_test(
 
     # Train final model
     for idx, epoch in enumerate(range(classifier_epochs), start=1):
-        print(f"Epoch {idx} / {classifier_epochs}")
+        print(f"Final model training: Epoch {idx} / {classifier_epochs}", flush=True, end="\r")
         final_model.train()
         for X_batch, y_batch in tr_loader:
             X_batch = X_batch.to(device, non_blocking=non_blocking_bool)
