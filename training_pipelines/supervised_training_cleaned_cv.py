@@ -415,7 +415,7 @@ if __name__ == "__main__":
     parser.add_argument("--force_retraining", action="store_true")
     parser.add_argument("--lr", type=float, default=1e-5) #lr 1e-4 was good
     parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--num_epochs", type=int, default=2)
+    parser.add_argument("--num_epochs", type=int, default=25)
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--scheduler_mode", default="min")
     parser.add_argument("--scheduler_factor", type=float, default=0.5)
