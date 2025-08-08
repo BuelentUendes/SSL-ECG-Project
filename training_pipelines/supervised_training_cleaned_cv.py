@@ -109,7 +109,7 @@ def run_supervised_model_with_cv_and_test(
 
                     # Training loop
                     for idx, epoch in enumerate(range(classifier_epochs), 1):
-                        print(f"Fold: {fold}: Processing Epoch {idx} / {classifier_epochs}")
+                        print(f"Fold: {fold}: Processing Epoch {idx} / {classifier_epochs}", flush=True, end="\r")
                         model.train()
                         for X_batch, y_batch in tr_loader:
                             X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
@@ -139,6 +139,7 @@ def run_supervised_model_with_cv_and_test(
 
                 # Average CV score for this parameter combination
                 mean_cv_score = np.mean(fold_scores)
+                print()
                 print(f"  Mean CV AUROC: {mean_cv_score:.4f}")
 
                 if mean_cv_score > best_cv_score:
@@ -182,7 +183,8 @@ def run_supervised_model_with_cv_and_test(
 
     # Train final model
     for idx, epoch in enumerate(range(classifier_epochs), start=1):
-        print(f"Epoch {idx} / {classifier_epochs}")
+        print()
+        print(f"Final training: Epoch {idx} / {classifier_epochs}", end="\r")
         final_model.train()
         for X_batch, y_batch in tr_loader:
             X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
