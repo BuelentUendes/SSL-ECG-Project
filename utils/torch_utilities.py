@@ -1159,7 +1159,8 @@ def run_mlp_with_cv_and_test(
                     loss_fn = torch.nn.BCEWithLogitsLoss()
 
                     # Training loop
-                    for epoch in range(classifier_epochs):
+                    for idx, epoch in enumerate(range(classifier_epochs), 1):
+                        print(f"Processing fold {fold}: Epoch: {idx} / {classifier_epochs}")
                         model.train()
                         for X_batch, y_batch in tr_loader:
                             X_batch = X_batch.to(device, non_blocking=non_blocking_bool)
