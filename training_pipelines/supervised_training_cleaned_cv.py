@@ -30,7 +30,6 @@ from utils.torch_utilities import (
     train_one_epoch,
     test,
     EarlyStopping,
-    build_linear_loaders,
 )
 
 from models.supervised import (
@@ -94,15 +93,20 @@ def run_supervised_model_with_cv_and_test(
                     optimizer = optim.AdamW(model.parameters(), lr=lr)
                     loss_fn = torch.nn.BCEWithLogitsLoss()
 
-                    #ToDo: Rename the loader! It is basically a data loader
-                    tr_loader = build_linear_loaders(X_fold_train, y_fold_train, classifier_batch_size, device)
-                    val_loader = build_linear_loaders(X_fold_val, y_fold_val, classifier_batch_size, device,
-                                                      shuffle=False)
+                    # Create proper datasets for supervised models (not SSL representations)
+                    tr_ds = PhysiologicalDataset(X_fold_train, y_fold_train)
+                    val_ds = PhysiologicalDataset(X_fold_val, y_fold_val)
+                    tr_loader = DataLoader(tr_ds, batch_size=classifier_batch_size, shuffle=True, drop_last=True)
+                    val_loader = DataLoader(val_ds, batch_size=classifier_batch_size, shuffle=False, drop_last=False)
+
+                    non_blocking_bool = torch.cuda.is_available()
 
                     # Training loop
                     for epoch in range(classifier_epochs):
                         model.train()
                         for X_batch, y_batch in tr_loader:
+                            X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
+                            y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
                             optimizer.zero_grad()
                             logits = model(X_batch).squeeze(-1)
                             loss = loss_fn(logits, y_batch)
@@ -116,6 +120,8 @@ def run_supervised_model_with_cv_and_test(
 
                     with torch.no_grad():
                         for X_batch, y_batch in val_loader:
+                            X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
+                            y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
                             logits = model(X_batch).squeeze(-1)
                             probs = torch.sigmoid(logits)
                             val_probs.extend(probs.cpu().numpy())
@@ -150,8 +156,10 @@ def run_supervised_model_with_cv_and_test(
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Total parameters: {total_params}, Trainable: {trainable_params}")
 
-    tr_loader = build_linear_loaders(X_train, y_train, 32, device)
-    te_loader = build_linear_loaders(X_test, y_test, 32, device, shuffle=False)
+    tr_ds = PhysiologicalDataset(X_train, y_train)
+    te_ds = PhysiologicalDataset(X_test, y_test)
+    tr_loader = DataLoader(tr_ds, batch_size=32, shuffle=True, drop_last=True)
+    te_loader = DataLoader(te_ds, batch_size=32, shuffle=False, drop_last=False)
 
     optimizer = torch.optim.AdamW(final_model.parameters(), lr=best_params["lr"])
     loss_fn = torch.nn.BCEWithLogitsLoss()
@@ -161,6 +169,7 @@ def run_supervised_model_with_cv_and_test(
         print(f"Epoch {idx} / {classifier_epochs}")
         final_model.train()
         for X_batch, y_batch in tr_loader:
+
             optimizer.zero_grad()
             logits = final_model(X_batch).squeeze(-1)
             loss = loss_fn(logits, y_batch)
@@ -177,10 +186,11 @@ def run_supervised_model_with_cv_and_test(
 
     with torch.no_grad():
         for X_batch, y_batch in te_loader:
-            logits = final_model(X_batch).squeeze(-1)
+            X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
+            y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
+            logits = final_model(X_batch.permute(0, 2, 1)).squeeze(-1)
             probs = torch.sigmoid(logits)
             preds = (probs > 0.5).float()
-
             test_probs.extend(probs.cpu().numpy())
             test_preds.extend(preds.cpu().numpy())
             test_labels.extend(y_batch.cpu().numpy())
@@ -369,7 +379,8 @@ def main(
             print(f"No saved model found at {saved_results}. Please run with --force_retraining")
             raise FileNotFoundError(f"Model file not found: {saved_results}")
 
-        test_loader = build_linear_loaders(X_test, y_test, 32, device, shuffle=False)
+        test_ds = PhysiologicalDataset(X_test, y_test)
+        test_loader = DataLoader(test_ds, batch_size=32, shuffle=False, drop_last=False)
         loss_fn = torch.nn.BCEWithLogitsLoss()
 
         #ToDo: Change the best t for f1 score
@@ -404,7 +415,7 @@ if __name__ == "__main__":
     parser.add_argument("--force_retraining", action="store_true")
     parser.add_argument("--lr", type=float, default=1e-5) #lr 1e-4 was good
     parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--num_epochs", type=int, default=25)
+    parser.add_argument("--num_epochs", type=int, default=2)
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--scheduler_mode", default="min")
     parser.add_argument("--scheduler_factor", type=float, default=0.5)
@@ -415,4 +426,6 @@ if __name__ == "__main__":
                         help="Minimum participants needed for k-fold (otherwise use Leave one participant out)")
 
     args = parser.parse_args()
+
+    args.force_retraining = True
     main(**vars(args))
