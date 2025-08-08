@@ -42,12 +42,14 @@ from models.supervised import (
 def run_supervised_model_with_cv_and_test(
         model_type, X_train, y_train, groups_train, X_test, y_test,
         cv_splitter, device, classifier_epochs=25, classifier_batch_size=32,
-        classifier_lr=1e-4,
+        classifier_lr=1e-4, pin_memory=True
 ):
     """Run CV for Supervised model  then train final model and test."""
 
     lr_rates = [1e-3, 1e-4]
     dropout_rates = [0.1]
+
+    num_workers = min(8, os.cpu_count() or 2)
 
     best_params = None
     best_cv_score = 0
@@ -96,13 +98,20 @@ def run_supervised_model_with_cv_and_test(
                     # Create proper datasets for supervised models (not SSL representations)
                     tr_ds = PhysiologicalDataset(X_fold_train, y_fold_train)
                     val_ds = PhysiologicalDataset(X_fold_val, y_fold_val)
-                    tr_loader = DataLoader(tr_ds, batch_size=classifier_batch_size, shuffle=True, drop_last=True)
-                    val_loader = DataLoader(val_ds, batch_size=classifier_batch_size, shuffle=False, drop_last=False)
+                    tr_loader = DataLoader(
+                        tr_ds, batch_size=classifier_batch_size, shuffle=True, 
+                        drop_last=True, pin_memory=pin_memory, num_workers=num_workers
+                    )
+                    val_loader = DataLoader(
+                        val_ds, batch_size=classifier_batch_size, shuffle=False, 
+                        drop_last=False, pin_memory=pin_memory, num_workers=num_workers
+                    )
 
                     non_blocking_bool = torch.cuda.is_available()
 
                     # Training loop
-                    for epoch in range(classifier_epochs):
+                    for idx, epoch in enumerate(range(classifier_epochs), 1):
+                        print(f"Epoch {idx} / {classifier_epochs}")
                         model.train()
                         for X_batch, y_batch in tr_loader:
                             X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
@@ -110,6 +119,7 @@ def run_supervised_model_with_cv_and_test(
                             optimizer.zero_grad()
                             logits = model(X_batch).squeeze(-1)
                             loss = loss_fn(logits, y_batch)
+                            print(f"The loss is {loss}")
                             loss.backward()
                             optimizer.step()
 
@@ -152,16 +162,25 @@ def run_supervised_model_with_cv_and_test(
     else:
         final_model = TransformerECGClassifier().to(device)
 
-    total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total_params = sum(p.numel() for p in final_model.parameters())
+    trainable_params = sum(p.numel() for p in final_model.parameters() if p.requires_grad)
     print(f"Total parameters: {total_params}, Trainable: {trainable_params}")
 
     tr_ds = PhysiologicalDataset(X_train, y_train)
     te_ds = PhysiologicalDataset(X_test, y_test)
-    tr_loader = DataLoader(tr_ds, batch_size=32, shuffle=True, drop_last=True)
-    te_loader = DataLoader(te_ds, batch_size=32, shuffle=False, drop_last=False)
+    tr_loader = DataLoader(
+        tr_ds, batch_size=32, shuffle=True, drop_last=True, 
+        pin_memory=pin_memory, num_workers=num_workers
+    )
+    te_loader = DataLoader(
+        te_ds, batch_size=32, shuffle=False, drop_last=False, 
+        pin_memory=pin_memory, num_workers=num_workers
+    )
 
     optimizer = torch.optim.AdamW(final_model.parameters(), lr=best_params["lr"])
+    
+    # Move non_blocking_bool definition here for final model training
+    non_blocking_bool = torch.cuda.is_available()
     loss_fn = torch.nn.BCEWithLogitsLoss()
 
     # Train final model
@@ -169,7 +188,8 @@ def run_supervised_model_with_cv_and_test(
         print(f"Epoch {idx} / {classifier_epochs}")
         final_model.train()
         for X_batch, y_batch in tr_loader:
-
+            X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
+            y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
             optimizer.zero_grad()
             logits = final_model(X_batch).squeeze(-1)
             loss = loss_fn(logits, y_batch)
@@ -188,7 +208,7 @@ def run_supervised_model_with_cv_and_test(
         for X_batch, y_batch in te_loader:
             X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
             y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
-            logits = final_model(X_batch.permute(0, 2, 1)).squeeze(-1)
+            logits = final_model(X_batch).squeeze(-1)
             probs = torch.sigmoid(logits)
             preds = (probs > 0.5).float()
             test_probs.extend(probs.cpu().numpy())
@@ -255,6 +275,7 @@ def main(
         device = torch.device("cpu")
     use_cuda = (device.type == "cuda")
     pin_memory = use_cuda
+    num_workers = min(8, os.cpu_count() or 2) if use_cuda else 0
 
     # mlflow setup
     exp_map = {
@@ -342,7 +363,7 @@ def main(
         results = run_supervised_model_with_cv_and_test(
             model_type, X_train, y_train, groups_train, X_test, y_test,
             cv_splitter, device, classifier_epochs=num_epochs, classifier_batch_size=batch_size,
-            classifier_lr=lr)
+            classifier_lr=lr, pin_memory=pin_memory, num_workers=num_workers)
 
         # log the results:
         mlflow.log_metrics({
@@ -380,7 +401,10 @@ def main(
             raise FileNotFoundError(f"Model file not found: {saved_results}")
 
         test_ds = PhysiologicalDataset(X_test, y_test)
-        test_loader = DataLoader(test_ds, batch_size=32, shuffle=False, drop_last=False)
+        test_loader = DataLoader(
+            test_ds, batch_size=32, shuffle=False, drop_last=False,
+            pin_memory=pin_memory, num_workers=num_workers
+        )
         loss_fn = torch.nn.BCEWithLogitsLoss()
 
         #ToDo: Change the best t for f1 score
