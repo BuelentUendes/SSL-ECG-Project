@@ -100,7 +100,7 @@ class Improved1DCNN_v2(nn.Module):
     A more complex 1D CNN model with 3 convolutional blocks with 
     3-layer classification head with dropout.
     """
-    def __init__(self):
+    def __init__(self, dropout=None):
         super(Improved1DCNN_v2, self).__init__()
         self.bn_input = nn.BatchNorm1d(1)
         # Block 1
@@ -108,22 +108,22 @@ class Improved1DCNN_v2(nn.Module):
         self.conv1_2 = nn.Conv1d(32, 32, kernel_size=5, padding=2)
         self.pool1 = nn.MaxPool1d(kernel_size=2)
         self.bn1 = nn.BatchNorm1d(32)
-        self.dropout1 = nn.Dropout(0.1)
+        self.dropout1 = nn.Dropout(0.1) if dropout is None else nn.Dropout(p=dropout)
         # Block 2
         self.conv2_1 = nn.Conv1d(32, 64, kernel_size=11, padding=5, bias=False)
         self.conv2_2 = nn.Conv1d(64, 64, kernel_size=11, padding=5)
         self.pool2 = nn.MaxPool1d(kernel_size=2)
         self.bn2 = nn.BatchNorm1d(64)
-        self.dropout2 = nn.Dropout(0.1)
+        self.dropout2 = nn.Dropout(0.1) if dropout is None else nn.Dropout(p=dropout)
         # Block 3
         self.conv3_1 = nn.Conv1d(64, 128, kernel_size=17, padding=8, bias=False)
         self.conv3_2 = nn.Conv1d(128, 128, kernel_size=17, padding=8)
         self.gap = nn.AdaptiveAvgPool1d(1)
         # Dense layers
         self.fc1 = nn.Linear(128, 128)
-        self.dropout3 = nn.Dropout(0.3)
+        self.dropout3 = nn.Dropout(0.3) if dropout is None else nn.Dropout(p=dropout)
         self.fc2 = nn.Linear(128, 64)
-        self.dropout4 = nn.Dropout(0.3)
+        self.dropout4 = nn.Dropout(0.3) if dropout is None else nn.Dropout(p=dropout)
         self.fc3 = nn.Linear(64, 1)
     
     def forward(self, x):
@@ -193,7 +193,7 @@ class PositionalEncoding(nn.Module):
 # In: International Symposium on Wearable Computers, pp. 1--6 (2021). \doi{10.1145/3460421.3480427}
 # Transformer-based classifier for ECG stress detection
 class TransformerECGClassifier(nn.Module):
-    def __init__(self, input_length=10000):
+    def __init__(self, dropout=0.4, input_length=10000):
         """
         Args:
             input_length: Length of the input ECG signal.
@@ -235,9 +235,9 @@ class TransformerECGClassifier(nn.Module):
         # Fully connected (FC) subnetwork for classification
         # Flattened transformer output has dimension T * 1024 (74 * 1024)
         self.fc1 = nn.Linear(self.T * 1024, 512)
-        self.dropout_fc1 = nn.Dropout(0.4)
+        self.dropout_fc1 = nn.Dropout(p=dropout)
         self.fc2 = nn.Linear(512, 256)
-        self.dropout_fc2 = nn.Dropout(0.4)
+        self.dropout_fc2 = nn.Dropout(p=dropout)
         self.fc3 = nn.Linear(256, 1)
         
     def forward(self, x):
@@ -290,7 +290,7 @@ class TransformerECGClassifier(nn.Module):
 # TCN Model Class
 # ----------------------
 class TCNClassifier(nn.Module):
-    def __init__(self, input_length=10000, n_inputs=1, Kt=11, pt=0.3, Ft=11):
+    def __init__(self, input_length=10000, n_inputs=1, Kt=11, dropout=0.3, Ft=11):
         super(TCNClassifier, self).__init__()
         # Initial 1x1 convolution to expand channels
         self.pad0 = nn.ConstantPad1d(padding=(Kt-1, 0), value=0)
@@ -307,12 +307,12 @@ class TCNClassifier(nn.Module):
         self.conv1 = nn.Conv1d(in_channels=n_inputs + 1, out_channels=Ft, kernel_size=Kt, dilation=dilation, bias=False)
         self.batchnorm1 = nn.BatchNorm1d(num_features=Ft)
         self.act1 = nn.ReLU()
-        self.dropout1 = nn.Dropout(p=pt)
+        self.dropout1 = nn.Dropout(p=dropout)
         self.pad2 = nn.ConstantPad1d(padding=((Kt-1) * dilation, 0), value=0)
         self.conv2 = nn.Conv1d(in_channels=Ft, out_channels=Ft, kernel_size=Kt, dilation=dilation, bias=False)
         self.batchnorm2 = nn.BatchNorm1d(num_features=Ft)
         self.act2 = nn.ReLU()
-        self.dropout2 = nn.Dropout(p=pt)
+        self.dropout2 = nn.Dropout(p=dropout)
         self.reluadd1 = nn.ReLU()
         
         # Second residual block (dilation = 2)
