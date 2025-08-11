@@ -80,6 +80,42 @@ def process_save_cleaned_data_ppg(
                     )
     print(f"Cleaned ECG data saved to {output_hdf5_path}")
 
+# This should take a pandas dataframe and then add the
+def clean_and_filter_ecg(ecg_signal, sampling_rate, threshold=0.25, method="neurokit", return_indices=False):
+    # Sanitize and clean input
+    ecg_signal = nk.signal_sanitize(ecg_signal)
+    ecg_cleaned = nk.ecg_clean(ecg_signal, sampling_rate=sampling_rate)
+
+    # Detect R-peaks
+    instant_peaks, info = nk.ecg_peaks(
+        ecg_cleaned=ecg_cleaned,
+        sampling_rate=sampling_rate,
+        method=method,
+        correct_artifacts=True,
+    )
+
+    # Assess signal quality
+    quality = nk.ecg_quality(
+        ecg_cleaned, rpeaks=info["ECG_R_Peaks"], sampling_rate=sampling_rate
+    )
+
+    # Get the indices with quality higher than threshold, set here to 0.25
+    good_indices = np.where(quality > threshold)[0]
+
+    cleaned_filtered_signal = ecg_cleaned[good_indices]
+
+    if return_indices:
+        return cleaned_filtered_signal, good_indices
+    else:
+        return cleaned_filtered_signal
+
+
+
+
+
+
+
+
 # ------------------------------------------------------
 
 # ────────────────────────────────────────────
@@ -142,26 +178,84 @@ def csv_to_hdf5(root_dir, out_h5, physiological_sensor="ECG", placement="chest")
                 # Loop through intervals and save each segment individually
                 complete_data = pd.read_csv(fpath)
 
-                if physiological_sensor not in df.columns:
+                if physiological_sensor not in complete_data.columns:
                     print(f" SKIP {os.path.basename(fpath)} – no {physiological_sensor} column found")
                     continue
 
-                # vals = df[physiological_sensor].values.astype(np.float32)
-
                 # Get sampling frequency (equivalent to bvp["samplingFrequency"])
                 fs = frequency_dict.get(physiological_sensor, 700)
+                
+                # Clean and filter the ECG column and add quality information to the dataframe
+                if physiological_sensor == "ECG":
+                    print(f" Cleaning and filtering ECG signal for {part} ({len(complete_data)} samples)")
+                    
+                    # Extract the ECG signal
+                    ecg_signal = complete_data[physiological_sensor].values.astype(np.float32)
+                    
+                    # Clean the signal and get quality indices
+                    ecg_cleaned = nk.ecg_clean(ecg_signal, sampling_rate=fs)
+                    
+                    # Detect R-peaks for quality assessment
+                    instant_peaks, info = nk.ecg_peaks(
+                        ecg_cleaned=ecg_cleaned,
+                        sampling_rate=fs,
+                        method="neurokit",
+                        correct_artifacts=True,
+                    )
+                    
+                    # Assess signal quality
+                    quality = nk.ecg_quality(
+                        ecg_cleaned, rpeaks=info["ECG_R_Peaks"], sampling_rate=fs
+                    )
+                    
+                    # Add cleaned signal and quality to the dataframe
+                    complete_data[f'{physiological_sensor}_cleaned'] = ecg_cleaned
+                    complete_data['signal_quality'] = quality
+                    
+                    print(f" Added cleaned ECG signal and quality assessment to dataframe")
+
+                elif physiological_sensor == "BVP":
+                    print(f" Cleaning BVP signal for {part} ({len(complete_data)} samples)")
+                    
+                    # Extract and clean BVP signal
+                    bvp_signal = complete_data[physiological_sensor].values.astype(np.float32)
+                    bvp_cleaned = nk.ppg_clean(bvp_signal, sampling_rate=fs)
+                    
+                    # Add cleaned signal to the dataframe
+                    complete_data[f'{physiological_sensor}_cleaned'] = bvp_cleaned
+                    # For BVP, we don't have quality assessment, so set all to 1.0
+                    complete_data['signal_quality'] = 1.0
+                    
+                    print(f" Added cleaned BVP signal to dataframe")
 
                 # Get the corresponding segments:
                 # Get unique conditions
                 experimental_conditions = list(complete_data["label"].unique())
 
                 for label in experimental_conditions:
+                    # Encode the integer to a nice string descriptive first
+                    label_encoding = label_mapping.get(label, "other")
+                    
                     # Get the segments that are associated with the experimental condition
                     labeled_segment_df = complete_data[complete_data["label"] == label]
-                    segment = labeled_segment_df[physiological_sensor].values.astype(np.float32)
+                    
+                    # Use cleaned signal if available, otherwise use original
+                    if f'{physiological_sensor}_cleaned' in complete_data.columns:
+                        segment = labeled_segment_df[f'{physiological_sensor}_cleaned'].values.astype(np.float32)
+                        signal_quality_segment = labeled_segment_df['signal_quality'].values
+                        # Filter out low quality samples if it's ECG and we have quality assessment
+                        if physiological_sensor == "ECG":
+                            quality_threshold = 0.25  # Same threshold as in the cleaning function
+                            good_quality_mask = signal_quality_segment > quality_threshold
+                            segment = segment[good_quality_mask]
+                            print(f" Filtered segment for {label_encoding}: {len(segment)}/{len(signal_quality_segment)} samples kept (quality > {quality_threshold})")
+                    else:
+                        segment = labeled_segment_df[physiological_sensor].values.astype(np.float32)
 
-                    # Encode the integer to a nice string descriptive
-                    label_encoding = label_mapping.get(label, "other")
+                    # Skip empty segments
+                    if len(segment) == 0:
+                        print(f" SKIP empty segment for label: {label_encoding}")
+                        continue
 
                     # Create or get category group under participant
                     if label_encoding not in participant_group:
@@ -180,7 +274,7 @@ def csv_to_hdf5(root_dir, out_h5, physiological_sensor="ECG", placement="chest")
                         )
 
                     print(
-                        f"[{idx}] {part}: stored {len(segment)} samples @ {fs} Hz for label: {label_encoding} and signal {physiological_sensor}"
+                        f"[{idx}] {part}: stored {len(segment)} samples @ {fs} Hz for label: {label_encoding} (cleaned: {f'{physiological_sensor}_cleaned' in complete_data.columns})"
                     )
 
             except Exception as e:
@@ -201,11 +295,11 @@ def main(args):
     NORM_H5         = os.path.join(WESAD_SAVE_PATH, "wesad_norm.h5")
     WIN_H5          = os.path.join(WESAD_SAVE_PATH, "windowed_data.h5")
 
-    csv_to_hdf5(ROOT_DIR, RAW_H5, args.physiological_sensor, args.placement)
-    if args.physiological_sensor == "ECG":
-        process_save_cleaned_data(RAW_H5,CLEAN_H5,fs=args.fs,)
-    else:
-        process_save_cleaned_data_ppg(RAW_H5, CLEAN_H5, fs=args.fs, )
+    csv_to_hdf5(ROOT_DIR, CLEAN_H5, args.physiological_sensor, args.placement)
+    # if args.physiological_sensor == "ECG":
+    #     process_save_cleaned_data(RAW_H5,CLEAN_H5,fs=args.fs,)
+    # else:
+    #     process_save_cleaned_data_ppg(RAW_H5, CLEAN_H5, fs=args.fs, )
 
     normalize_cleaned_data(CLEAN_H5, NORM_H5)
     segment_data_into_windows(NORM_H5, WIN_H5, fs=args.fs, window_size=args.window_size, step_size=args.step_size)
@@ -256,7 +350,4 @@ if __name__ == "__main__":
 
     main(args)
 
-    # #ToDo:
-    # # Do this now with PPG option as well
-    # # -> Then everything in place
 
