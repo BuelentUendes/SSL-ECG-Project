@@ -453,9 +453,9 @@ if __name__ == "__main__":
     data_group = parser.add_argument_group('Data Configuration')
     data_group.add_argument("--fs", default=1000, type=str,
                            help="Sampling frequency used for training")
-    data_group.add_argument("--window_size", type=int, default=10,
+    data_group.add_argument("--window_size", type=int, default=30,
                            help="Window size in seconds")
-    data_group.add_argument("--step_size", type=int, default=5,
+    data_group.add_argument("--step_size", type=int, default=10,
                            help="Step size in seconds for sliding window")
     data_group.add_argument("--label_fraction", type=float, default=0.1,
                            help="Fraction of labeled participants to use (0.0-1.0)")
