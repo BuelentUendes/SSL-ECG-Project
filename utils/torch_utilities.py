@@ -843,7 +843,7 @@ def run_logistic_regression_with_gridsearch(
     }
 
     default_best_params = {
-        'C': 0.001,
+        'C': 0.01,
         'penalty': 'l2',
         'max_iter': 5000,
         'random_state': seed,
@@ -1104,14 +1104,14 @@ def run_mlp_with_cv_and_test(
 
     # Simple hyperparameter options for MLP
     hidden_dims = [16, 32, 64]
-    dropout_rates = [0.1, 0.2, 0.3, 0.5]
+    dropout_rates = [0.1, 0.2, 0.3, 0.5, 0.6, 0.75, 0.8]
 
     best_params = None
     best_cv_score = 0
 
     default_best_params = {
         'hidden_dim': 16,
-        'dropout': 0.2,
+        'dropout': 0.5,
     }
 
     non_blocking_bool = torch.cuda.is_available()
