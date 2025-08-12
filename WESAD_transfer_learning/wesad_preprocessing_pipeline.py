@@ -285,7 +285,7 @@ def csv_to_hdf5(root_dir, out_h5, physiological_sensor="ECG", placement="chest")
 
 def main(args):
     # Setup the pipeline
-    WESAD_SAVE_PATH = os.path.join(DATA_PATH, "interim","WESAD", args.physiological_sensor)
+    WESAD_SAVE_PATH = os.path.join(DATA_PATH, "interim","WESAD", args.physiological_sensor, f"{args.fs}", f"{args.window_size}", f"{args.step_size}")
     create_directory(WESAD_SAVE_PATH)
 
     ROOT_DIR        = os.path.join(DATA_PATH, "raw", "WESAD")
