@@ -172,15 +172,16 @@ def main(
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
     if pretrain_all_conditions:
+
         label_map = {
-            0: "transient",
-            1: "baseline",
-            2: "mental_stress", #Here not mental stress but other stress, physiological stress
-            3: "amusement",
-            4: "meditation",
-            5: "other", #potentially out
-            6: "other",
-            7: "other"
+            "transient": 0,
+            "baseline": 1,
+            "mental_stress": 2, #Here not mental stress but other stress, physiological stress
+            "amusement": 3,
+            "meditation": 4,
+            "other": 5, #potentially out
+            "other": 6,
+            "other": 7,
         }
 
     else:
@@ -225,7 +226,7 @@ def main(
     groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
 
     # Test that we have all 127 participants moved in one of the categories
-    assert len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) + len(np.unique(groups[test_idx])) == 65, \
+    assert len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) + len(np.unique(groups[test_idx])) == 15, \
         "Something went wrong with the participant split!"
 
     print(f"Labelled windows for training classifier: train {len(train_idx)}, test {len(test_idx)}")
