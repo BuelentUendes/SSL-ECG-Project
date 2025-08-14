@@ -800,7 +800,7 @@ class Config(object):
 
         # Data loader
         self.batch_size          = 64        # 10000-sample windows use more mem
-        self.drop_last           = False      # match original repo
+        self.drop_last           = True      # match original repo
 
         # ─────────────────── SSL blocks ─────────────────────
         # Contextual contrastive loss
@@ -840,7 +840,7 @@ class PPGConfig(object):
 
         # Data loader
         self.batch_size          = 64
-        self.drop_last           = False      # match original repo
+        self.drop_last           = True      # match original repo
 
         # ─────────────────── SSL blocks ─────────────────────
         # Contextual contrastive loss
