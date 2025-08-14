@@ -608,17 +608,27 @@ def search_encoder_fp(
 # ----------------------------------------------------------------------
 # trainer.py
 # ----------------------------------------------------------------------
-def Trainer(model, temporal_contr_model, model_optimizer, temp_cont_optimizer, train_dl, valid_dl, test_dl, device, config, experiment_log_dir, training_mode):
+def Trainer(
+        model, temporal_contr_model, model_optimizer, temp_cont_optimizer, train_dl, valid_dl, test_dl, device, config, experiment_log_dir, training_mode
+):
     # Start training
     print("Training started ....")
 
     criterion = nn.CrossEntropyLoss()
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(model_optimizer, 'min')
 
+    # Early stopping variables
+    best_val_loss = float('inf')
+    patience_counter = 0
+    patience = getattr(config, 'patience', 10)  # Default patience of 10 epochs
+    best_model_state = None
+    best_tc_model_state = None
+
     for epoch in range(1, config.num_epoch + 1):
         # Train and validate
         train_loss, train_acc = model_train(model, temporal_contr_model, model_optimizer, temp_cont_optimizer, criterion, train_dl, config, device, training_mode)
         val_loss, valid_acc, _, _ = model_evaluate(model, temporal_contr_model, valid_dl, device, training_mode, config)
+
         if training_mode == "self_supervised":
             print(f"Epoch {epoch:02d} | ssl_train_loss: {train_loss:.4f} | ssl_val_loss: {val_loss:.4f}")
             mlflow.log_metrics({
@@ -626,7 +636,34 @@ def Trainer(model, temporal_contr_model, model_optimizer, temp_cont_optimizer, t
                 "ssl_val_loss": val_loss
             }, step=epoch)
 
+            # Early stopping logic
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                patience_counter = 0
+                # Save best model states
+                best_model_state = model.state_dict().copy()
+                best_tc_model_state = temporal_contr_model.state_dict().copy()
+                print(f"    → New best validation loss: {best_val_loss:.4f}")
+            else:
+                patience_counter += 1
+                print(f"    → No improvement. Patience: {patience_counter}/{patience}")
+
+            # Check for early stopping
+            if patience_counter >= patience:
+                print(f"\nEarly stopping triggered after {epoch} epochs!")
+                print(f"Best validation loss: {best_val_loss:.4f}")
+                break
+
+    # Save models (either best from early stopping or final)
     os.makedirs(os.path.join(experiment_log_dir, "saved_models"), exist_ok=True)
+    
+    if best_model_state is not None:
+        # Save best model from early stopping
+        chkpoint = {'model_state_dict': best_model_state, 'temporal_contr_model_state_dict': best_tc_model_state}
+        torch.save(chkpoint, os.path.join(experiment_log_dir, "saved_models", f'ckp_best.pt'))
+        print(f"Saved best model with validation loss: {best_val_loss:.4f}")
+    
+    # Also save final model
     chkpoint = {'model_state_dict': model.state_dict(), 'temporal_contr_model_state_dict': temporal_contr_model.state_dict()}
     torch.save(chkpoint, os.path.join(experiment_log_dir, "saved_models", f'ckp_last.pt'))
 
@@ -755,6 +792,7 @@ class Config(object):
 
         # ─────────────────── Training ───────────────────────
         self.num_epoch           = 40
+        self.patience            = 10        # Early stopping patience
 
         # Optimiser
         self.beta1, self.beta2   = 0.9, 0.99
@@ -762,7 +800,7 @@ class Config(object):
 
         # Data loader
         self.batch_size          = 64        # 10000-sample windows use more mem
-        self.drop_last           = True      # match original repo
+        self.drop_last           = False      # match original repo
 
         # ─────────────────── SSL blocks ─────────────────────
         # Contextual contrastive loss
@@ -794,6 +832,7 @@ class PPGConfig(object):
 
         # ─────────────────── Training ───────────────────────
         self.num_epoch           = 40
+        self.patience            = 10        # Early stopping patience
 
         # Optimiser
         self.beta1, self.beta2   = 0.9, 0.99
@@ -801,7 +840,7 @@ class PPGConfig(object):
 
         # Data loader
         self.batch_size          = 64
-        self.drop_last           = True      # match original repo
+        self.drop_last           = False      # match original repo
 
         # ─────────────────── SSL blocks ─────────────────────
         # Contextual contrastive loss
