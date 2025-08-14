@@ -189,7 +189,6 @@ class NTXentLoss(torch.nn.Module):
         self.temperature = temperature
         self.device = device
         self.softmax = torch.nn.Softmax(dim=-1)
-        self.mask_samples_from_same_repr = self._get_correlated_mask().type(torch.bool)
         self.similarity_function = self._get_similarity_function(use_cosine_similarity)
         self.criterion = torch.nn.CrossEntropyLoss(reduction="sum")
 
@@ -224,24 +223,33 @@ class NTXentLoss(torch.nn.Module):
         return v
 
     def forward(self, zis, zjs):
+        # Get actual batch size from input tensors
+        actual_batch_size = zis.size(0)
         representations = torch.cat([zjs, zis], dim=0)
 
         similarity_matrix = self.similarity_function(representations, representations)
 
         # filter out the scores from the positive samples
-        l_pos = torch.diag(similarity_matrix, self.batch_size)
-        r_pos = torch.diag(similarity_matrix, -self.batch_size)
-        positives = torch.cat([l_pos, r_pos]).view(2 * self.batch_size, 1)
+        l_pos = torch.diag(similarity_matrix, actual_batch_size)
+        r_pos = torch.diag(similarity_matrix, -actual_batch_size)
+        positives = torch.cat([l_pos, r_pos]).view(2 * actual_batch_size, 1)
 
-        negatives = similarity_matrix[self.mask_samples_from_same_repr].view(2 * self.batch_size, -1)
+        # Create mask for actual batch size
+        diag = np.eye(2 * actual_batch_size)
+        l1 = np.eye((2 * actual_batch_size), 2 * actual_batch_size, k=-actual_batch_size)
+        l2 = np.eye((2 * actual_batch_size), 2 * actual_batch_size, k=actual_batch_size)
+        mask = torch.from_numpy((diag + l1 + l2))
+        mask = (1 - mask).type(torch.bool).to(self.device)
+
+        negatives = similarity_matrix[mask].view(2 * actual_batch_size, -1)
 
         logits = torch.cat((positives, negatives), dim=1)
         logits /= self.temperature
 
-        labels = torch.zeros(2 * self.batch_size).to(self.device).long()
+        labels = torch.zeros(2 * actual_batch_size).to(self.device).long()
         loss = self.criterion(logits, labels)
 
-        return loss / (2 * self.batch_size)
+        return loss / (2 * actual_batch_size)
 
 
 # ----------------------------------------------------------------------
@@ -360,7 +368,7 @@ class TC(nn.Module):
         self.num_channels = configs.final_out_channels
         self.timestep = configs.TC.timesteps
         self.Wk = nn.ModuleList([nn.Linear(configs.TC.hidden_dim, self.num_channels) for _ in range(self.timestep)])
-        self.lsoftmax = nn.LogSoftmax()
+        self.lsoftmax = nn.LogSoftmax(dim=-1)
         self.device = device
         
         self.projection_head = nn.Sequential(
@@ -792,7 +800,7 @@ class Config(object):
 
         # ─────────────────── Training ───────────────────────
         self.num_epoch           = 40
-        self.patience            = 10        # Early stopping patience
+        self.patience            = 5        # Early stopping patience
 
         # Optimiser
         self.beta1, self.beta2   = 0.9, 0.99
