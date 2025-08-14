@@ -174,9 +174,9 @@ def main(
     if pretrain_all_conditions:
 
         label_map = {
-            "transient": 0,
-            "baseline": 1,
-            "mental_stress": 2, #Here not mental stress but other stress, physiological stress
+            "baseline": 0,
+            "mental_stress": 1, #Here not mental stress but other stress, physiological stress
+            "transient": 2,
             "amusement": 3,
             "meditation": 4,
             "other": 5, #potentially out
@@ -473,7 +473,7 @@ if __name__ == "__main__":
                            help="Window size in seconds")
     data_group.add_argument("--step_size", type=int, default=5,
                            help="Step size in seconds for sliding window")
-    data_group.add_argument("--label_fraction", type=float, default=0.1,
+    data_group.add_argument("--label_fraction", type=float, default=0.5,
                            help="Fraction of labeled participants to use (0.0-1.0)")
     data_group.add_argument("--pretrain_all_conditions", action="store_true",
                            help="Pretrain on all conditions (not just baseline/mental_stress)")
