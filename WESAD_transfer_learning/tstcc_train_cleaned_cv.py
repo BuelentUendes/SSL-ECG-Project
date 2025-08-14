@@ -176,12 +176,12 @@ def main(
         label_map = {
             "baseline": 0,
             "mental_stress": 1, #Here not mental stress but other stress, physiological stress
-            "transient": 2,
-            "amusement": 3,
-            "meditation": 4,
-            "other": 5, #potentially out
-            "other": 6,
-            "other": 7,
+            # "transient": 2,
+            "amusement": 2,
+            "meditation": 3,
+            # "other": 5, #potentially out
+            # "other": 6,
+            # "other": 7,
         }
 
     else:
