@@ -178,7 +178,7 @@ def main(
             "mental_stress": 1, #Here not mental stress but other stress, physiological stress
             "transient": 2,
             "amusement": 3,
-            "meditation": 5,
+            "meditation": 4,
             # "other": 5, #should be ignored
             # "other": 6,
             # "other": 7,
