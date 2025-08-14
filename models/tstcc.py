@@ -360,7 +360,7 @@ class TC(nn.Module):
         self.num_channels = configs.final_out_channels
         self.timestep = configs.TC.timesteps
         self.Wk = nn.ModuleList([nn.Linear(configs.TC.hidden_dim, self.num_channels) for _ in range(self.timestep)])
-        self.lsoftmax = nn.LogSoftmax()
+        self.lsoftmax = nn.LogSoftmax(dim=-1)
         self.device = device
         
         self.projection_head = nn.Sequential(
