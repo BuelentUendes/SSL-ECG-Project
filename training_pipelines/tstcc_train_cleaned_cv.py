@@ -111,6 +111,9 @@ def main(
         cc_temperature: float,
         cc_use_cosine: bool,
         use_spectral_augmentation: bool,
+        freq_mask_ratio_weak: float,
+        freq_mask_ratio_strong: float,
+        freq_max_seq: int,
         classifier_model: str,
         classifier_epochs: int,
         classifier_lr: float,
@@ -278,6 +281,11 @@ def main(
         #Augmentation used
         cfg.augmentation.use_spectral_aug = use_spectral_augmentation
 
+        # For spectral augmentations
+        cfg.augmentation.freq_mask_ratio_weak = freq_mask_ratio_weak
+        cfg.augmentation.freq_mask_ratio_strong = freq_mask_ratio_strong
+        cfg.augmentation.freq_max_seg = freq_max_seq
+
         cfg.TC.timesteps = tc_timesteps
         cfg.TC.hidden_dim = tc_hidden_dim
         cfg.Context_Cont.temperature = cc_temperature
@@ -311,7 +319,8 @@ def main(
             experiment_log_dir=workdir,
             training_mode="self_supervised",
         )
-        ckpt = os.path.join(workdir, "tstcc.pt")
+        model_file_name = "tstcc_spectral.pt" if use_spectral_augmentation else "tstcc.pt"
+        ckpt = os.path.join(workdir, model_file_name)
         torch.save(
             {"encoder": model.state_dict(),
              "tc_head": tc_head.state_dict()},
@@ -320,11 +329,11 @@ def main(
 
         mlflow.log_artifact(ckpt, artifact_path="tstcc_model")
 
-        saved_results = os.path.join(model_save_path, "tstcc.pt")
+        saved_results = os.path.join(model_save_path, model_file_name)
         torch.save(
             {"encoder": model.state_dict(),
              "tc_head": tc_head.state_dict()},
-            saved_results
+            model_file_name
         )
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────
@@ -492,6 +501,9 @@ if __name__ == "__main__":
     # Augmentation used
     tstcc_arch_group.add_argument("--use_spectral_augmentation", action="store_true",
                                   help="If set, we use the spectral augmentation (frequency masking)")
+    tstcc_arch_group.add_argument("--freq_mask_ratio_weak", default=0.1, type=float)
+    tstcc_arch_group.add_argument("--freq_mask_ratio_strong", default=0.2, type=float)
+    tstcc_arch_group.add_argument("--freq_max_seq", default=8, type=int)
 
     # ══════════════════════════════════════════════════════════════════════════════
     # Downstream Classifier Configuration
