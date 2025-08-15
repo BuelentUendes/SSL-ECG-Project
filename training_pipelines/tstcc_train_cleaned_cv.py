@@ -246,16 +246,18 @@ def main(
         fp, experiment_name="TSTCC", tracking_uri=mlflow_tracking_uri
     )
 
+    model_file_name = "tstcc_spectral.pt" if use_spectral_augmentation else "tstcc.pt"
+
     # IF we have forced retraining we will always retraining
-    if (cached or os.path.exists(os.path.join(model_save_path, "tstcc.pt"))) and not (force_retraining):
+    if (cached or os.path.exists(os.path.join(model_save_path, model_file_name))) and not (force_retraining):
         if cached:
             print(f"Found cached encoder run {cached}; downloading…")
             uri = f"runs:/{cached}/tstcc_model"
             ckpt_dir = mlflow.artifacts.download_artifacts(uri)
-            ckpt_path = os.path.join(ckpt_dir, "tstcc.pt")
+            ckpt_path = os.path.join(ckpt_dir, model_file_name)
         else:
             print("We found a pretrained model. Load the pretrained weights")
-            ckpt_path = os.path.join(model_save_path, "tstcc.pt")
+            ckpt_path = os.path.join(model_save_path, model_file_name)
 
         # rebuild model
         cfg = ECGConfig(fs, window_size)
