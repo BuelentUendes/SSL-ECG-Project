@@ -23,9 +23,19 @@ from mlflow.tracking import MlflowClient
 # augmentations.py
 # ----------------------------------------------------------------------
 def DataTransform(sample, config):
-
-    weak_aug = scaling(sample, config.augmentation.jitter_scale_ratio)
-    strong_aug = jitter(permutation(sample, max_segments=config.augmentation.max_seg), config.augmentation.jitter_ratio)
+    if config.augmentation.use_spectral_aug:
+        print(f"We use the spectral augmentation!")
+        # Use spectral augmentation instead of default
+        weak_aug = frequency_masking(sample, mask_ratio=config.augmentation.freq_mask_ratio)
+        strong_aug = frequency_masking(
+            permutation(sample, max_segments=config.augmentation.max_seg),
+            mask_ratio=config.augmentation.freq_mask_ratio
+        )
+    else:
+        # Default augmentation strategy
+        weak_aug = scaling(sample, config.augmentation.jitter_scale_ratio)
+        strong_aug = jitter(permutation(sample, max_segments=config.augmentation.max_seg), config.augmentation.jitter_ratio)
+    
     return weak_aug, strong_aug
 
 
@@ -70,6 +80,36 @@ def permutation(x, max_segments=5, seg_mode="random"):
         ret[i] = x_np[i, :, warp].T
 
     return ret
+
+
+def frequency_masking(x, mask_ratio=0.1):
+    """Apply frequency masking by zeroing out random frequency components"""
+    x_np = x if isinstance(x, np.ndarray) else x.numpy()
+    N, C, L = x_np.shape
+    ret = np.empty_like(x_np)
+    
+    for i in range(N):
+        for c in range(C):
+            # FFT to frequency domain
+            fft_signal = np.fft.fft(x_np[i, c, :])
+            
+            # Calculate number of frequencies to mask
+            n_freqs = len(fft_signal)
+            n_mask = int(n_freqs * mask_ratio)
+            
+            # Randomly select frequency indices to mask (excluding DC component)
+            freq_indices = np.random.choice(range(1, n_freqs), size=n_mask, replace=False)
+            
+            # Zero out selected frequency components
+            fft_masked = fft_signal.copy()
+            fft_masked[freq_indices] = 0
+            
+            # IFFT back to time domain
+            ret[i, c, :] = np.real(np.fft.ifft(fft_masked))
+    
+    return ret
+
+
 
 # ----------------------------------------------------------------------
 # dataloader.py
@@ -860,6 +900,8 @@ class augmentations(object):
         self.jitter_scale_ratio = 0.001   # very mild scaling
         self.jitter_ratio       = 0.001    # mild additive jitter
         self.max_seg            = 8       # split into ≤8 segments for strong aug
+        self.use_spectral_aug   = True   # flag to enable spectral augmentation
+        self.freq_mask_ratio    = 0.1     # frequency masking ratio when spectral aug is enabled
 
 
 class Context_Cont_configs(object):
@@ -870,7 +912,7 @@ class Context_Cont_configs(object):
 
 class TCConfig(object):
     def __init__(self):
-        self.hidden_dim = 100      # same as original paper
+        self.hidden_dim = 100      # same as original paper (here 64 probably, changed from 100)
         self.timesteps  = 50       # 15 % – 30 % of seq_len (here 45 – 95).
 
 # ----------------------------------------------------------------------        
