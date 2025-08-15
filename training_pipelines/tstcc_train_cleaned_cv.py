@@ -110,6 +110,7 @@ def main(
         tc_hidden_dim: int,
         cc_temperature: float,
         cc_use_cosine: bool,
+        use_spectral_augmentation: bool,
         classifier_model: str,
         classifier_epochs: int,
         classifier_lr: float,
@@ -273,6 +274,10 @@ def main(
         cfg = ECGConfig(fs, window_size)
         cfg.num_epoch = tcc_epochs
         cfg.batch_size = tcc_batch_size
+
+        #Augmentation used
+        cfg.augmentation.use_spectral_aug = use_spectral_augmentation
+
         cfg.TC.timesteps = tc_timesteps
         cfg.TC.hidden_dim = tc_hidden_dim
         cfg.Context_Cont.temperature = cc_temperature
@@ -440,7 +445,7 @@ if __name__ == "__main__":
                               help="MLflow tracking URI for experiment logging")
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
-    general_group.add_argument("--seed", type=int, default=42,
+    general_group.add_argument("--seed", type=int, default=1,
                               help="Random seed for reproducibility")
     general_group.add_argument("--verbose", action="store_true",
                               help="Show verbose output of CV for logistic regression")
@@ -453,9 +458,9 @@ if __name__ == "__main__":
     data_group = parser.add_argument_group('Data Configuration')
     data_group.add_argument("--fs", default=1000, type=str,
                            help="Sampling frequency used for training")
-    data_group.add_argument("--window_size", type=int, default=30,
+    data_group.add_argument("--window_size", type=int, default=10,
                            help="Window size in seconds")
-    data_group.add_argument("--step_size", type=int, default=10,
+    data_group.add_argument("--step_size", type=int, default=5,
                            help="Step size in seconds for sliding window")
     data_group.add_argument("--label_fraction", type=float, default=0.1,
                            help="Fraction of labeled participants to use (0.0-1.0)")
@@ -483,6 +488,10 @@ if __name__ == "__main__":
                                  help="Temperature parameter for contrastive learning")
     tstcc_arch_group.add_argument("--cc_use_cosine", action="store_true",
                                  help="Use cosine similarity for contrastive learning")
+
+    # Augmentation used
+    tstcc_arch_group.add_argument("--use_spectral_augmentation", action="store",
+                                  help="If set, we use the spectral augmentation (frequency masking)")
 
     # ══════════════════════════════════════════════════════════════════════════════
     # Downstream Classifier Configuration
