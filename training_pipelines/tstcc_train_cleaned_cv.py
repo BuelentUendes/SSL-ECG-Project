@@ -335,7 +335,7 @@ def main(
         torch.save(
             {"encoder": model.state_dict(),
              "tc_head": tc_head.state_dict()},
-            model_file_name
+            saved_results
         )
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────
@@ -415,7 +415,9 @@ def main(
         mlflow.log_params(results['best_params'])
 
     # ── Step 7: Save Results ────────────────────────────────────────────────────
-    with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+    test_results_name = "test_results_spectral.json" if use_spectral_augmentation else "test_results.json"
+
+    with open(os.path.join(results_save_path, test_results_name), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
     # Log additional parameters
@@ -456,7 +458,7 @@ if __name__ == "__main__":
                               help="MLflow tracking URI for experiment logging")
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
-    general_group.add_argument("--seed", type=int, default=1,
+    general_group.add_argument("--seed", type=int, default=42,
                               help="Random seed for reproducibility")
     general_group.add_argument("--verbose", action="store_true",
                               help="Show verbose output of CV for logistic regression")
@@ -504,7 +506,7 @@ if __name__ == "__main__":
     tstcc_arch_group.add_argument("--use_spectral_augmentation", action="store_true",
                                   help="If set, we use the spectral augmentation (frequency masking)")
     tstcc_arch_group.add_argument("--freq_mask_ratio_weak", default=0.1, type=float)
-    tstcc_arch_group.add_argument("--freq_mask_ratio_strong", default=0.2, type=float)
+    tstcc_arch_group.add_argument("--freq_mask_ratio_strong", default=0.3, type=float)
     tstcc_arch_group.add_argument("--freq_max_seq", default=8, type=int)
 
     # ══════════════════════════════════════════════════════════════════════════════
