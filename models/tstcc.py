@@ -26,13 +26,14 @@ def DataTransform(sample, config):
     if config.augmentation.use_spectral_aug:
         print(f"We use the spectral augmentation!")
         # Use spectral augmentation instead of default
-        weak_aug = frequency_masking(sample, mask_ratio=config.augmentation.freq_mask_ratio)
+        weak_aug = frequency_masking(sample, mask_ratio=config.augmentation.freq_mask_ratio_weak)
         strong_aug = frequency_masking(
-            permutation(sample, max_segments=config.augmentation.max_seg),
-            mask_ratio=config.augmentation.freq_mask_ratio
+            permutation(sample, max_segments=config.augmentation.freq_max_seg),
+            mask_ratio=config.augmentation.freq_mask_ratio_strong
         )
     else:
         # Default augmentation strategy
+        print(f"We use the default augmentation!")
         weak_aug = scaling(sample, config.augmentation.jitter_scale_ratio)
         strong_aug = jitter(permutation(sample, max_segments=config.augmentation.max_seg), config.augmentation.jitter_ratio)
     
@@ -657,13 +658,6 @@ def Trainer(
     criterion = nn.CrossEntropyLoss()
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(model_optimizer, 'min')
 
-    # Early stopping variables
-    best_val_loss = float('inf')
-    patience_counter = 0
-    patience = getattr(config, 'patience', 10)  # Default patience of 10 epochs
-    best_model_state = None
-    best_tc_model_state = None
-
     for epoch in range(1, config.num_epoch + 1):
         # Train and validate
         train_loss, train_acc = model_train(model, temporal_contr_model, model_optimizer, temp_cont_optimizer, criterion, train_dl, config, device, training_mode)
@@ -676,33 +670,9 @@ def Trainer(
                 "ssl_val_loss": val_loss
             }, step=epoch)
 
-            # Early stopping logic
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                patience_counter = 0
-                # Save best model states
-                best_model_state = model.state_dict().copy()
-                best_tc_model_state = temporal_contr_model.state_dict().copy()
-                print(f"    → New best validation loss: {best_val_loss:.4f}")
-            else:
-                patience_counter += 1
-                print(f"    → No improvement. Patience: {patience_counter}/{patience}")
-
-            # Check for early stopping
-            if patience_counter >= patience:
-                print(f"\nEarly stopping triggered after {epoch} epochs!")
-                print(f"Best validation loss: {best_val_loss:.4f}")
-                break
-
     # Save models (either best from early stopping or final)
     os.makedirs(os.path.join(experiment_log_dir, "saved_models"), exist_ok=True)
-    
-    if best_model_state is not None:
-        # Save best model from early stopping
-        chkpoint = {'model_state_dict': best_model_state, 'temporal_contr_model_state_dict': best_tc_model_state}
-        torch.save(chkpoint, os.path.join(experiment_log_dir, "saved_models", f'ckp_best.pt'))
-        print(f"Saved best model with validation loss: {best_val_loss:.4f}")
-    
+
     # Also save final model
     chkpoint = {'model_state_dict': model.state_dict(), 'temporal_contr_model_state_dict': temporal_contr_model.state_dict()}
     torch.save(chkpoint, os.path.join(experiment_log_dir, "saved_models", f'ckp_last.pt'))
@@ -832,7 +802,6 @@ class Config(object):
 
         # ─────────────────── Training ───────────────────────
         self.num_epoch           = 40
-        self.patience            = 10        # Early stopping patience
 
         # Optimiser
         self.beta1, self.beta2   = 0.9, 0.99
@@ -901,8 +870,9 @@ class augmentations(object):
         self.jitter_ratio       = 0.001    # mild additive jitter
         self.max_seg            = 8       # split into ≤8 segments for strong aug
         self.use_spectral_aug   = True   # flag to enable spectral augmentation
-        self.freq_mask_ratio    = 0.1     # frequency masking ratio when spectral aug is enabled
-
+        self.freq_mask_ratio_weak    = 0.1     # frequency masking ratio when spectral aug is enabled
+        self.freq_mask_ratio_strong = 0.2
+        self.freq_max_seg = 8
 
 class Context_Cont_configs(object):
     def __init__(self):
