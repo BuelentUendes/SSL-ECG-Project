@@ -490,7 +490,7 @@ if __name__ == "__main__":
                                  help="Use cosine similarity for contrastive learning")
 
     # Augmentation used
-    tstcc_arch_group.add_argument("--use_spectral_augmentation", action="store",
+    tstcc_arch_group.add_argument("--use_spectral_augmentation", action="store_true",
                                   help="If set, we use the spectral augmentation (frequency masking)")
 
     # ══════════════════════════════════════════════════════════════════════════════
