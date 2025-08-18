@@ -7,7 +7,14 @@ fractions=(0.01 0.05 0.1 0.25 0.5 1.0)
 
  for fraction in "${fractions[@]}"
  do
-   python3 supervised_training_cleaned_cv.py --model_type cnn --gpu 0 --label_fraction $fraction --batch_size 64 --force_retraining
-   python3 supervised_training_cleaned_cv.py --model_type tcn --gpu 0 --label_fraction $fraction --batch_size 64 --force_retraining
+   python3 supervised_training_cleaned_cv.py --model_type deep_ecg_net --label_fraction $fraction --force_retraining --batch_size 64 --gpu 0 --force_retraining
+ done
+
+fractions=(0.5 1.0)
+
+ for fraction in "${fractions[@]}"
+ do
    python3 supervised_training_cleaned_cv.py --model_type transformer --gpu 0 --label_fraction $fraction --batch_size 64 --force_retraining
  done
+
+
