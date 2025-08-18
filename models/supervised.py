@@ -100,9 +100,9 @@ class DeepECGNet(nn.Module):
         super(DeepECGNet, self).__init__()
 
         # Conv Block 1
-        self.conv1 = nn.Conv1d(1, 50, kernel_size=16, padding='same')  #
+        self.conv1 = nn.Conv1d(1, 50, kernel_size=5, padding=2)
         self.bn1 = nn.BatchNorm1d(50)
-        self.pool1 = nn.MaxPool1d(kernel_size=4, stride=2)
+        self.pool1 = nn.MaxPool1d(kernel_size=2)
 
         # RNN layers for temporal pattern learning
         # LSTM to capture long-term dependencies in ECG patterns for stress detection
