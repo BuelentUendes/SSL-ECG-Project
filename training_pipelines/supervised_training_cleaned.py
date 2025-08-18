@@ -34,6 +34,7 @@ from models.supervised import (
     Improved1DCNN_v2,
     TCNClassifier,
     TransformerECGClassifier,
+    DeepECGNet
 )
 
 
@@ -50,7 +51,7 @@ def main(
         patience: int = 5,
         scheduler_mode: str = "min",
         scheduler_factor: float = 0.1,
-        scheduler_patience: int = 2,
+        scheduler_patience: int = 10,
         scheduler_min_lr: float = 1e-11,
         label_fraction: float = 1.0,
 ):
@@ -71,6 +72,7 @@ def main(
         "cnn": "Supervised_CNN",
         "tcn": "Supervised_TCN",
         "transformer": "Supervised_Transformer",
+        "deep_ecg_net": "Deep ECG Net"
     }
     experiment_name = exp_map.get(model_type.lower())
     if experiment_name is None:
@@ -233,10 +235,6 @@ def main(
     mlflow.log_metrics({"test_loss": loss, "test_acc": acc, "test_auroc": auroc, "test_f1": f1})
 
     # cleanup
-    for loader in (tr_loader, va_loader, test_loader):
-        if hasattr(loader, '_iterator') and loader._iterator is not None:
-            loader._iterator._shutdown_workers()
-    del tr_loader, va_loader, test_loader
     for _ in range(3): gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -248,7 +246,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train ECG classifier")
     parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
-    parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer"], default="cnn")
+    parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer", "deep_ecg_net"],
+                        default="deep_ecg_net")
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--force_retraining", action="store_true")
@@ -263,4 +262,6 @@ if __name__ == "__main__":
     parser.add_argument("--label_fraction", type=float, default=0.1,
                         help="Percent of labeled participants in the training stage.")
     args = parser.parse_args()
+
+    args.force_retraining = True
     main(**vars(args))
