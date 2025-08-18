@@ -9,7 +9,6 @@ import argparse
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.optim as optim
 import mlflow
 import mlflow.pytorch
@@ -36,6 +35,7 @@ from models.supervised import (
     Improved1DCNN_v2,
     TCNClassifier,
     TransformerECGClassifier,
+    DeepECGNet
 )
 
 
@@ -85,6 +85,8 @@ def run_supervised_model_with_cv_and_test(
                         model = Improved1DCNN_v2(dropout=dropout_rate)
                     elif model_type.lower() == "tcn":
                         model = TCNClassifier(dropout=dropout_rate)
+                    elif model_type.lower() == "deep_ecg_net":
+                        model = DeepECGNet(dropout_rate=dropout_rate)
                     else:
                         model = TransformerECGClassifier(dropout=dropout_rate)
 
@@ -156,6 +158,9 @@ def run_supervised_model_with_cv_and_test(
         final_model = Improved1DCNN_v2(dropout=best_params["dropout"]).to(device)
     elif model_type.lower() == "tcn":
         final_model = TCNClassifier(dropout=best_params["dropout"]).to(device)
+
+    elif model_type.lower() == "deep_ecg_net":
+        final_model = DeepECGNet(dropout_rate=best_params["dropout"]).to(device)
     else:
         final_model = TransformerECGClassifier(dropout=best_params["dropout"]).to(device)
 
@@ -387,8 +392,11 @@ def main(
             model = Improved1DCNN_v2()
         elif model_type.lower() == "tcn":
             model = TCNClassifier()
+        elif model_type.lower() == "deep_ecg_net":
+            model = DeepECGNet()
         else:
             model = TransformerECGClassifier()
+
         model = model.to(device)
 
         if os.path.exists(saved_results):
