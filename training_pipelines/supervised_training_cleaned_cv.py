@@ -283,6 +283,7 @@ def main(
         "cnn": "Supervised_CNN",
         "tcn": "Supervised_TCN",
         "transformer": "Supervised_Transformer",
+        "deep_ecg_net": "Deep ECG Net",
     }
     experiment_name = exp_map.get(model_type.lower())
     if experiment_name is None:
