@@ -96,13 +96,14 @@ class EmotionRecognitionCNN(nn.Module):
 #Implement the DeepECGNet
 # DeepECGNet: https://www.liebertpub.com/doi/epub/10.1089/tmj.2017.0250
 class DeepECGNet(nn.Module):
-    def __init__(self, dropout=0.3):
+    def __init__(self, dropout=0.3, frequency=1_000):
         super(DeepECGNet, self).__init__()
 
         # Conv Block 1
-        self.conv1 = nn.Conv1d(1, 50, kernel_size=5, padding=2)
+        # According to the paper 0.6s is best for conv layer, out channels was set to 50
+        self.conv1 = nn.Conv1d(1, 50, kernel_size=int(0.6 * frequency)) # unit stride gave best result
         self.bn1 = nn.BatchNorm1d(50)
-        self.pool1 = nn.MaxPool1d(kernel_size=2)
+        self.pool1 = nn.MaxPool1d(kernel_size=int(0.8 * frequency)) # According to the paper set to 0.8s
 
         # RNN layers for temporal pattern learning
         # LSTM to capture long-term dependencies in ECG patterns for stress detection
