@@ -96,7 +96,7 @@ class EmotionRecognitionCNN(nn.Module):
 #Implement the DeepECGNet
 # DeepECGNet: https://www.liebertpub.com/doi/epub/10.1089/tmj.2017.0250
 class DeepECGNet(nn.Module):
-    def __init__(self, input_length=10000, dropout=0.3):
+    def __init__(self, dropout=0.3):
         super(DeepECGNet, self).__init__()
 
         # Conv Block 1
@@ -104,13 +104,9 @@ class DeepECGNet(nn.Module):
         self.bn1 = nn.BatchNorm1d(50)
         self.pool1 = nn.MaxPool1d(kernel_size=4, stride=2)
 
-        # Calculate sequence length after convolution and pooling operations
-        # input_length -> input_length/2 -> input_length/4 -> input_length/8
-        self.seq_length_after_cnn = input_length // 8
-        
         # RNN layers for temporal pattern learning
         # LSTM to capture long-term dependencies in ECG patterns for stress detection
-        self.lstm1 = nn.LSTM(input_size=128, hidden_size=32, num_layers=1,
+        self.lstm1 = nn.LSTM(input_size=50, hidden_size=32, num_layers=1,
                            batch_first=True, bidirectional=False)
         self.bn2 = nn.BatchNorm1d(32)
         self.lstm2 = nn.LSTM(input_size=32, hidden_size=16, num_layers=1,
