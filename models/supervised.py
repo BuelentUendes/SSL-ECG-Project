@@ -106,11 +106,11 @@ class DeepECGNet(nn.Module):
         self.pool1 = nn.MaxPool1d(kernel_size=int(0.8 * frequency)) # According to the paper set to 0.8s
 
         # RNN layers for temporal pattern learning
-        # LSTM to capture long-term dependencies in ECG patterns for stress detection
-        self.lstm1 = nn.LSTM(input_size=50, hidden_size=32, num_layers=1,
+        # RNN to capture long-term dependencies in ECG patterns for stress detection
+        self.rnn1 = nn.RNN(input_size=50, hidden_size=32, num_layers=1,
                            batch_first=True, bidirectional=False)
         self.bn2 = nn.BatchNorm1d(32)
-        self.lstm2 = nn.LSTM(input_size=32, hidden_size=16, num_layers=1,
+        self.rnn2 = nn.RNN(input_size=32, hidden_size=16, num_layers=1,
                            batch_first=True, bidirectional=False)
         
         # Dropout for regularization
@@ -128,11 +128,11 @@ class DeepECGNet(nn.Module):
         # Second block with RNN layers
         x = self.bn1(x)
         x = x.transpose(1, 2)  # (batch, channels, seq_len) -> (batch, seq_len, channels)
-        x, _ = self.lstm1(x)
+        x, _ = self.rnn1(x)
         x = x.transpose(1, 2)  # (batch, seq_len, features) -> (batch, features, seq_len)
         x = self.bn2(x)
         x = x.transpose(1, 2)  # (batch, features, seq_len) -> (batch, seq_len, features)
-        x, _ = self.lstm2(x)
+        x, _ = self.rnn2(x)
 
         x = x[:, -1, :]  # (batch, hidden_size)
 
