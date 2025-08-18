@@ -135,8 +135,11 @@ def main(
         model = Improved1DCNN_v2()
     elif model_type.lower() == "tcn":
         model = TCNClassifier()
+    elif model_type.lower() == "deep_ecg_net":
+        model = DeepECGNet()
     else:
         model = TransformerECGClassifier()
+
     model = model.to(device)
 
     # count params
