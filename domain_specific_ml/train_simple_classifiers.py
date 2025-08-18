@@ -98,6 +98,7 @@ def main(
         seed: int,
         classifier_model: str,
         window_size: int,
+        step_size: int,
         classifier_epochs: int,
         label_fraction: float,
         k_folds: int = 5,
@@ -128,12 +129,14 @@ def main(
     # Check if directory for saving results exist
     create_directory(RESULTS_PATH)
     results_save_path = os.path.join(RESULTS_PATH, "ECG_features", classifier_model, f"{seed}",
-                                     f"{label_fraction}")
+                                     f"{label_fraction}", str(window_size), str(step_size))
     create_directory(results_save_path)
 
     # ── Step 1: Load and Preprocess Data ────────────────────────────────────────
     label_map = {"baseline": 0, "mental_stress": 1}
-    window_data_path = os.path.join(DATA_PATH, "interim", "ECG_features", str(window_size), 'windowed_data.h5')
+    window_data_path = os.path.join(
+        DATA_PATH, "interim", "ECG_features", str(fs), str(window_size), str(step_size), 'windowed_data.h5'
+    )
 
     X, y, groups, feature_names = load_processed_data(window_data_path, label_map=label_map, domain_features=True)
     y = y.astype(np.float32)
@@ -266,11 +269,12 @@ if __name__ == "__main__":
     parser.add_argument("--classifier_model", type=str, default="logistic_regression",
                         choices=("logistic_regression", "mlp"))
     parser.add_argument("--window_size", help="Window size in seconds", default=30, type=int)
+    parser.add_argument("--step_size", type=int, default=10)
     parser.add_argument("--classifier_epochs", type=int, default=25)
-    parser.add_argument("--label_fraction", type=float, default=0.1)
+    parser.add_argument("--label_fraction", type=float, default=0.01)
     parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
     parser.add_argument("--min_participants_for_kfold", type=int, default=5,
-                        help="Minimum participants needed for k-fold (otherwise use LOGO)")
+                        help="Minimum participants needed for k-fold (otherwise use Leave one participant out)")
     parser.add_argument("--verbose", action="store_true",
                         help="If set, we show a verbose output of CV. Only applicable for LR. "
                              "Important: This slows down the fitting!")
