@@ -114,7 +114,7 @@ class DeepECGNet(nn.Module):
                            batch_first=True, bidirectional=False)
         
         # Dropout for regularization
-        self.dropout1 = nn.Dropout(dropout)
+        self.dropout1 = nn.Dropout(dropout_rate)
 
         # Dense layers for classification
         self.fc1 = nn.Linear(16, 1)
