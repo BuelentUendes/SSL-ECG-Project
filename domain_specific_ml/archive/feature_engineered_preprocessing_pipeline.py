@@ -133,13 +133,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--window_size",
         help="Size of each window (seconds)",
-        default=30,
+        default=10,
         type=int
     )
     parser.add_argument(
         "--step_size",
         help="Stride between windows (seconds)",
-        default=10,
+        default=5,
         type=int
     )
 

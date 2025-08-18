@@ -188,9 +188,6 @@ def main(physiological_sensor:str, placement: str,):
         # Save the data:
         ROOT_DIR = os.path.join(DATA_PATH, "raw", "WESAD")
         physiological_data.to_csv(os.path.join(ROOT_DIR, f"{subject}", f"{physiological_sensor}_complete_data.csv"))
-        # # Get the stress data
-        # bvp_df_data = bvp_df[bvp_df['label'].isin([1, 2])]
-        # label_df_data = label_df[label_df["label"].isin([1,2])]
 
 
 if __name__ == "__main__":
