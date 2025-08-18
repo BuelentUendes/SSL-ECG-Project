@@ -96,7 +96,7 @@ class EmotionRecognitionCNN(nn.Module):
 #Implement the DeepECGNet
 # DeepECGNet: https://www.liebertpub.com/doi/epub/10.1089/tmj.2017.0250
 class DeepECGNet(nn.Module):
-    def __init__(self, dropout=0.3, frequency=1_000):
+    def __init__(self, dropout_rate=0.3, frequency=1_000):
         super(DeepECGNet, self).__init__()
 
         # Conv Block 1
