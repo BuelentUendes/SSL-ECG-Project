@@ -22,7 +22,7 @@ from torcheval.metrics.functional import multiclass_f1_score
 
 #Scikit learn imports
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, average_precision_score
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, roc_auc_score, average_precision_score
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.model_selection import GroupKFold, LeaveOneGroupOut,  GridSearchCV
 
@@ -248,6 +248,7 @@ def split_indices_by_participant_groups(
 
     if label_fraction < 1.:
         # Select subset of training participants to be labeled
+        # We want a minimum of 5 participants as labeled (so we can do minimal CV 5 fold CV)
         n_labeled_participants = max(1, int(len(all_train_p) * label_fraction))
 
         # Random selection if no labels provided
@@ -263,7 +264,8 @@ def split_indices_by_participant_groups(
 
     # Verify index splits are non-overlapping and complete
     assert len(train_idx) > 0, "Training indices cannot be empty"
-    assert len(test_idx) > 0, "Test indices cannot be empty"
+    if train_ratio != 1.0:
+        assert len(test_idx) > 0, "Test indices cannot be empty"
 
     # Check no overlap in indices
     assert len(np.intersect1d(train_idx, test_idx)) == 0, "Training and test indices overlap"
@@ -837,7 +839,7 @@ def run_logistic_regression_with_gridsearch(
 
     # Parameter grid for grid search
     param_grid = {
-        'C': [0.0001, 0.001, 0.01],
+        'C': [0.0001, 0.001, 0.01, 0.1, 1.0, 5., 10.],
         'penalty': ['l2', 'l1'],
         'max_iter': [5000],
     }
@@ -860,7 +862,7 @@ def run_logistic_regression_with_gridsearch(
             estimator=base_model,
             param_grid=param_grid,
             cv=cv_splitter,
-            scoring='roc_auc',  # Use AUROC as the scoring metric
+            scoring='roc_auc',  # Use AUROC as the scoring metric (f1 is also good)
             n_jobs=-1,
             verbose=3,
         )
@@ -871,6 +873,7 @@ def run_logistic_regression_with_gridsearch(
 
         print(f"Best parameters: {grid_search.best_params_}")
         print(f"Best CV score (AUROC): {grid_search.best_score_:.4f}")
+        # print(f"Best CV score (F1-score): {grid_search.best_score_:.4f}")
 
         # Get the best model (already trained on full training set)
         cv_results = grid_search.cv_results_
@@ -896,12 +899,14 @@ def run_logistic_regression_with_gridsearch(
 
     # Calculate test metrics
     test_acc = accuracy_score(y_test, y_test_pred)
+    balanced_test_acc = balanced_accuracy_score(y_test, y_test_pred)
     test_auroc = roc_auc_score(y_test, y_test_proba)
     test_f1 = f1_score(y_test, y_test_pred)
     test_pr_auc = average_precision_score(y_test, y_test_proba)
 
     print(f"\n=== Test Set Results ===")
     print(f"Test Accuracy: {test_acc:.4f}")
+    print(f"Balanced Test Accuracy: {balanced_test_acc:.4f}")
     print(f"Test AUROC: {test_auroc:.4f}")
     print(f"Test F1: {test_f1:.4f}")
     print(f"Test PR-AUC: {test_pr_auc:.4f}")
@@ -912,6 +917,7 @@ def run_logistic_regression_with_gridsearch(
         'cv_results': cv_results,
         'test_metrics': {
             'accuracy': test_acc,
+            'balanced_accuracy': balanced_test_acc,
             'auroc': test_auroc,
             'f1': test_f1,
             'pr_auc': test_pr_auc
