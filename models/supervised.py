@@ -126,8 +126,11 @@ class DeepECGNet(nn.Module):
 
         # Second block with RNN layers
         x = self.bn1(x)
+        x = x.transpose(1, 2)  # (batch, channels, seq_len) -> (batch, seq_len, channels)
         x, _ = self.lstm1(x)
+        x = x.transpose(1, 2)  # (batch, seq_len, features) -> (batch, features, seq_len)
         x = self.bn2(x)
+        x = x.transpose(1, 2)  # (batch, features, seq_len) -> (batch, seq_len, features)
         x, _ = self.lstm2(x)
 
         x = x[:, -1, :]  # (batch, hidden_size)
