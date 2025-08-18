@@ -43,6 +43,8 @@ def main(
         fs: str,
         model_type: str = "cnn",
         gpu: int = 0,
+        window_size:int =10,
+        step_size: int=5,
         seed: int = 42,
         force_retraining: bool = True,
         lr: float = 1e-4,
@@ -93,7 +95,7 @@ def main(
     create_directory(results_save_path)
 
     # Data path
-    window_data_path = os.path.join(DATA_PATH, "interim", "ECG", str(fs), 'windowed_data.h5')
+    window_data_path = os.path.join(DATA_PATH, "interim", "ECG", str(fs), str(window_size), str(step_size), 'windowed_data.h5')
 
     # load data
     X, y, groups = load_processed_data(
@@ -249,6 +251,10 @@ if __name__ == "__main__":
     parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer", "deep_ecg_net"],
                         default="deep_ecg_net")
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument("--window_size", type=int, default=10,
+                           help="Window size in seconds")
+    parser.add_argument("--step_size", type=int, default=5,
+                           help="Step size in seconds for sliding window")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--force_retraining", action="store_true")
     parser.add_argument("--lr", type=float, default=1e-5) #lr 1e-4 was good
