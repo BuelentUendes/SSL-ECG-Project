@@ -163,6 +163,7 @@ def main(
         f.write(f"Class distribution: {np.bincount(y_test)}\n\n")
 
         f.write("[Majority Class Baseline]\n")
+        f.write(f"Majority class: {majority_class}")
         f.write(f"Accuracy: {accuracy_score_dummy:.4f}\n")
         f.write(f"AUC-ROC: {roc_auc_score_dummy:.4f}\n")
         f.write(f"PR-AUC: {pr_auc_score_dummy:.4f}\n")
