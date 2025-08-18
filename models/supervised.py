@@ -15,7 +15,7 @@ from torch.utils.data import Dataset, DataLoader
 # -------------------------
 # Decoder Model Classes
 # -------------------------
-# liniar classifier
+# linear classifier
 class LinearClassifier(nn.Module):
     def __init__(self, input_dim, num_classes=1):
         super(LinearClassifier, self).__init__()
@@ -90,6 +90,54 @@ class EmotionRecognitionCNN(nn.Module):
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = torch.sigmoid(self.fc2(x))
+
+        return x
+
+#Implement the DeepECGNet
+# DeepECGNet: https://www.liebertpub.com/doi/epub/10.1089/tmj.2017.0250
+class DeepECGNet(nn.Module):
+    def __init__(self, input_length=10000, dropout=0.3):
+        super(DeepECGNet, self).__init__()
+
+        # Conv Block 1
+        self.conv1 = nn.Conv1d(1, 50, kernel_size=16, padding='same')  #
+        self.bn1 = nn.BatchNorm1d(50)
+        self.pool1 = nn.MaxPool1d(kernel_size=4, stride=2)
+
+        # Calculate sequence length after convolution and pooling operations
+        # input_length -> input_length/2 -> input_length/4 -> input_length/8
+        self.seq_length_after_cnn = input_length // 8
+        
+        # RNN layers for temporal pattern learning
+        # LSTM to capture long-term dependencies in ECG patterns for stress detection
+        self.lstm1 = nn.LSTM(input_size=128, hidden_size=32, num_layers=1,
+                           batch_first=True, bidirectional=False)
+        self.bn2 = nn.BatchNorm1d(32)
+        self.lstm2 = nn.LSTM(input_size=32, hidden_size=16, num_layers=1,
+                           batch_first=True, bidirectional=False)
+        
+        # Dropout for regularization
+        self.dropout1 = nn.Dropout(dropout)
+
+        # Dense layers for classification
+        self.fc1 = nn.Linear(16, 1)
+
+    def forward(self, x):
+        # First block
+        x = F.relu(self.conv1(x))
+        x = self.pool1(x)
+        x = self.dropout1(x)
+
+        # Second block with RNN layers
+        x = self.bn1(x)
+        x, _ = self.lstm1(x)
+        x = self.bn2(x)
+        x, _ = self.lstm2(x)
+
+        x = x[:, -1, :]  # (batch, hidden_size)
+
+        # Dense Classification Layers
+        x = self.fc1(x)
 
         return x
 
