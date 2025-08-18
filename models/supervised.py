@@ -107,7 +107,7 @@ class DeepECGNet(nn.Module):
 
         # RNN layers for temporal pattern learning
         # RNN to capture long-term dependencies in ECG patterns for stress detection
-        self.rnn1 = nn.RNN(input_size=50, hidden_size=32, num_layers=1,
+        self.rnn1 = nn.RNN(input_size=50, hidden_size=32, num_layers=11,
                            batch_first=True, bidirectional=False)
         self.bn2 = nn.BatchNorm1d(32)
         self.rnn2 = nn.RNN(input_size=32, hidden_size=16, num_layers=1,
