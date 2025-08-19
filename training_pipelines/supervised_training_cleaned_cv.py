@@ -259,9 +259,70 @@ def run_supervised_model_with_cv_and_test(
         'total_params': total_params,
     }, final_model
 
+
+def get_paths(
+        dataset:str,
+        fs: str,
+        model_type: str,
+        seed: int,
+        label_fraction: float,
+        window_size: int,
+        step_size: int
+) -> [str, str, str]:
+    """
+    Returns the model path, result path and data path based on the dataset
+    """
+
+    if dataset == "ours":
+        # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
+        model_save_path = os.path.join(
+            SAVED_MODELS_PATH, "ECG", str(fs), f"{model_type}", f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
+        )
+        results_save_path = os.path.join(
+            RESULTS_PATH, "ECG", "Supervised", model_type, f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
+        )
+        window_data_path = os.path.join(
+            DATA_PATH, "interim", "ECG", str(fs), f"{window_size}", f"{step_size}", 'windowed_data.h5'
+        )
+
+    elif dataset == "stressid":
+        # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
+        model_save_path = os.path.join(
+            SAVED_MODELS_PATH, "StressID", str(fs), f"{model_type}", f"{seed}", f"{label_fraction}", f"{window_size}",
+            f"{step_size}"
+        )
+        results_save_path = os.path.join(
+            RESULTS_PATH, "StressID", "Supervised", model_type, f"{seed}", f"{label_fraction}", f"{window_size}",
+            f"{step_size}"
+        )
+        window_data_path = os.path.join(
+            DATA_PATH, "interim", "StressID", "ECG", str(fs), f"{window_size}", f"{step_size}", 'windowed_data.h5'
+        )
+
+    elif dataset == "wesad":
+        # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
+        model_save_path = os.path.join(
+            SAVED_MODELS_PATH, "WESAD", str(fs), f"{model_type}", f"{seed}", f"{label_fraction}", f"{window_size}",
+            f"{step_size}"
+        )
+        results_save_path = os.path.join(
+            RESULTS_PATH, "WESAD", "Supervised", model_type, f"{seed}", f"{label_fraction}", f"{window_size}",
+            f"{step_size}"
+        )
+        window_data_path = os.path.join(
+            DATA_PATH, "interim", "WESAD", "ECG", str(fs), f"{window_size}", f"{step_size}", 'windowed_data.h5'
+        )
+
+    else:
+        raise AttributeError(f"{dataset} is not available.")
+
+    return model_save_path, results_save_path, window_data_path
+
+
 def main(
         mlflow_tracking_uri: str,
         fs: str,
+        dataset: str,
         model_type: str = "cnn",
         label_fraction: float = 0.1,
         window_size: int = 10,
@@ -310,21 +371,9 @@ def main(
     create_directory(SAVED_MODELS_PATH)
     create_directory(RESULTS_PATH)
 
-    # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
-    model_save_path = os.path.join(
-        SAVED_MODELS_PATH, "ECG", str(fs), f"{model_type}", f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
-    )
-    results_save_path = os.path.join(
-        RESULTS_PATH, "ECG", "Supervised", model_type, f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
-    )
-
+    model_save_path, results_save_path, window_data_path = get_paths(dataset, fs, model_type, seed, label_fraction, window_size,step_size)
     create_directory(model_save_path)
     create_directory(results_save_path)
-
-    # Data path
-    window_data_path = os.path.join(
-        DATA_PATH, "interim", "ECG", str(fs), f"{window_size}", f"{step_size}", 'windowed_data.h5'
-    )
 
     # load data
     X, y, groups = load_processed_data(
@@ -452,6 +501,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train ECG classifier")
     parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
+    parser.add_argument("--dataset", choices=("stressid", "wesad", "ours"), default="ours", type=str)
     parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer", "deep_ecg_net"], default="cnn")
     parser.add_argument("--label_fraction", type=float, default=0.05,
                         help="Percent of labeled participants in the training stage.")
