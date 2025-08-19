@@ -132,7 +132,21 @@ def run_supervised_model_with_cv_and_test(
                             X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
                             y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
                             logits = model(X_batch).squeeze(-1)
+                            
+                            # Check for NaN in logits
+                            if torch.isnan(logits).any():
+                                print(f"NaN detected in logits! Fold {fold}, batch size: {X_batch.size()}")
+                                print(f"Logits: {logits}")
+                                raise ValueError("Model produced NaN logits")
+                            
                             probs = torch.sigmoid(logits)
+                            
+                            # Check for NaN in probabilities
+                            if torch.isnan(probs).any():
+                                print(f"NaN detected in probs! Fold {fold}")
+                                print(f"Probs: {probs}")
+                                raise ValueError("Sigmoid produced NaN probabilities")
+                            
                             val_probs.extend(probs.cpu().numpy())
                             val_labels.extend(y_batch.cpu().numpy())
 
