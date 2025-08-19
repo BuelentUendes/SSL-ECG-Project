@@ -35,7 +35,8 @@ from models.supervised import (
     Improved1DCNN_v2,
     TCNClassifier,
     TransformerECGClassifier,
-    DeepECGNet
+    DeepECGNet,
+    PatchTSTECGClassifier
 )
 
 
@@ -87,6 +88,8 @@ def run_supervised_model_with_cv_and_test(
                         model = TCNClassifier(dropout=dropout_rate)
                     elif model_type.lower() == "deep_ecg_net":
                         model = DeepECGNet(dropout_rate=dropout_rate)
+                    elif model_type.lower() == "patchtst":
+                        model = PatchTSTECGClassifier(dropout=dropout_rate)
                     else:
                         model = TransformerECGClassifier(dropout=dropout_rate)
 
@@ -172,9 +175,10 @@ def run_supervised_model_with_cv_and_test(
         final_model = Improved1DCNN_v2(dropout=best_params["dropout"]).to(device)
     elif model_type.lower() == "tcn":
         final_model = TCNClassifier(dropout=best_params["dropout"]).to(device)
-
     elif model_type.lower() == "deep_ecg_net":
         final_model = DeepECGNet(dropout_rate=best_params["dropout"]).to(device)
+    elif model_type.lower() == "patchtst":
+        final_model = PatchTSTECGClassifier(dropout=best_params["dropout"]).to(device)
     else:
         final_model = TransformerECGClassifier(dropout=best_params["dropout"]).to(device)
 
@@ -359,6 +363,7 @@ def main(
         "tcn": "Supervised_TCN",
         "transformer": "Supervised_Transformer",
         "deep_ecg_net": "Deep ECG Net",
+        "patchtst": "PatchTST",
     }
     experiment_name = exp_map.get(model_type.lower())
     if experiment_name is None:
@@ -458,6 +463,8 @@ def main(
             model = TCNClassifier()
         elif model_type.lower() == "deep_ecg_net":
             model = DeepECGNet()
+        elif model_type.lower() == "patchtst":
+            model = PatchTSTECGClassifier()
         else:
             model = TransformerECGClassifier()
 
@@ -502,7 +509,7 @@ if __name__ == "__main__":
     parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
     parser.add_argument("--dataset", choices=("stressid", "wesad", "ours"), default="ours", type=str)
-    parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer", "deep_ecg_net"], default="cnn")
+    parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer", "deep_ecg_net", "patchtst"], default="cnn")
     parser.add_argument("--label_fraction", type=float, default=0.05,
                         help="Percent of labeled participants in the training stage.")
     parser.add_argument("--window_size", type=int, default=10,
