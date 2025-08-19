@@ -34,7 +34,8 @@ from models.supervised import (
     Improved1DCNN_v2,
     TCNClassifier,
     TransformerECGClassifier,
-    DeepECGNet
+    DeepECGNet,
+    PatchTSTECGClassifier
 )
 
 
@@ -137,6 +138,8 @@ def main(
         model = TCNClassifier()
     elif model_type.lower() == "deep_ecg_net":
         model = DeepECGNet()
+    elif model_type.lower() == "patchtst":
+        model = PatchTSTECGClassifier()
     else:
         model = TransformerECGClassifier()
 
@@ -231,7 +234,6 @@ def main(
         threshold=best_t, loss_fn=loss_fn,
     )
 
-
     with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
         classification_results = {"accuracy": acc,"auroc": auroc, "pr_auc": prauc, "f1": f1}
         json.dump(classification_results, f)
@@ -251,8 +253,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train ECG classifier")
     parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
-    parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer", "deep_ecg_net"],
-                        default="deep_ecg_net")
+    parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer", "deep_ecg_net", "patchtst"],
+                        default="transformer")
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--window_size", type=int, default=10,
                            help="Window size in seconds")
