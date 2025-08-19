@@ -296,7 +296,7 @@ def get_paths(
             f"{step_size}"
         )
         window_data_path = os.path.join(
-            DATA_PATH, "interim", "StressID", "ECG", str(fs), f"{window_size}", f"{step_size}", 'windowed_data.h5'
+            DATA_PATH, "interim", "STRESSID", "ECG", str(fs), f"{window_size}", f"{step_size}", 'windowed_data.h5'
         )
 
     elif dataset == "wesad":
