@@ -19,9 +19,10 @@ def load_results_from_structure(base_path):
 
     # Define the expected structure paths
     paths_to_check = [
-        # "ECG/Supervised/cnn",
-        # "ECG/Supervised/tcn",
-        # "ECG/Supervised/transformer",
+        "ECG/Supervised/cnn",
+        "ECG/Supervised/tcn",
+        "ECG/Supervised/transformer",
+        "ECG/Supervised/deep_ecg_net",
         "ECG/TSTCC/logistic_regression",
         # "ECG/TSTCC/mlp",
         "ECG_features/logistic_regression",
@@ -55,10 +56,14 @@ def load_results_from_structure(base_path):
                     if label_folder.is_dir():
                         try:
                             label_fraction = float(label_folder.name)
-                            
-                            if method_type == "ECG_features":
-                                # ECG_features: direct path to test_results.json
-                                json_file = label_folder / "test_results.json"
+
+                            window_combinations = [
+                                (10, 5),   # 10s windows, 5s shift
+                                (30, 10),  # 30s windows, 10s shift
+                            ]
+
+                            for window_size, window_shift in window_combinations:
+                                json_file = label_folder / str(window_size) / str(window_shift) / "test_results.json"
                                 if json_file.exists():
                                     with open(json_file, 'r') as f:
                                         data = json.load(f)
@@ -68,38 +73,13 @@ def load_results_from_structure(base_path):
                                         'model_type': model_type,
                                         'seed': seed,
                                         'label_fraction': label_fraction,
-                                        'window_size': 30,  # Feature-engineered uses 30s windows
-                                        'window_shift': 10,
+                                        'window_size': window_size,
+                                        'window_shift': window_shift,
                                         'auroc': data["test_metrics"].get('auroc', np.nan),
                                         'accuracy': data["test_metrics"].get('accuracy', np.nan),
                                         'pr_auc': data["test_metrics"].get('pr_auc', np.nan),
                                         'f1': data["test_metrics"].get('f1', np.nan),
                                     })
-                            else:
-                                # ECG methods: look for window_size/window_shift folders
-                                window_combinations = [
-                                    (10, 5),   # 10s windows, 5s shift
-                                    (30, 10),  # 30s windows, 10s shift
-                                ]
-                                
-                                for window_size, window_shift in window_combinations:
-                                    json_file = label_folder / str(window_size) / str(window_shift) / "test_results.json"
-                                    if json_file.exists():
-                                        with open(json_file, 'r') as f:
-                                            data = json.load(f)
-                                        results.append({
-                                            'method_type': method_type,
-                                            'learning_method': learning_method,
-                                            'model_type': model_type,
-                                            'seed': seed,
-                                            'label_fraction': label_fraction,
-                                            'window_size': window_size,
-                                            'window_shift': window_shift,
-                                            'auroc': data["test_metrics"].get('auroc', np.nan),
-                                            'accuracy': data["test_metrics"].get('accuracy', np.nan),
-                                            'pr_auc': data["test_metrics"].get('pr_auc', np.nan),
-                                            'f1': data["test_metrics"].get('f1', np.nan),
-                                        })
 
                         except ValueError:
                             # Skip folders that aren't numeric label fractions
@@ -320,6 +300,7 @@ def create_method_labels(df):
             'cnn': 'CNN',
             'tcn': 'TCN', 
             'transformer': 'Transformer',
+            'deep_ecg_net': 'DeepECGNet',
             'logistic_regression': 'Logistic Regression',
             'mlp': 'MLP',
             'linear': 'Linear'
@@ -385,7 +366,7 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
     
     # Calculate number of labeled participants
     def calculate_labeled_participants(label_fraction):
-        return max(1, int(total_participants * label_fraction))
+        return max(5, int(total_participants * label_fraction))
     
     grouped['n_labeled_participants'] = grouped['label_fraction'].apply(calculate_labeled_participants)
 
@@ -443,13 +424,15 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
     if use_participant_count:
         ax.set_xlabel('# Labeled Training Participants', fontsize=14, fontweight='bold')
         # Set x-axis scale and limits for participant count
-        ax.set_xscale('log')
-        ax.set_xlim(0.8, total_participants * 1.1)
+        # ax.set_xscale('log')
+        min_participants = calculate_labeled_participants(label_fraction=0.)
+        ax.set_xlim(min_participants -0.2, total_participants +0.2)
         # Customize x-axis ticks for participant counts
         if total_participants <= 20:
-            x_ticks = [1, 2, 5, 10, total_participants]
+            x_ticks = [min_participants, 10, total_participants]
         else:
-            x_ticks = [1, 2, 5, 10, 25, total_participants]
+            # x_ticks = list(np.arange(5, total_participants+1, 1))
+            x_ticks = [min_participants, 10, 25, total_participants]
         ax.set_xticks(x_ticks)
         ax.set_xticklabels([str(x) for x in x_ticks])
     else:
@@ -535,12 +518,14 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
     method_styles = {
         # Feature-engineered (30s)
         'Feature-engineered (Logistic Regression, 30s)': {'color': '#E69F00', 'marker': 'o', 'linestyle': '-'},
+        'Feature-engineered (Logistic Regression, 10s)': {'color': '#E69F00', 'marker': 'o', 'linestyle': '--'},
         'Feature-engineered (MLP, 30s)': {'color': '#56B4E9', 'marker': 's', 'linestyle': '--'},
         
         # Supervised methods (10s)
         'Supervised (CNN, 10s)': {'color': '#D55E00', 'marker': '^', 'linestyle': '-'},
         'Supervised (TCN, 10s)': {'color': '#44AA99', 'marker': '>', 'linestyle': '-'},
         'Supervised (Transformer, 10s)': {'color': '#DDCC77', 'marker': 'v', 'linestyle': '-'},
+        'Supervised (DeepECGNet, 10s)': {'color': '#117733', 'marker': '<', 'linestyle': '-'},
         
         # TSTCC (10s and 30s)
         'TSTCC (Logistic Regression, 10s)': {'color': '#88CCEE', 'marker': 'v', 'linestyle': '-'},
@@ -554,6 +539,7 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
         'Supervised (CNN, 30s)': {'color': '#D55E00', 'marker': 'o', 'linestyle': '--'},
         'Supervised (TCN, 30s)': {'color': '#44AA99', 'marker': 's', 'linestyle': '--'}, 
         'Supervised (Transformer, 30s)': {'color': '#DDCC77', 'marker': 'D', 'linestyle': '--'},
+        'Supervised (DeepECGNet, 30s)': {'color': '#117733', 'marker': '>', 'linestyle': '--'},
     }
 
     # Plot each method
