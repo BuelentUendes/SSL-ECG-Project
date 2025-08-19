@@ -12,6 +12,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
+try:
+    from transformers import PatchTSTConfig, PatchTSTForClassification
+    HF_AVAILABLE = True
+except ImportError:
+    HF_AVAILABLE = False
+
 # -------------------------
 # Decoder Model Classes
 # -------------------------
@@ -661,3 +667,106 @@ class DilatedCNN(nn.Module):
         x = self.output_layer(x)
 
         return x
+
+
+class PatchTSTECGClassifier(nn.Module):
+    """
+    PatchTST (Patch Time Series Transformer) wrapper for ECG binary classification.
+    
+    Based on "A Time Series is Worth 64 Words: Long-term Forecasting with Transformers"
+    by Yuqi Nie, Nam H. Nguyen, Phanwadee Sinthong, and Jayant Kalagnanam (ICLR 2023).
+    
+    Uses Hugging Face transformers implementation with custom configuration for ECG data.
+    """
+    
+    def __init__(self, input_length=10000, dropout=0.1, patch_length=None, d_model=128, 
+                 num_attention_heads=4, num_hidden_layers=3, frequency=1000):
+        super(PatchTSTECGClassifier, self).__init__()
+        
+        if not HF_AVAILABLE:
+            raise ImportError(
+                "transformers library is required for PatchTST. "
+                "Install with: pip install transformers"
+            )
+        
+        self.input_length = input_length
+        self.frequency = frequency
+        
+        # Auto-calculate patch length if not provided
+        # Use a reasonable default patch length that creates ~156 patches for 10000 length input
+        if patch_length is None:
+            patch_length = max(64, input_length // 156)  # Aim for around 156 patches
+        
+        # Ensure patch_length creates at least 2 patches
+        min_patches = 2
+        max_patch_length = input_length // min_patches
+        patch_length = min(patch_length, max_patch_length)
+        
+        self.patch_length = patch_length
+        context_length = input_length // patch_length
+        
+        # PatchTST configuration optimized for ECG classification
+        self.config = PatchTSTConfig(
+            # Input configuration
+            num_input_channels=1,  # Single ECG channel
+            context_length=input_length,  # Total sequence length
+            patch_length=patch_length,  # Patch size
+            patch_stride=patch_length,  # Non-overlapping patches
+            
+            # Model architecture
+            d_model=d_model,
+            num_attention_heads=num_attention_heads,
+            num_hidden_layers=num_hidden_layers,
+            ffn_dim=d_model * 4,
+            dropout=dropout,
+            attention_dropout=dropout,
+            proj_dropout=dropout,
+            
+            # Classification specific
+            use_cls_token=True,  # Use classification token
+            num_targets=1,  # Binary classification
+            head_dropout=dropout,
+            
+            # Normalization
+            norm_type="batchnorm",  # Better for smaller datasets
+            norm_eps=1e-05,
+            
+            # Positional encoding
+            positional_encoding_type="sincos",  # Sinusoidal positional encoding
+        )
+        
+        # Initialize the HuggingFace PatchTST model for classification
+        self.patchtst = PatchTSTForClassification(self.config)
+
+    def forward(self, x):
+        """
+        Forward pass through PatchTST model.
+        
+        Args:
+            x: Input ECG tensor of shape (batch_size, 1, input_length)
+            
+        Returns:
+            logits: Raw logits for binary classification (batch_size, 1)
+        """
+        # Reshape input for PatchTST: (batch, channels, length) -> (batch, length, channels)
+        batch_size, channels, seq_len = x.shape
+        
+        # Ensure input matches expected length
+        if seq_len != self.input_length:
+            # Pad or truncate to match expected input length
+            if seq_len < self.input_length:
+                padding = self.input_length - seq_len
+                x = F.pad(x, (0, padding), mode='constant', value=0)
+            else:
+                x = x[:, :, :self.input_length]
+        
+        # Reshape for HuggingFace PatchTST: (batch, seq_len, channels)
+        past_values = x.transpose(1, 2)  # (batch_size, input_length, 1)
+        
+        # Forward pass through PatchTST
+        outputs = self.patchtst(past_values=past_values)
+        
+        # Extract logits for binary classification
+        logits = outputs.prediction_logits  # Shape: (batch_size, 1)
+        
+        return logits.squeeze(-1) if logits.shape[-1] == 1 else logits
