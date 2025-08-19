@@ -276,8 +276,8 @@ class TransformerECGClassifier(nn.Module):
         # Positional encoder to inject order information into the embeddings
         self.pos_encoder = PositionalEncoding(d_model=1024, dropout=0.1, max_len=self.T)
         
-        # Transformer encoder: 4 layers, with model dimension 1024, 4 attention heads, feed-forward dim 512, dropout 0.5
-        encoder_layer = nn.TransformerEncoderLayer(d_model=1024, nhead=4, dim_feedforward=512, dropout=0.4)
+        # Transformer encoder: 4 layers, with model dimension 1024, 4 attention heads, feed-forward dim 512, dropout 0.4
+        encoder_layer = nn.TransformerEncoderLayer(d_model=1024, nhead=4, dim_feedforward=512, dropout=0.4, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=4)
         
         # Fully connected (FC) subnetwork for classification
@@ -313,10 +313,8 @@ class TransformerECGClassifier(nn.Module):
         # Add positional encoding
         x = self.pos_encoder(x)  # -> (batch, T, 1024)
         
-        # Transformer expects input shape (seq_len, batch, d_model)
-        x = x.permute(1, 0, 2)   # -> (T, batch, 1024)
-        x = self.transformer_encoder(x)  # -> (T, batch, 1024)
-        x = x.permute(1, 0, 2)   # -> (batch, T, 1024)
+        # Transformer encoder with batch_first=True expects input shape (batch, seq_len, d_model)
+        x = self.transformer_encoder(x)  # -> (batch, T, 1024)
         
         # Flatten transformer output
         x = x.flatten(1)       # -> (batch, T * 1024)
