@@ -50,6 +50,7 @@ def process_stressid_data(
         out_h5,
         physiological_sensor="ECG",
         use_binary_stress: bool = False,
+        thresholding_strategy: str = "hybrid_strategy",
         fs=500
 ):
     """
@@ -77,7 +78,7 @@ def process_stressid_data(
         subject_task = row['subject/task']
 
         if use_binary_stress:
-            binary_stress = row['binary-stress']
+            binary_stress = row[f"{thresholding_strategy}"]
             label_mapping[subject_task] = 'mental_stress' if binary_stress == 1 else 'baseline'
         else:
             three_class_score = row["affect3-class"]
@@ -238,7 +239,8 @@ def main(args):
     subfolder = "binary_stress" if args.use_binary_stress else "three_class_stress"
 
     ROOT_PATH = os.path.join(
-        DATA_PATH, "interim", "STRESSID", args.physiological_sensor, f"{args.fs}", f"{args.window_size}", f"{args.step_size}",
+        DATA_PATH, "interim", "STRESSID", args.physiological_sensor,
+        f"{args.fs}", f"{args.window_size}", f"{args.step_size}",
         subfolder
     )
     print(f"The data path is {ROOT_PATH}")
@@ -246,7 +248,7 @@ def main(args):
     create_directory(ROOT_PATH)
 
     ROOT_DIR = os.path.join(DATA_PATH, "raw", "STRESSID", "Physiological")
-    LABELS_CSV = os.path.join(DATA_PATH, "raw", "STRESSID", "labels.csv")
+    LABELS_CSV = os.path.join(DATA_PATH, "raw", "STRESSID", "labels_with_stress_strategies.csv")
 
     # File paths following the preprocess_no_flow.py naming convention
     segmented_data_path = os.path.join(ROOT_PATH, "stressid_data_segmented.h5")
@@ -255,6 +257,15 @@ def main(args):
 
     try:
         print("Starting StressID preprocessing...")
+
+        process_stressid_data(
+            ROOT_DIR,
+            LABELS_CSV,
+            segmented_data_path,
+            args.physiological_sensor,
+            args.use_binary_stress,
+            args.thresholding_strategy,
+            args.fs)
 
         # Step 1: Clean and segment raw StressID data (combines cleaning and segmentation)
         if not os.path.exists(segmented_data_path):
@@ -265,6 +276,7 @@ def main(args):
                 segmented_data_path,
                 args.physiological_sensor,
                 args.use_binary_stress,
+                args.thresholding_strategy,
                 args.fs)
         else:
             print(f"Using existing clean and segmented data: {segmented_data_path}")
@@ -323,18 +335,27 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--thresholding_strategy",
+        help="Which strategy to use for thresholding into binary stress",
+        choices=("binary-stress-5", 'binary-stress-6', 'binary-stress-7', 'hybrid_strategy', 'strategy_above_median_one_std'),
+        type=str,
+        default='hybrid_strategy',
+    )
+
+    parser.add_argument(
         "--window_size",
         help="Size of each window (seconds)",
-        default=10,
+        default=30,
         type=int
     )
     parser.add_argument(
         "--step_size",
         help="Stride between windows (seconds)",
-        default=5,
+        default=10,
         type=int
     )
 
     args = parser.parse_args()
 
+    args.use_binary_stress = True
     main(args)
