@@ -47,6 +47,8 @@ def run_supervised_model_with_cv_and_test(
 ):
     """Run CV for Supervised model  then train final model and test."""
 
+    torch.autograd.set_detect_anomaly(True)
+
     lr_rates = [1e-3, 1e-4, 1e-5]
     dropout_rates = [0.1, 0.2, 0.3, 0.5]
 
