@@ -75,7 +75,7 @@ def handle_missing_data(data, drop_values=True, verbose=True):
 
     if drop_values:
         clean_data = df[~df.isin([np.inf, -np.inf]).any(axis=1)]
-        clean_data = clean_data.dropna()
+        clean_data = clean_data.dropna(axis=0)
 
         dropped_percent = ((original_data_len - len(clean_data)) / original_data_len) * 100
         if verbose:
@@ -140,6 +140,14 @@ def main(
 
     X, y, groups, feature_names = load_processed_data(window_data_path, label_map=label_map, domain_features=True)
     y = y.astype(np.float32)
+
+    X_df = pd.DataFrame(X, columns=feature_names)
+    missing_percentages = (X_df.isnull().sum() / len(X_df)) * 100
+    print("=== Missing values percentage per feature ===")
+    for feature, percentage in missing_percentages.items():
+        if percentage > 0:
+            print(f"{feature}: {percentage:.2f}%")
+    print(f"Features with missing values: {(missing_percentages > 0).sum()}/{len(feature_names)}")
 
     # Handle missing values
     print("=== Handling missing values (Drop missing values) ===")
@@ -268,8 +276,8 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--classifier_model", type=str, default="logistic_regression",
                         choices=("logistic_regression", "mlp"))
-    parser.add_argument("--window_size", help="Window size in seconds", default=30, type=int)
-    parser.add_argument("--step_size", type=int, default=10)
+    parser.add_argument("--window_size", help="Window size in seconds", default=10, type=int)
+    parser.add_argument("--step_size", type=int, default=5)
     parser.add_argument("--classifier_epochs", type=int, default=25)
     parser.add_argument("--label_fraction", type=float, default=0.01)
     parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
