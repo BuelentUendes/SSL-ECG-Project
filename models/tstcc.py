@@ -173,7 +173,8 @@ def data_generator_from_arrays(
 
     # Create Dataset objects
     train_ds = Load_Dataset(train_dict, configs, training_mode)
-    val_ds   = Load_Dataset(val_dict,   configs, training_mode)
+    if len(X_val) != 0:
+        val_ds   = Load_Dataset(val_dict,   configs, training_mode)
     test_ds  = Load_Dataset(test_dict,  configs, training_mode)
 
     # Create DataLoaders
@@ -184,13 +185,17 @@ def data_generator_from_arrays(
         drop_last=configs.drop_last,
         num_workers=0
     )
-    valid_loader = DataLoader(
-        dataset=val_ds,
-        batch_size=configs.batch_size,
-        shuffle=False,
-        drop_last=configs.drop_last,
-        num_workers=0
-    )
+    if len(X_val) != 0:
+        valid_loader = DataLoader(
+            dataset=val_ds,
+            batch_size=configs.batch_size,
+            shuffle=False,
+            drop_last=configs.drop_last,
+            num_workers=0
+        )
+    else:
+        valid_loader = None
+
     test_loader = DataLoader(
         dataset=test_ds,
         batch_size=configs.batch_size,
@@ -661,13 +666,15 @@ def Trainer(
     for epoch in range(1, config.num_epoch + 1):
         # Train and validate
         train_loss, train_acc = model_train(model, temporal_contr_model, model_optimizer, temp_cont_optimizer, criterion, train_dl, config, device, training_mode)
-        val_loss, valid_acc, _, _ = model_evaluate(model, temporal_contr_model, valid_dl, device, training_mode, config)
+
+        if valid_dl is not None:
+            val_loss, valid_acc, _, _ = model_evaluate(model, temporal_contr_model, valid_dl, device, training_mode, config)
 
         if training_mode == "self_supervised":
             print(f"Epoch {epoch:02d} | ssl_train_loss: {train_loss:.4f} | ssl_val_loss: {val_loss:.4f}")
             mlflow.log_metrics({
                 "ssl_train_loss": train_loss,
-                "ssl_val_loss": val_loss
+                "ssl_val_loss": val_loss if valid_dl is not None else np.nan,
             }, step=epoch)
 
     # Save models (either best from early stopping or final)
@@ -869,7 +876,7 @@ class augmentations(object):
         self.jitter_scale_ratio = 0.001   # very mild scaling
         self.jitter_ratio       = 0.001    # mild additive jitter
         self.max_seg            = 8       # split into ≤8 segments for strong aug
-        self.use_spectral_aug   = True   # flag to enable spectral augmentation
+        self.use_spectral_aug   = False  # flag to enable spectral augmentation
         self.freq_mask_ratio_weak    = 0.1     # frequency masking ratio when spectral aug is enabled
         self.freq_mask_ratio_strong = 0.2
         self.freq_max_seg = 8
