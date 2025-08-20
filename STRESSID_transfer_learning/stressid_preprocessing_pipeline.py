@@ -3,7 +3,6 @@ import argparse
 
 import numpy as np
 import pandas as pd
-import neurokit2 as nk
 
 from utils.helper_paths import DATA_PATH
 from utils.torch_utilities import create_directory
@@ -45,7 +44,14 @@ def capitalize_sensor(value):
 # .txt to raw HDF5 conversion
 # ────────────────────────────────────────────
 
-def process_stressid_data(root_dir, labels_csv_path, out_h5, physiological_sensor="ECG", fs=500):
+def process_stressid_data(
+        root_dir,
+        labels_csv_path,
+        out_h5,
+        physiological_sensor="ECG",
+        binary_stress: bool = False,
+        fs=500
+):
     """
     Process StressID data: Convert TXT files to HDF5 format with cleaning and filtering.
     This mimics the process_ecg_data function - loads all participant data first, 
@@ -56,19 +62,36 @@ def process_stressid_data(root_dir, labels_csv_path, out_h5, physiological_senso
     labels_csv_path (str): Path to labels.csv file
     out_h5 (str): Output HDF5 file path
     physiological_sensor (str): Name of the physiological sensor (default: "ECG")
+    binary_stress (bool): If set, we use the binary labelling, else based on valence, arousal and perceived stress
     fs (int): Sampling frequency (default: 500)
     """
     print(f"\n[INFO] Processing StressID data with cleaning and filtering: {root_dir}")
     
-    # Load labels
+    # Load labels (binary)
     labels_df = pd.read_csv(labels_csv_path)
-    
+
     # Create a mapping from subject/task to stress label
     label_mapping = {}
+
     for _, row in labels_df.iterrows():
         subject_task = row['subject/task']
-        binary_stress = row['binary-stress']
-        label_mapping[subject_task] = 'mental_stress' if binary_stress == 1 else 'baseline'
+
+        if binary_stress:
+            binary_stress = row['binary-stress']
+            label_mapping[subject_task] = 'mental_stress' if binary_stress == 1 else 'baseline'
+        else:
+            three_class_score = row["affect3-class"]
+
+            if type(three_class_score) == float:
+                if three_class_score == 2.0:
+                    label_mapping[subject_task] = "mental_stress"
+                elif three_class_score == 1.0:
+                    label_mapping[subject_task] = "neutral"
+                else:
+                    label_mapping[subject_task] = "relax"
+            else:
+                # nan goes here
+                label_mapping[subject_task] = "other"
 
     with h5py.File(out_h5, "w") as fout:
         # Find all txt files in participant directories
@@ -211,7 +234,13 @@ def main(args):
     """
     
     # Set up paths (mimicking preprocess_no_flow.py structure)
-    ROOT_PATH = os.path.join(DATA_PATH, "interim", "STRESSID", args.physiological_sensor, f"{args.fs}", f"{args.window_size}", f"{args.step_size}")
+
+    subfolder = "binary_stress" if args.binary_stress else "three_class_stress"
+
+    ROOT_PATH = os.path.join(
+        DATA_PATH, "interim", "STRESSID", args.physiological_sensor, f"{args.fs}", f"{args.window_size}", f"{args.step_size}",
+        subfolder
+    )
     print(f"The data path is {ROOT_PATH}")
     
     create_directory(ROOT_PATH)
@@ -230,7 +259,13 @@ def main(args):
         # Step 1: Clean and segment raw StressID data (combines cleaning and segmentation)
         if not os.path.exists(segmented_data_path):
             print("Clean and segment raw StressID data...")
-            process_stressid_data(ROOT_DIR, LABELS_CSV, segmented_data_path, args.physiological_sensor, args.fs)
+            process_stressid_data(
+                ROOT_DIR,
+                LABELS_CSV,
+                segmented_data_path,
+                args.physiological_sensor,
+                args.binary_stress,
+                args.fs)
         else:
             print(f"Using existing clean and segmented data: {segmented_data_path}")
 
@@ -278,6 +313,13 @@ if __name__ == "__main__":
         default="ECG",
         choices=("ECG", "EDA", "RR"),
         type=capitalize_sensor,
+    )
+
+    parser.add_argument(
+        "--binary_stress",
+        help="if set, we use the binary stress label (based on perceived stress >=5), "
+             "else, we use the stress labeling based on arousal, valence and perceived stress",
+        action="store_true"
     )
 
     parser.add_argument(
