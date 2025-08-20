@@ -49,7 +49,7 @@ def process_stressid_data(
         labels_csv_path,
         out_h5,
         physiological_sensor="ECG",
-        binary_stress: bool = False,
+        use_binary_stress: bool = False,
         fs=500
 ):
     """
@@ -76,7 +76,7 @@ def process_stressid_data(
     for _, row in labels_df.iterrows():
         subject_task = row['subject/task']
 
-        if binary_stress:
+        if use_binary_stress:
             binary_stress = row['binary-stress']
             label_mapping[subject_task] = 'mental_stress' if binary_stress == 1 else 'baseline'
         else:
@@ -235,7 +235,7 @@ def main(args):
     
     # Set up paths (mimicking preprocess_no_flow.py structure)
 
-    subfolder = "binary_stress" if args.binary_stress else "three_class_stress"
+    subfolder = "binary_stress" if args.use_binary_stress else "three_class_stress"
 
     ROOT_PATH = os.path.join(
         DATA_PATH, "interim", "STRESSID", args.physiological_sensor, f"{args.fs}", f"{args.window_size}", f"{args.step_size}",
@@ -264,7 +264,7 @@ def main(args):
                 LABELS_CSV,
                 segmented_data_path,
                 args.physiological_sensor,
-                args.binary_stress,
+                args.use_binary_stress,
                 args.fs)
         else:
             print(f"Using existing clean and segmented data: {segmented_data_path}")
@@ -316,7 +316,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--binary_stress",
+        "--use_binary_stress",
         help="if set, we use the binary stress label (based on perceived stress >=5), "
              "else, we use the stress labeling based on arousal, valence and perceived stress",
         action="store_true"
