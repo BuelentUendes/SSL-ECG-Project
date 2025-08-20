@@ -529,7 +529,6 @@ if __name__ == "__main__":
 
     #Important:
     args.pretrain_all_conditions = True
-    args.use_pretrained_encoder = True
     args.use_binary_stress = True
 
     main(**vars(args))
