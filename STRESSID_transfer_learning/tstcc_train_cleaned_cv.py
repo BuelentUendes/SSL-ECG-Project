@@ -529,6 +529,6 @@ if __name__ == "__main__":
 
     #Important:
     args.pretrain_all_conditions = True
-    args.use_binary_stress = True
+    # args.use_binary_stress = True
 
     main(**vars(args))
