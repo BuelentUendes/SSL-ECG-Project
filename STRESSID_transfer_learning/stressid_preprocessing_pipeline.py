@@ -86,7 +86,7 @@ def process_stressid_data(
                 if three_class_score == 2.0:
                     label_mapping[subject_task] = "mental_stress"
                 elif three_class_score == 1.0:
-                    label_mapping[subject_task] = "neutral"
+                    label_mapping[subject_task] = "baseline"
                 else:
                     label_mapping[subject_task] = "relax"
             else:
@@ -315,12 +315,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--thresholding_strategy",
         help="Which strategy to use for thresholding into binary stress",
-        choices=("binary-stress-5", 'binary-stress-6', 'binary-stress-7',
+        choices=("binary-stress", 'affect3-class',
                  'breathing_baseline_binary', 'median_baseline_binary',
                  'median_baseline_accute_binary',
                  'breathing_baseline_binary_accute'),
         type=str,
-        default='breathing_baseline_binary',
+        default='binary-stress',
     )
 
     parser.add_argument(

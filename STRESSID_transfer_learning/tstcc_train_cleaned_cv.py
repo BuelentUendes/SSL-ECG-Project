@@ -175,9 +175,9 @@ def main(
 
 
     if pretrain_all_conditions:
-        label_map = {"neutral": 0, "mental_stress": 1, "relax": 2, "other": 3}
+        label_map = {"baseline": 0, "mental_stress": 1, "relax": 2, "other": 3}
     else:
-        label_map = {"neutral": 0, "mental_stress": 1}
+        label_map = {"baseline": 0, "mental_stress": 1}
 
     # Data path
     window_data_path = os.path.join(
