@@ -14,7 +14,7 @@ import mlflow
 import mlflow.pytorch
 
 from torch.utils.data import DataLoader
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, average_precision_score
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, average_precision_score, balanced_accuracy_score
 
 from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
@@ -43,7 +43,7 @@ from models.supervised import (
 def run_supervised_model_with_cv_and_test(
         model_type, X_train, y_train, groups_train, X_test, y_test,
         cv_splitter, device, classifier_epochs=25, classifier_batch_size=32,
-        classifier_lr=1e-4, pin_memory=False
+        classifier_lr=1e-4, pin_memory=False, scoring_metric="roc_auc"
 ):
     """Run CV for Supervised model  then train final model and test."""
 
@@ -155,13 +155,26 @@ def run_supervised_model_with_cv_and_test(
                             val_probs.extend(probs.cpu().numpy())
                             val_labels.extend(y_batch.cpu().numpy())
 
-                    fold_auroc = roc_auc_score(val_labels, val_probs)
-                    fold_scores.append(fold_auroc)
+                    # Calculate fold score based on selected metric
+                    if scoring_metric == "roc_auc":
+                        fold_score = roc_auc_score(val_labels, val_probs)
+                    elif scoring_metric == "average_precision":
+                        fold_score = average_precision_score(val_labels, val_probs)
+                    elif scoring_metric == "f1":
+                        val_preds = (np.array(val_probs) > 0.5).astype(int)
+                        fold_score = f1_score(val_labels, val_preds)
+                    elif scoring_metric == "balanced_accuracy":
+                        val_preds = (np.array(val_probs) > 0.5).astype(int)
+                        fold_score = balanced_accuracy_score(val_labels, val_preds)
+                    else:
+                        raise ValueError(f"Unknown scoring metric: {scoring_metric}")
+                    
+                    fold_scores.append(fold_score)
 
                 # Average CV score for this parameter combination
                 mean_cv_score = np.mean(fold_scores)
                 print()
-                print(f"  Mean CV AUROC: {mean_cv_score:.4f}")
+                print(f"  Mean CV {scoring_metric.upper()}: {mean_cv_score:.4f}")
 
                 if mean_cv_score > best_cv_score:
                     best_cv_score = mean_cv_score
@@ -346,6 +359,7 @@ def main(
         scheduler_min_lr: float = 1e-11,
         k_folds: int = 5,
         min_participants_for_kfold: int = 5,
+        scoring_metric: str = "roc_auc"
 ):
     set_seed(seed)
 
@@ -435,7 +449,7 @@ def main(
         results, final_model = run_supervised_model_with_cv_and_test(
             model_type, X_train, y_train, groups_train, X_test, y_test,
             cv_splitter, device, classifier_epochs=num_epochs, classifier_batch_size=batch_size,
-            classifier_lr=lr, pin_memory=pin_memory)
+            classifier_lr=lr, pin_memory=pin_memory, scoring_metric=scoring_metric)
 
         # log the results:
         mlflow.log_metrics({
@@ -511,7 +525,8 @@ if __name__ == "__main__":
     parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
     parser.add_argument("--dataset", choices=("stressid", "wesad", "ours"), default="ours", type=str)
-    parser.add_argument("--model_type", choices=["cnn", "tcn", "transformer", "deep_ecg_net", "patchtst"], default="cnn")
+    parser.add_argument("--model_type",
+                        choices=["cnn", "tcn", "transformer", "deep_ecg_net", "patchtst"], default="cnn")
     parser.add_argument("--label_fraction", type=float, default=0.05,
                         help="Percent of labeled participants in the training stage.")
     parser.add_argument("--window_size", type=int, default=10,
@@ -532,6 +547,9 @@ if __name__ == "__main__":
     parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
     parser.add_argument("--min_participants_for_kfold", type=int, default=5,
                         help="Minimum participants needed for k-fold (otherwise use Leave one participant out)")
+    parser.add_argument("--scoring_metric", type=str, default="roc_auc",
+                         choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
+                         help="Scoring metric for cross-validation hyperparameter selection")
 
     args = parser.parse_args()
 
