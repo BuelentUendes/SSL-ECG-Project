@@ -831,7 +831,8 @@ def get_participant_cv_splitter(groups, min_participants_for_kfold=5, k=5):
 
 def run_logistic_regression_with_gridsearch(
         X_train, y_train, groups_train, X_test, y_test, feature_names, cv_splitter, 
-        standardize=False, seed=42, search_type='grid', n_iter=50
+        standardize=False, seed=42, search_type='grid', n_iter=50,
+        scoring_metric="f1",
 ):
     """Run GridSearchCV or RandomizedSearchCV for Logistic Regression, then evaluate on test set.
     
@@ -846,7 +847,7 @@ def run_logistic_regression_with_gridsearch(
 
     # Parameter grid for grid search
     param_grid = {
-        'C': [0.0001, 0.001, 0.01, 0.1, 1.0, 5., 10.],
+        'C': [1e-5, 0.0001, 0.001, 0.01, 0.1, 1.0, 10., 100.],
         'penalty': ['l1', 'l2'],
         'max_iter': [10_000],
     }
@@ -878,7 +879,7 @@ def run_logistic_regression_with_gridsearch(
                 param_distributions=param_distributions,  # Use param_distributions for random search
                 n_iter=n_iter,
                 cv=cv_splitter,
-                scoring='roc_auc',  # Use AUROC as the scoring metric
+                scoring=scoring_metric,  # Use AUROC as the scoring metric
                 n_jobs=-1,
                 verbose=3,
                 random_state=seed
@@ -890,7 +891,7 @@ def run_logistic_regression_with_gridsearch(
                 estimator=base_model,
                 param_grid=param_grid,
                 cv=cv_splitter,
-                scoring='roc_auc',  # Use AUROC as the scoring metric
+                scoring=scoring_metric,  # Use AUROC as the scoring metric
                 n_jobs=-1,
                 verbose=3,
             )
@@ -900,7 +901,7 @@ def run_logistic_regression_with_gridsearch(
         search.fit(X_train, y_train, groups=groups_train)
 
         print(f"Best parameters: {search.best_params_}")
-        print(f"Best CV score (AUROC): {search.best_score_:.4f}")
+        print(f"Best CV score {scoring_metric.capitalize()}: {search.best_score_:.4f}")
 
         # Get the best model (already trained on full training set)
         cv_results = search.cv_results_

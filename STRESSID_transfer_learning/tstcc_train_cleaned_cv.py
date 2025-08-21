@@ -119,6 +119,7 @@ def main(
         k_folds: int = 5,
         min_participants_for_kfold: int = 5,
         verbose: bool = False,
+        scoring_metric: str = "roc_auc",
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -200,6 +201,13 @@ def main(
         seed=seed,
         return_all_train_p=True
     )
+
+    print(f"Class distribution in training data:")
+    train_labels = y[train_idx]
+    print(f"  Class 0 (baseline): {np.sum(train_labels == 0)} samples")
+    print(f"  Class 1 (stress): {np.sum(train_labels == 1)} samples")
+    print(
+        f"  Class balance ratio: {np.sum(train_labels == 0) / len(train_labels):.3f} / {np.sum(train_labels == 1) / len(train_labels):.3f}")
 
     # This is the dataset we use for training of the encoder!
     groups_train_all_encoder = groups[all_train_idx]
@@ -355,6 +363,44 @@ def main(
         min_participants_for_kfold=min_participants_for_kfold,
         k=k_folds
     )
+    
+    # Check class balance in each CV fold
+    if cv_splitter is not None:
+        print("Checking class balance in CV folds...")
+        problematic_folds = []
+        for fold_idx, (train_cv_idx, val_cv_idx) in enumerate(cv_splitter.split(train_repr, y_train, groups_train)):
+            y_train_fold = y_train[train_cv_idx]
+            y_val_fold = y_train[val_cv_idx]
+            
+            # Calculate percentages
+            train_class0 = np.sum(y_train_fold == 0)
+            train_class1 = np.sum(y_train_fold == 1)
+            train_total = len(y_train_fold)
+            train_class0_pct = train_class0 / train_total * 100
+            train_class1_pct = train_class1 / train_total * 100
+            
+            val_class0 = np.sum(y_val_fold == 0)
+            val_class1 = np.sum(y_val_fold == 1)
+            val_total = len(y_val_fold)
+            val_class0_pct = val_class0 / val_total * 100 if val_total > 0 else 0
+            val_class1_pct = val_class1 / val_total * 100 if val_total > 0 else 0
+            
+            print(f"  Fold {fold_idx+1}: Train class 0: {train_class0} ({train_class0_pct:.1f}%), class 1: {train_class1} ({train_class1_pct:.1f}%)")
+            print(f"  Fold {fold_idx+1}: Val   class 0: {val_class0} ({val_class0_pct:.1f}%), class 1: {val_class1} ({val_class1_pct:.1f}%)")
+            
+            # Check for severely imbalanced folds (>85% one class in validation)
+            if val_class0_pct > 85 or val_class1_pct > 85:
+                problematic_folds.append(fold_idx + 1)
+                print(f"  ⚠️  WARNING: Fold {fold_idx+1} validation set is severely imbalanced!")
+            
+            # Check for empty classes
+            if len(np.unique(y_train_fold)) < 2 or len(np.unique(y_val_fold)) < 2:
+                print(f"  🚨 CRITICAL: Fold {fold_idx+1} has missing classes!")
+                problematic_folds.append(fold_idx + 1)
+        
+        if problematic_folds:
+            print(f"\n🔍 DIAGNOSIS: Fold(s) {problematic_folds} have severe class imbalance.")
+        print()
 
     # ── Step 5: Run CV with Logistic Regression or MLP ─────────────────────────────────
     set_seed(seed)
@@ -374,6 +420,7 @@ def main(
             results = run_logistic_regression_with_gridsearch(
                 train_repr, y_train, groups_train,
                 test_repr, y_test, feature_names, cv_splitter, False, seed,
+                scoring_metric=scoring_metric,
             )
 
         # Log metrics
@@ -514,6 +561,9 @@ if __name__ == "__main__":
                          help="Number of folds for cross-validation")
     cv_group.add_argument("--min_participants_for_kfold", type=int, default=5,
                          help="Minimum participants needed for k-fold (otherwise use Leave-one-participant-out-CV)")
+    cv_group.add_argument("--scoring_metric", type=str, default="f1",
+                         choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
+                         help="Scoring metric for cross-validation hyperparameter selection")
 
     # Parse arguments and run main function
     args = parser.parse_args()
