@@ -321,7 +321,6 @@ def main(args):
 
     elif args.dataset == "stressid":
         input_path_folder = "interim/STRESSID/ECG"
-        stress_method = "binary_stress" if args.use_binary_stress else "three_class_stress"
         output_path_folder = "interim/STRESSID_features/ECG" if args.use_normalized_ecg_signal else "interim/STRESSID_features_unnormalized/ECG"
 
     elif args.dataset == "wesad":
@@ -331,29 +330,18 @@ def main(args):
     else:
         raise AttributeError(f"{args.dataset} is not available!")
 
-    if args.dataset == "stressid":
-        input_path = os.path.join(DATA_PATH, input_path_folder, str(args.sample_frequency),
-                              str(args.window_size), str(args.window_shift), stress_method)
-    else:
-        input_path = os.path.join(DATA_PATH, input_path_folder, str(args.sample_frequency),
-                                  str(args.window_size), str(args.window_shift))
+
+    input_path = os.path.join(DATA_PATH, input_path_folder, str(args.sample_frequency),
+                              str(args.window_size), str(args.window_shift))
 
     if args.use_normalized_ecg_signal:
         h5_file_path = os.path.join(input_path, 'windowed_data.h5')
-        if args.dataset == "stressid":
-            output_path = os.path.join(DATA_PATH, output_path_folder, str(args.sample_frequency),
-                                       str(args.window_size), str(args.window_shift), stress_method)
-        else:
-            output_path = os.path.join(DATA_PATH, output_path_folder, str(args.sample_frequency),
-                                       str(args.window_size), str(args.window_shift))
+        output_path = os.path.join(DATA_PATH, output_path_folder, str(args.sample_frequency),
+                                   str(args.window_size), str(args.window_shift))
     else:
         h5_file_path = os.path.join(input_path, 'windowed_data_unnormalized.h5')
-        if args.dataset == "stressid":
-            output_path = os.path.join(DATA_PATH, output_path_folder, str(args.sample_frequency),
-                                       str(args.window_size), str(args.window_shift), stress_method)
-        else:
-            output_path = os.path.join(DATA_PATH, output_path_folder, str(args.sample_frequency),
-                                       str(args.window_size), str(args.window_shift))
+        output_path = os.path.join(DATA_PATH, output_path_folder, str(args.sample_frequency),
+                                   str(args.window_size), str(args.window_shift))
 
     if not os.path.exists(h5_file_path):
         print(f"H5 file not found: {h5_file_path}")
@@ -371,17 +359,15 @@ if __name__ == "__main__":
                         help="Which dataset to use for feature extraction.", default="stressid")
     parser.add_argument("--sample_frequency", type=int, default=500,
                         help="Sampling rate used for the dataset")
-    parser.add_argument("--window_size", type=int, default=30,
+    parser.add_argument("--window_size", type=int, default=10,
                         help="Window size in seconds")
-    parser.add_argument("--window_shift", type=int, default=10,
+    parser.add_argument("--window_shift", type=int, default=5,
                         help="Window shift in seconds")
     parser.add_argument("--use_normalized_ecg_signal", action="store_true",
                         help="If set, we use the normalized ecg signal.")
-    parser.add_argument("--use_binary_stress", help="This is only for the StressID dataset",
-                        action="store_true")
     parser.add_argument("--seed", type=int, default=42)
 
     args = parser.parse_args()
     args.use_normalized_ecg_signal = True
-    args.use_binary_stress = True
+
     main(args)
