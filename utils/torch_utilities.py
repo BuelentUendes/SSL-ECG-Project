@@ -24,7 +24,8 @@ from torcheval.metrics.functional import multiclass_f1_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, roc_auc_score, average_precision_score
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.model_selection import GroupKFold, LeaveOneGroupOut,  GridSearchCV
+from sklearn.model_selection import GroupKFold, LeaveOneGroupOut, GridSearchCV, RandomizedSearchCV
+from scipy.stats import loguniform
 
 # MLflow imports
 import mlflow
@@ -829,9 +830,15 @@ def get_participant_cv_splitter(groups, min_participants_for_kfold=5, k=5):
 
 
 def run_logistic_regression_with_gridsearch(
-        X_train, y_train, groups_train, X_test, y_test,feature_names, cv_splitter, standardize=False, seed=42
+        X_train, y_train, groups_train, X_test, y_test, feature_names, cv_splitter, 
+        standardize=False, seed=42, search_type='grid', n_iter=50
 ):
-    """Run GridSearchCV for Logistic Regression, then evaluate on test set."""
+    """Run GridSearchCV or RandomizedSearchCV for Logistic Regression, then evaluate on test set.
+    
+    Args:
+        search_type (str): 'grid' for GridSearchCV or 'random' for RandomizedSearchCV
+        n_iter (int): Number of parameter settings sampled for RandomizedSearchCV (ignored for grid search)
+    """
 
     # Standardize features (fit on train, transform both)
     if standardize:
@@ -840,8 +847,15 @@ def run_logistic_regression_with_gridsearch(
     # Parameter grid for grid search
     param_grid = {
         'C': [0.0001, 0.001, 0.01, 0.1, 1.0, 5., 10.],
+        'penalty': ['l1'],
+        'max_iter': [10_000],
+    }
+
+    # Parameter distributions for random search
+    param_distributions = {
+        'C': loguniform(1e-5, 10),  # Log-uniform from 1e-5 to 10
         'penalty': ['l2', 'l1'],
-        'max_iter': [5000],
+        'max_iter': [10_000],
     }
 
     default_best_params = {
@@ -854,32 +868,45 @@ def run_logistic_regression_with_gridsearch(
     }
 
     if cv_splitter is not None:
-        # Create base model for grid search
+        # Create base model for search
         base_model = LogisticRegression(random_state=seed, n_jobs=-1, solver="saga")
 
-        # GridSearchCV with GroupKFold
-        grid_search = GridSearchCV(
-            estimator=base_model,
-            param_grid=param_grid,
-            cv=cv_splitter,
-            scoring='roc_auc',  # Use AUROC as the scoring metric (f1 is also good)
-            n_jobs=-1,
-            verbose=3,
-        )
+        if search_type.lower() == 'random':
+            # RandomizedSearchCV with GroupKFold
+            search = RandomizedSearchCV(
+                estimator=base_model,
+                param_distributions=param_distributions,  # Use param_distributions for random search
+                n_iter=n_iter,
+                cv=cv_splitter,
+                scoring='roc_auc',  # Use AUROC as the scoring metric
+                n_jobs=-1,
+                verbose=3,
+                random_state=seed
+            )
+            print(f"Running RandomizedSearchCV with {n_iter} iterations...")
+        else:
+            # GridSearchCV with GroupKFold (default)
+            search = GridSearchCV(
+                estimator=base_model,
+                param_grid=param_grid,
+                cv=cv_splitter,
+                scoring='roc_auc',  # Use AUROC as the scoring metric
+                n_jobs=-1,
+                verbose=3,
+            )
+            print("Running GridSearchCV...")
 
-        print("Running GridSearchCV...")
-        # Fit grid search (this does 5-fold CV internally)
-        grid_search.fit(X_train, y_train, groups=groups_train)
+        # Fit search (this does CV internally)
+        search.fit(X_train, y_train, groups=groups_train)
 
-        print(f"Best parameters: {grid_search.best_params_}")
-        print(f"Best CV score (AUROC): {grid_search.best_score_:.4f}")
-        # print(f"Best CV score (F1-score): {grid_search.best_score_:.4f}")
+        print(f"Best parameters: {search.best_params_}")
+        print(f"Best CV score (AUROC): {search.best_score_:.4f}")
 
         # Get the best model (already trained on full training set)
-        cv_results = grid_search.cv_results_
-        best_model = grid_search.best_estimator_
-        best_params = grid_search.best_params_
-        best_cv_score = grid_search.best_score_
+        cv_results = search.cv_results_
+        best_model = search.best_estimator_
+        best_params = search.best_params_
+        best_cv_score = search.best_score_
 
     else:
         # Use default best parameters when cv_splitter is None
@@ -896,6 +923,8 @@ def run_logistic_regression_with_gridsearch(
     # Evaluate on test set
     y_test_proba = best_model.predict_proba(X_test)[:, 1]
     y_test_pred = best_model.predict(X_test)
+
+    print(f"The mean test prediction is {np.mean(y_test_pred)}, {y_test_pred}")
 
     # Calculate test metrics
     test_acc = accuracy_score(y_test, y_test_pred)
