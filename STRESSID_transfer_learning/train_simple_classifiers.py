@@ -105,6 +105,7 @@ def main(
         k_folds: int = 5,
         min_participants_for_kfold: int = 5,
         verbose: bool = False,
+        scoring_metric: str="f"
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -215,13 +216,13 @@ def main(
         if verbose:
             results = run_logistic_regression_with_gridsearch_verbose(
                 X_train_all, y_train_all, groups_train_all, X_test, y_test,
-                feature_names, cv_splitter, True, seed
+                feature_names, cv_splitter, True, seed, scoring_metric=scoring_metric
             )
 
         else:
             results = run_logistic_regression_with_gridsearch(
                 X_train_all, y_train_all, groups_train_all,
-                X_test, y_test, feature_names, cv_splitter, True, seed,
+                X_test, y_test, feature_names, cv_splitter, True, seed, scoring_metric=scoring_metric
             )
 
         # Log metrics
@@ -297,6 +298,9 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", action="store_true",
                         help="If set, we show a verbose output of CV. Only applicable for LR. "
                              "Important: This slows down the fitting!")
+    parser.add_argument("--scoring_metric", type=str, default="f1",
+                         choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
+                         help="Scoring metric for cross-validation hyperparameter selection")
 
     args = parser.parse_args()
     args.use_normalized_ecg_signal = True
