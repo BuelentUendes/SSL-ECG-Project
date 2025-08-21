@@ -99,7 +99,6 @@ def main(
         classifier_model: str,
         window_size: int,
         step_size: int,
-        use_binary_stress: bool,
         use_normalized_ecg_signal: bool,
         classifier_epochs: int,
         label_fraction: float,
@@ -130,31 +129,30 @@ def main(
 
     # Check if directory for saving results exist
     create_directory(RESULTS_PATH)
-    stress_method = "binary_stress" if use_binary_stress else "three_class_stress"
 
     if use_normalized_ecg_signal:
         results_save_path = os.path.join(
             RESULTS_PATH, "StressID_features", str(window_size), str(step_size),
-            classifier_model, f"{seed}", f"{label_fraction}", stress_method
+            classifier_model, f"{seed}", f"{label_fraction}"
         )
     else:
         results_save_path = os.path.join(
             RESULTS_PATH, "StressID_features_unnormalized", str(window_size), str(step_size),
-            classifier_model, f"{seed}", f"{label_fraction}", stress_method
+            classifier_model, f"{seed}", f"{label_fraction}"
         )
 
     create_directory(results_save_path)
 
     # ── Step 1: Load and Preprocess Data ────────────────────────────────────────
-    label_map = {"baseline": 0, "mental_stress": 1} if use_binary_stress else {"neutral": 0, "mental_stress": 1, "relax": 2}
+    label_map = {"baseline": 0, "mental_stress": 1}
 
     if use_normalized_ecg_signal:
         window_data_path = os.path.join(
-            DATA_PATH, "interim", "STRESSID_features", "ECG", str(fs), str(window_size), str(step_size), stress_method, 'windowed_data.h5'
+            DATA_PATH, "interim", "STRESSID_features", "ECG", str(fs), str(window_size), str(step_size), 'windowed_data.h5'
         )
     else:
         window_data_path = os.path.join(
-            DATA_PATH, "interim", "STRESSID_features_unnormalized", "ECG", str(fs), str(window_size), str(step_size), stress_method, 'windowed_data.h5'
+            DATA_PATH, "interim", "STRESSID_features_unnormalized", "ECG", str(fs), str(window_size), str(step_size), 'windowed_data.h5'
         )
 
     X, y, groups, feature_names = load_processed_data(window_data_path, label_map=label_map, domain_features=True)
@@ -287,12 +285,8 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--classifier_model", type=str, default="logistic_regression",
                         choices=("logistic_regression", "mlp"))
-    parser.add_argument("--window_size", help="Window size in seconds", default=10, type=int)
-    parser.add_argument("--step_size", help="Window shift in seconds", default=5, type=int)
-    parser.add_argument("--use_binary_stress",
-                            help="if set, we use the binary stress label (based on perceived stress >=5), "
-                                 "else, we use the stress labeling based on arousal, valence and perceived stress",
-                            action="store_true")
+    parser.add_argument("--window_size", help="Window size in seconds", default=30, type=int)
+    parser.add_argument("--step_size", help="Window shift in seconds", default=10, type=int)
     parser.add_argument("--use_normalized_ecg_signal", action="store_true",
                         help="If set, we use the normalized ECG signal")
     parser.add_argument("--classifier_epochs", type=int, default=25)
@@ -306,6 +300,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     args.use_normalized_ecg_signal = True
-    args.use_binary_stress = True
 
     main(**vars(args))

@@ -49,8 +49,7 @@ def process_stressid_data(
         labels_csv_path,
         out_h5,
         physiological_sensor="ECG",
-        use_binary_stress: bool = False,
-        thresholding_strategy: str = "hybrid_strategy",
+        thresholding_strategy: str = "breathing_baseline_binary",
         fs=500
 ):
     """
@@ -77,7 +76,7 @@ def process_stressid_data(
     for _, row in labels_df.iterrows():
         subject_task = row['subject/task']
 
-        if use_binary_stress:
+        if thresholding_strategy != "affect3-class":
             binary_stress = row[f"{thresholding_strategy}"]
             label_mapping[subject_task] = 'mental_stress' if binary_stress == 1 else 'baseline'
         else:
@@ -94,11 +93,19 @@ def process_stressid_data(
                 # nan goes here
                 label_mapping[subject_task] = "other"
 
+    # Check that we have all unique participants
+    unique_participants = np.unique([subject.split("_")[0] for subject in label_mapping.keys()])
+    assert len(unique_participants) == 65, "We lost some participants!"
+
     with h5py.File(out_h5, "w") as fout:
         # Find all txt files in participant directories
         pattern = os.path.join(root_dir, "*", "*.txt")
         txt_files = sorted(glob.glob(pattern))
 
+        #Unique text files
+        unique_txt_files = len(set([file.split("/")[-1].split("_")[0] for file in txt_files]))
+
+        assert unique_txt_files == 65, "Something went wrong with the text files!"
         if not txt_files:
             print(f"[WARNING] No TXT files found with pattern: {pattern}")
             return
@@ -233,22 +240,17 @@ def main(args):
     - Normalizes signals
     - Segments into time windows
     """
-    
-    # Set up paths (mimicking preprocess_no_flow.py structure)
-
-    subfolder = "binary_stress" if args.use_binary_stress else "three_class_stress"
 
     ROOT_PATH = os.path.join(
         DATA_PATH, "interim", "STRESSID", args.physiological_sensor,
         f"{args.fs}", f"{args.window_size}", f"{args.step_size}",
-        subfolder
     )
     print(f"The data path is {ROOT_PATH}")
     
     create_directory(ROOT_PATH)
 
     ROOT_DIR = os.path.join(DATA_PATH, "raw", "STRESSID", "Physiological")
-    LABELS_CSV = os.path.join(DATA_PATH, "raw", "STRESSID", "labels_with_stress_strategies.csv")
+    LABELS_CSV = os.path.join(DATA_PATH, "raw", "STRESSID", "labels_with_personal_threshold.csv")
 
     # File paths following the preprocess_no_flow.py naming convention
     segmented_data_path = os.path.join(ROOT_PATH, "stressid_data_segmented.h5")
@@ -258,35 +260,18 @@ def main(args):
     try:
         print("Starting StressID preprocessing...")
 
+        # Step 1: Clean and segment raw StressID data (combines cleaning and segmentation)
         process_stressid_data(
             ROOT_DIR,
             LABELS_CSV,
             segmented_data_path,
             args.physiological_sensor,
-            args.use_binary_stress,
             args.thresholding_strategy,
             args.fs)
 
-        # Step 1: Clean and segment raw StressID data (combines cleaning and segmentation)
-        if not os.path.exists(segmented_data_path):
-            print("Clean and segment raw StressID data...")
-            process_stressid_data(
-                ROOT_DIR,
-                LABELS_CSV,
-                segmented_data_path,
-                args.physiological_sensor,
-                args.use_binary_stress,
-                args.thresholding_strategy,
-                args.fs)
-        else:
-            print(f"Using existing clean and segmented data: {segmented_data_path}")
-
         # Step 2: Normalize cleaned signals
-        if not os.path.exists(normalized_data_path):
-            print("Normalizing StressID data...")
-            normalize_cleaned_data(segmented_data_path, normalized_data_path)
-        else:
-            print(f"Using existing normalized data: {normalized_data_path}")
+        print("Normalizing StressID data...")
+        normalize_cleaned_data(segmented_data_path, normalized_data_path)
 
         # Step 3: Segment into windows
         print("Creating windowed StressID data...")
@@ -328,34 +313,29 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--use_binary_stress",
-        help="if set, we use the binary stress label (based on perceived stress >=5), "
-             "else, we use the stress labeling based on arousal, valence and perceived stress",
-        action="store_true"
-    )
-
-    parser.add_argument(
         "--thresholding_strategy",
         help="Which strategy to use for thresholding into binary stress",
-        choices=("binary-stress-5", 'binary-stress-6', 'binary-stress-7', 'hybrid_strategy', 'strategy_above_median_one_std'),
+        choices=("binary-stress-5", 'binary-stress-6', 'binary-stress-7',
+                 'breathing_baseline_binary', 'median_baseline_binary',
+                 'median_baseline_accute_binary',
+                 'breathing_baseline_binary_accute'),
         type=str,
-        default='hybrid_strategy',
+        default='breathing_baseline_binary',
     )
 
     parser.add_argument(
         "--window_size",
         help="Size of each window (seconds)",
-        default=30,
+        default=10,
         type=int
     )
     parser.add_argument(
         "--step_size",
         help="Stride between windows (seconds)",
-        default=10,
+        default=5,
         type=int
     )
 
     args = parser.parse_args()
 
-    args.use_binary_stress = True
     main(args)

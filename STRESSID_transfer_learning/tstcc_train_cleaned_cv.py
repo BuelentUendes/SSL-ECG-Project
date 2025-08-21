@@ -106,7 +106,6 @@ def main(
         tcc_lr: float,
         tcc_batch_size: int,
         pretrain_all_conditions: bool,
-        use_binary_stress: bool,
         tc_timesteps: int,
         tc_hidden_dim: int,
         cc_temperature: float,
@@ -150,7 +149,6 @@ def main(
 
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
-    stress_method = "binary_stress" if use_binary_stress else "three_class_stress"
 
     if use_pretrained_encoder:
         model_save_path = os.path.join(
@@ -159,7 +157,7 @@ def main(
 
     else:
         model_save_path = os.path.join(
-            SAVED_MODELS_PATH, "StressID", "TSTCC", f"{seed}", f"{window_size}", f"{step_size}", stress_method,
+            SAVED_MODELS_PATH, "StressID", "TSTCC", f"{seed}", f"{window_size}", f"{step_size}",
         )
 
     #Save the results based on either pretrained from our dataset or trained from scratch
@@ -167,7 +165,7 @@ def main(
 
     results_save_path = os.path.join(
         RESULTS_PATH, "Transfer_learning", "StressID", subfolder_name, "TSTCC", classifier_model,
-        f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}", stress_method
+        f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}",
     )
 
     create_directory(model_save_path)
@@ -175,17 +173,15 @@ def main(
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
 
-    if use_binary_stress:
-        label_map = {"baseline": 0, "mental_stress": 1}
+
+    if pretrain_all_conditions:
+        label_map = {"neutral": 0, "mental_stress": 1, "relax": 2, "other": 3}
     else:
-        if pretrain_all_conditions:
-            label_map = {"neutral": 0, "mental_stress": 1, "relax": 2, "other": 3}
-        else:
-            label_map = {"neutral": 0, "mental_stress": 1}
+        label_map = {"neutral": 0, "mental_stress": 1}
 
     # Data path
     window_data_path = os.path.join(
-        DATA_PATH, "interim", "STRESSID", "ECG", str(fs), str(window_size), str(step_size), stress_method, 'windowed_data.h5'
+        DATA_PATH, "interim", "STRESSID", "ECG", str(fs), str(window_size), str(step_size), 'windowed_data.h5'
     )
 
     X, y, groups = load_processed_data(window_data_path, label_map=label_map)
@@ -221,7 +217,6 @@ def main(
     groups_train_idx_encoder = groups_train_all_encoder[train_idx_encoder]  # 60% of original data
     groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
 
-    # Test that we have all 127 participants moved in one of the categories
     assert len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) + len(np.unique(groups[test_idx])) == 65, \
         "Something went wrong with the participant split!"
 
@@ -473,10 +468,6 @@ if __name__ == "__main__":
                            help="Fraction of labeled participants to use (0.0-1.0)")
     data_group.add_argument("--pretrain_all_conditions", action="store_true",
                            help="Pretrain on all conditions (not just baseline/mental_stress)")
-    data_group.add_argument("--use_binary_stress",
-                            help="if set, we use the binary stress label (based on perceived stress >=5), "
-                                 "else, we use the stress labeling based on arousal, valence and perceived stress",
-                            action="store_true")
     # ══════════════════════════════════════════════════════════════════════════════
     # TS-TCC Encoder Training
     # ══════════════════════════════════════════════════════════════════════════════
@@ -529,6 +520,5 @@ if __name__ == "__main__":
 
     #Important:
     args.pretrain_all_conditions = True
-    # args.use_binary_stress = True
 
     main(**vars(args))
