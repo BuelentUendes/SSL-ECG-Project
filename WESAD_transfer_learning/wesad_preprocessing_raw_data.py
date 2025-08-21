@@ -191,6 +191,11 @@ def main(physiological_sensor:str, placement: str,):
 
 
 if __name__ == "__main__":
+
+    # Important:
+    # This is the script that one needs to run first
+    # Then we can use wesad_preprocessing_pipeline and feature extraction!
+
     parser = argparse.ArgumentParser(description="WESAD preprocessing pipeline")
     parser.add_argument("--physiological_sensor", type=capitalize_sensor, default="bvp")
     parser.add_argument("--placement", default="wrist", choices=("chest", "wrist"))
