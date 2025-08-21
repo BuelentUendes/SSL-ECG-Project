@@ -847,7 +847,7 @@ def run_logistic_regression_with_gridsearch(
     # Parameter grid for grid search
     param_grid = {
         'C': [0.0001, 0.001, 0.01, 0.1, 1.0, 5., 10.],
-        'penalty': ['l1'],
+        'penalty': ['l1', 'l2'],
         'max_iter': [10_000],
     }
 
