@@ -123,6 +123,7 @@ def main(
         k_folds: int = 5,
         min_participants_for_kfold: int = 5,
         verbose: bool = False,
+        scoring_metric: str = "roc_auc"
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -383,7 +384,7 @@ def main(
         else:
             results = run_logistic_regression_with_gridsearch(
                 train_repr, y_train, groups_train,
-                test_repr, y_test, feature_names, cv_splitter, False, seed,
+                test_repr, y_test, feature_names, cv_splitter, False, seed, scoring_metric=scoring_metric
             )
 
         # Log metrics
@@ -459,7 +460,7 @@ if __name__ == "__main__":
                               help="MLflow tracking URI for experiment logging")
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
-    general_group.add_argument("--seed", type=int, default=5,
+    general_group.add_argument("--seed", type=int, default=42,
                               help="Random seed for reproducibility")
     general_group.add_argument("--verbose", action="store_true",
                               help="Show verbose output of CV for logistic regression")
@@ -535,6 +536,9 @@ if __name__ == "__main__":
                          help="Number of folds for cross-validation")
     cv_group.add_argument("--min_participants_for_kfold", type=int, default=5,
                          help="Minimum participants needed for k-fold (otherwise use Leave-one-participant-out-CV)")
+    cv_group.add_argument("--scoring_metric", type=str, default="roc_auc",
+                         choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
+                         help="Scoring metric for cross-validation hyperparameter selection")
 
     # Parse arguments and run main function
     args = parser.parse_args()
