@@ -816,6 +816,4 @@ if __name__ == "__main__":
     #Important:
     args.pretrain_all_conditions = True
 
-    args.optimize_hyperparameters = True
-
     main(**vars(args))
