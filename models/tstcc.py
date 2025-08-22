@@ -498,9 +498,7 @@ class base_Model(nn.Module):
 
         if self.use_s3_layer:
             # S3 expects (N, L, C) but we have (N, C, L)
-            print(f"Size is before: {x_in.size()}")
             x_s3 = x_in.transpose(1, 2)  # (N, C, L) → (N, L, C)
-            print(f"Size is after: {x_s3.size()}")
             x_s3 = self.s3_layers(x_s3)
             x_in = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
             x_in = self.s3_layers(x_in)
