@@ -25,7 +25,7 @@ from utils.torch_utilities import (
     run_mlp_with_cv_and_test
 )
 
-from scipy.stats import uniform
+from scipy.stats import uniform, randint
 from sklearn.model_selection import ParameterSampler, ParameterGrid
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
@@ -62,10 +62,11 @@ def optimize_tstcc_hyperparameters(
     """
     
     if search_type == "grid":
-        # Define hyperparameter search space for grid search
+        # Define hyperparameter search space for grid search (for simplicity we take the same jitters for string and weak)
+
         param_grid = {
-            'jitter_ratio': [1e-4, 1e-3, 1e-2, 1e-1],  # discrete values
-            'jitter_scale_ratio': [1e-4, 1e-3, 1e-2, 1e-1],  # discrete values
+            'jitter_ratio': [1e-4, 1e-3, 1e-2],  # discrete values
+            'jitter_scale_ratio': [1e-4, 1e-3, 1e-2],  # discrete values
             'max_segment': [8, 12, 16]  # discrete values
         }
         
@@ -82,7 +83,7 @@ def optimize_tstcc_hyperparameters(
         param_distributions = {
             'jitter_ratio': uniform(1e-4, 0.1),  # continuous distribution
             'jitter_scale_ratio': uniform(1e-4, 0.1),  # continuous distribution
-            'max_segment': [8, 12, 16]  # discrete values
+            'max_segment': randint(8, 17)  # discrete values between 8 and 16
         }
         
         print(f"Starting random search with {n_trials} trials...")
@@ -835,9 +836,9 @@ if __name__ == "__main__":
                          help="Enable hyperparameter optimization for TSTCC augmentation parameters")
     hp_group.add_argument("--hp_n_trials", type=int, default=5,
                          help="Number of trials for hyperparameter optimization")
-    hp_group.add_argument("--hp_n_epochs", type=int, default=5,
+    hp_group.add_argument("--hp_n_epochs", type=int, default=10,
                          help="Number of epochs for each hyperparameter optimization trial")
-    hp_group.add_argument("--hp_search_type", type=str, default="random",
+    hp_group.add_argument("--hp_search_type", type=str, default="grid",
                          choices=["random", "grid"],
                          help="Search strategy: 'random' for random search, 'grid' for grid search")
 
