@@ -847,7 +847,7 @@ class Config(object):
         # S3 config
         self.use_s3_layers = False
         self.num_s3_layers = 2
-        self.initial_num_segments = 2
+        self.initial_num_segments = 20 # We need many more
         self.shuffle_vector_dim = 1
         self.segment_multiplier = 2
 
