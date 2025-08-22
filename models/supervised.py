@@ -10,6 +10,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import warnings
 from torch.utils.data import Dataset, DataLoader
 
 try:
@@ -768,5 +769,103 @@ class PatchTSTECGClassifier(nn.Module):
         
         # Extract logits for binary classification
         logits = outputs.prediction_logits  # Shape: (batch_size, 1)
+        
+        return logits.squeeze(-1) if logits.shape[-1] == 1 else logits
+
+
+class MomentFMClassifier(nn.Module):
+    """
+    MOMENT Foundation Model wrapper for ECG binary classification.
+    
+    Based on "MOMENT: A Family of Open Time-series Foundation Models" 
+    by Mononito Goswami et al.
+    
+    Uses the pre-trained MOMENT-1-large model with a tunable dropout classifier head.
+    Input sequences are padded/truncated to 512 timesteps as required by MOMENT.
+    """
+    
+    def __init__(self, dropout=0.1, input_length=10000):
+        super(MomentFMClassifier, self).__init__()
+        
+        try:
+            from momentfm import MOMENTPipeline
+        except ImportError:
+            raise ImportError(
+                "momentfm library is required for MOMENT. "
+                "Install with: pip install git+https://github.com/moment-timeseries-foundation-model/moment.git"
+            )
+        
+        self.input_length = input_length
+        self.moment_required_length = 512  # MOMENT requires exactly 512 timesteps
+        
+        # Initialize MOMENT model for classification
+        self.moment_model = MOMENTPipeline.from_pretrained(
+            "AutonLab/MOMENT-1-large",
+            model_kwargs={
+                'task_name': 'classification',
+                'n_channels': 1,
+                'num_class': 1,  # Binary classification
+                'freeze_encoder': True,     # Freeze the pre-trained encoder
+                'freeze_embedder': True,    # Freeze the embedder
+                'freeze_head': False        # Allow fine-tuning of classification head
+            }
+        )
+        self.moment_model.init()
+        
+        # Replace the classification head with a tunable dropout version
+        # MOMENT's default head has fixed dropout of 0.1
+        self.moment_model.head = nn.Sequential(
+            nn.Dropout(p=dropout),
+            nn.Linear(in_features=1024, out_features=1, bias=True)  # 1024 is MOMENT's embedding dimension
+        )
+    
+    def _prepare_input(self, x):
+        """
+        Prepare input for MOMENT by padding/truncating to exactly 512 timesteps.
+        
+        Args:
+            x: Input tensor of shape (batch_size, 1, input_length)
+            
+        Returns:
+            x_prepared: Tensor of shape (batch_size, 1, 512)
+        """
+        batch_size, channels, seq_len = x.shape
+        
+        if seq_len == self.moment_required_length:
+            return x
+        elif seq_len < self.moment_required_length:
+            # Pad with zeros to reach 512
+            padding_needed = self.moment_required_length - seq_len
+            # Pad equally on both sides if possible, otherwise add extra to the end
+            pad_left = padding_needed // 2
+            pad_right = padding_needed - pad_left
+            x_padded = F.pad(x, (pad_left, pad_right), mode='constant', value=0)
+            return x_padded
+        else:
+            #ToDo: We need to change this raise a warning
+            warnings.warn("WARNING: Sequence length is longer than 512. We take the middle portion of the sequence to truncate to 512.")
+            # Truncate to 512 (take the middle portion to preserve signal characteristics)
+            start_idx = (seq_len - self.moment_required_length) // 2
+            end_idx = start_idx + self.moment_required_length
+            return x[:, :, start_idx:end_idx]
+    
+    def forward(self, x):
+        """
+        Forward pass through MOMENT model.
+        
+        Args:
+            x: Input ECG tensor of shape (batch_size, 1, input_length)
+            
+        Returns:
+            logits: Raw logits for binary classification (batch_size,)
+        """
+        # Prepare input for MOMENT (pad/truncate to 512)
+        x_prepared = self._prepare_input(x)
+        
+        # Forward pass through MOMENT
+        output = self.moment_model(x_enc=x_prepared)
+        
+        # Extract logits from the output
+        logits = output.logits  # Shape: (batch_size, 1)
         
         return logits.squeeze(-1) if logits.shape[-1] == 1 else logits
