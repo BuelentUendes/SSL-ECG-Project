@@ -497,6 +497,12 @@ class base_Model(nn.Module):
         show_shape("base_Model in", x_in)
 
         if self.use_s3_layer:
+            # S3 expects (N, L, C) but we have (N, C, L)
+            print(f"Size is before: {x_in.size()}")
+            x_s3 = x_in.transpose(1, 2)  # (N, C, L) → (N, L, C)
+            print(f"Size is after: {x_s3.size()}")
+            x_s3 = self.s3_layers(x_s3)
+            x_in = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
             x_in = self.s3_layers(x_in)
 
         x = self.conv_block1(x_in)
@@ -847,7 +853,7 @@ class Config(object):
         # S3 config
         self.use_s3_layers = False
         self.num_s3_layers = 2
-        self.initial_num_segments = 20 # We need many more
+        self.initial_num_segments = 2 # We need many more
         self.shuffle_vector_dim = 1
         self.segment_multiplier = 2
 
