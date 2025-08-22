@@ -26,10 +26,11 @@ from utils.torch_utilities import (
 )
 
 from scipy.stats import uniform
-from sklearn.model_selection import ParameterSampler
+from sklearn.model_selection import ParameterSampler, ParameterGrid
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import cross_val_score
+from itertools import product
 
 from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
@@ -48,26 +49,50 @@ from models.tstcc import (
 
 def optimize_tstcc_hyperparameters(
     X_train, y_train, groups_train, X_val, y_val, groups_val,
-    device, fs, window_size, base_config, n_trials=20, n_epochs_hp=10, seed=42
+    device, fs, window_size, base_config, n_trials=20, n_epochs_hp=10, seed=42, scoring_metric="roc_auc",
+    search_type="random"
 ):
     """
-    Perform hyperparameter optimization for TSTCC using random search.
+    Perform hyperparameter optimization for TSTCC using random search or grid search.
+    
+    Args:
+        search_type: "random" for random search, "grid" for grid search
     
     Returns the best hyperparameters and their corresponding validation score.
     """
-    print(f"Starting hyperparameter optimization with {n_trials} trials...")
     
-    # Define hyperparameter search space
-    param_distributions = {
-        'jitter_ratio': uniform(0.0001, 0.01),  # 0.0001 to 0.0101
-        'jitter_scale_ratio': uniform(0.0001, 0.01),  # 0.0001 to 0.0101  
-        'max_segment': [4, 6, 8, 10, 12, 16]  # discrete values
-    }
-    
-    # Generate parameter combinations
-    param_sampler = ParameterSampler(
-        param_distributions, n_iter=n_trials, random_state=seed
-    )
+    if search_type == "grid":
+        # Define hyperparameter search space for grid search
+        param_grid = {
+            'jitter_ratio': [1e-4, 1e-3, 1e-2, 1e-1],  # discrete values
+            'jitter_scale_ratio': [1e-4, 1e-3, 1e-2, 1e-1],  # discrete values
+            'max_segment': [8, 12, 16]  # discrete values
+        }
+        
+        # Generate all parameter combinations for grid search
+        param_combinations = list(ParameterGrid(param_grid))
+        n_trials = len(param_combinations)  # Override n_trials with grid size
+        
+        print(f"Starting grid search with {n_trials} combinations...")
+        
+        param_iter = param_combinations
+        
+    else:  # random search
+        # Define hyperparameter search space for random search
+        param_distributions = {
+            'jitter_ratio': uniform(1e-4, 0.1),  # continuous distribution
+            'jitter_scale_ratio': uniform(1e-4, 0.1),  # continuous distribution
+            'max_segment': [8, 12, 16]  # discrete values
+        }
+        
+        print(f"Starting random search with {n_trials} trials...")
+        
+        # Generate parameter combinations
+        param_sampler = ParameterSampler(
+            param_distributions, n_iter=n_trials, random_state=seed
+        )
+        
+        param_iter = param_sampler
     
     best_score = -np.inf
     best_params = None
@@ -76,7 +101,7 @@ def optimize_tstcc_hyperparameters(
     
     trial_results = []
     
-    for trial_idx, params in enumerate(param_sampler):
+    for trial_idx, params in enumerate(param_iter):
         print(f"\nTrial {trial_idx + 1}/{n_trials}:")
         print(f"  jitter_ratio: {params['jitter_ratio']:.6f}")
         print(f"  jitter_scale_ratio: {params['jitter_scale_ratio']:.6f}")
@@ -148,7 +173,7 @@ def optimize_tstcc_hyperparameters(
                     lr = LogisticRegression(random_state=seed, max_iter=1000)
                     cv_scores = cross_val_score(
                         lr, val_repr_filtered, y_val_filtered, 
-                        cv=cv_splitter, scoring='roc_auc', groups=groups_val_filtered
+                        cv=cv_splitter, scoring=scoring_metric, groups=groups_val_filtered
                     )
                     trial_score = np.mean(cv_scores)
                 else:
@@ -164,14 +189,14 @@ def optimize_tstcc_hyperparameters(
             
             trial_results.append({
                 'trial_idx': trial_idx,
-                'params': params.copy(),
+                'params': dict(params),  # Convert to regular dict
                 'score': trial_score
             })
             
             # Update best if this trial is better
             if trial_score > best_score:
                 best_score = trial_score
-                best_params = params.copy()
+                best_params = dict(params)  # Convert to regular dict
                 # Keep the best model
                 best_model = model.state_dict().copy()
                 best_tc_head = tc_head.state_dict().copy()
@@ -185,12 +210,12 @@ def optimize_tstcc_hyperparameters(
             print(f"  Trial failed with error: {e}")
             trial_results.append({
                 'trial_idx': trial_idx,
-                'params': params.copy(),
+                'params': dict(params),
                 'score': -1.0,  # Mark as failed
                 'error': str(e)
             })
     
-    print(f"\nHyperparameter optimization completed!")
+    print(f"\nHyperparameter optimization ({search_type} search) completed!")
     print(f"Best score: {best_score:.4f}")
     print(f"Best params: {best_params}")
     
@@ -199,7 +224,8 @@ def optimize_tstcc_hyperparameters(
         'best_score': best_score,
         'best_model_state': best_model,
         'best_tc_head_state': best_tc_head,
-        'all_trials': trial_results
+        'all_trials': trial_results,
+        'search_type': search_type
     }
 
 
@@ -289,6 +315,7 @@ def main(
         optimize_hyperparameters: bool = False,
         hp_n_trials: int = 20,
         hp_n_epochs: int = 10,
+        hp_search_type: str = "random",
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -483,7 +510,8 @@ def main(
             hp_results = optimize_tstcc_hyperparameters(
                 Xtr, ytr, groups_tr, Xva, yva, groups_va,
                 device, fs, window_size, base_config,
-                n_trials=hp_n_trials, n_epochs_hp=hp_n_epochs, seed=seed
+                n_trials=hp_n_trials, n_epochs_hp=hp_n_epochs, seed=seed,
+                search_type=hp_search_type
             )
             
             # Log hyperparameter optimization results
@@ -809,6 +837,9 @@ if __name__ == "__main__":
                          help="Number of trials for hyperparameter optimization")
     hp_group.add_argument("--hp_n_epochs", type=int, default=5,
                          help="Number of epochs for each hyperparameter optimization trial")
+    hp_group.add_argument("--hp_search_type", type=str, default="random",
+                         choices=["random", "grid"],
+                         help="Search strategy: 'random' for random search, 'grid' for grid search")
 
     # Parse arguments and run main function
     args = parser.parse_args()
