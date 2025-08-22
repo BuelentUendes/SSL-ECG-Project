@@ -83,7 +83,7 @@ def optimize_tstcc_hyperparameters(
         param_distributions = {
             'jitter_ratio': uniform(1e-4, 0.1),  # continuous distribution
             'jitter_scale_ratio': uniform(1e-4, 0.1),  # continuous distribution
-            'max_segment': randint(8, 17)  # discrete values between 8 and 16
+            'max_segment': randint(4, 13)  # discrete values between 8 and 16
         }
         
         print(f"Starting random search with {n_trials} trials...")
