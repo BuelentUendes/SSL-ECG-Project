@@ -814,10 +814,20 @@ class MomentFMClassifier(nn.Module):
         
         # Replace the classification head with a tunable dropout version
         # MOMENT's default head has fixed dropout of 0.1
-        self.moment_model.head = nn.Sequential(
-            nn.Dropout(p=dropout),
-            nn.Linear(in_features=1024, out_features=1, bias=True)  # 1024 is MOMENT's embedding dimension
-        )
+        class CompatibleClassificationHead(nn.Module):
+            def __init__(self, dropout_rate):
+                super().__init__()
+                self.dropout = nn.Dropout(p=dropout_rate)
+                self.linear = nn.Linear(in_features=1024, out_features=1, bias=True)
+                
+            def forward(self, x, input_mask=None, **kwargs):
+                # Apply pooling over sequence dimension (dim=1) to get [batch_size, d_model]
+                if len(x.shape) == 3:  # [batch_size, seq_len, d_model]
+                    x = x.mean(dim=1)  # Global average pooling
+                x = self.dropout(x)
+                return self.linear(x)
+        
+        self.moment_model.head = CompatibleClassificationHead(dropout)
     
     def _prepare_input(self, x):
         """
