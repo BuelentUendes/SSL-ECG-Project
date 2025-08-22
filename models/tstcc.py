@@ -19,6 +19,8 @@ from einops import rearrange, repeat
 from typing import Union, Sequence
 from mlflow.tracking import MlflowClient
 
+from S3 import S3
+
 # ----------------------------------------------------------------------
 # augmentations.py
 # ----------------------------------------------------------------------
@@ -457,6 +459,14 @@ class base_Model(nn.Module):
     def __init__(self, configs):
         super(base_Model, self).__init__()
 
+        self.use_s3_layer = configs.use_s3_layers
+        self.s3_layers = S3(
+            num_layers=configs.num_s3_layers,
+            initial_num_segments=configs.initial_num_segments,
+            shuffle_vector_dim=configs.shuffle_vector_dim,
+            segment_multiplier=configs.segment_multiplier
+        )
+
         self.conv_block1 = nn.Sequential(
             nn.Conv1d(configs.input_channels, 32, kernel_size=configs.kernel_size,
                       stride=configs.stride, bias=False, padding=(configs.kernel_size//2)),
@@ -485,6 +495,10 @@ class base_Model(nn.Module):
 
     def forward(self, x_in):
         show_shape("base_Model in", x_in)
+
+        if self.use_s3_layer:
+            x = self.s3_layers(x_in)
+
         x = self.conv_block1(x_in)
         x = self.conv_block2(x)
         x = self.conv_block3(x)
@@ -825,6 +839,13 @@ class Config(object):
         self.TC                  = TCConfig()      # hidden=100, timesteps=50
         # Data augmentations
         self.augmentation        = augmentations()
+
+        # S3 config
+        self.use_s3_layers = False
+        self.num_s3_layers = 2
+        self.initial_num_segments = 2
+        self.shuffle_vector_dim = 1
+        self.segment_multiplier = 2
 
 
 class PPGConfig(object):

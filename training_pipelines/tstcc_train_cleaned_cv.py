@@ -111,6 +111,7 @@ def main(
         tc_hidden_dim: int,
         cc_temperature: float,
         cc_use_cosine: bool,
+        use_s3_layers: bool,
         use_spectral_augmentation: bool,
         freq_mask_ratio_weak: float,
         freq_mask_ratio_strong: float,
@@ -242,6 +243,7 @@ def main(
         "tc_hidden_dim": tc_hidden_dim,
         "cc_temperature": cc_temperature,
         "cc_use_cosine": cc_use_cosine,
+        "use_s3_layers": use_s3_layers,
     })
 
     cached = search_encoder_fp(
@@ -269,6 +271,7 @@ def main(
         cfg.TC.hidden_dim = tc_hidden_dim
         cfg.Context_Cont.temperature = cc_temperature
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
+        cfg.use_s3_layers = use_s3_layers
 
         model = base_Model(cfg).to(device)
         tc_head = TC(cfg, device).to(device)
@@ -281,6 +284,7 @@ def main(
         cfg = ECGConfig(fs, window_size)
         cfg.num_epoch = tcc_epochs
         cfg.batch_size = tcc_batch_size
+        cfg.use_s3_layers = use_s3_layers
 
         #Augmentation used
         cfg.augmentation.use_spectral_aug = use_spectral_augmentation
@@ -494,7 +498,7 @@ if __name__ == "__main__":
     tstcc_group.add_argument("--tcc_lr", type=float, default=3e-4,
                             help="Learning rate for TS-TCC training")
     tstcc_group.add_argument("--tcc_batch_size", type=int, default=128,
-                            help="Batch size for TS-TCC training")
+                            help="Batch size for TS-TCC training") # reduce to 16 (was 128)
 
     # TS-TCC Architecture Parameters
     tstcc_arch_group = parser.add_argument_group('TS-TCC Architecture')
@@ -506,6 +510,8 @@ if __name__ == "__main__":
                                  help="Temperature parameter for contrastive learning")
     tstcc_arch_group.add_argument("--cc_use_cosine", action="store_true",
                                  help="Use cosine similarity for contrastive learning")
+    tstcc_arch_group.add_argument("--use_s3_layers", action="store_true",
+                                  help="If set, we use the S3 layer")
 
     # Augmentation used
     tstcc_arch_group.add_argument("--use_spectral_augmentation", action="store_true",

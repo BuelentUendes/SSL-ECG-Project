@@ -300,6 +300,7 @@ def main(
         tc_hidden_dim: int,
         cc_temperature: float,
         cc_use_cosine: bool,
+        use_s3_layers: bool,
         jitter_scale_ratio: float,
         jitter_ratio: float,
         max_segment: int,
@@ -477,6 +478,7 @@ def main(
         cfg.TC.hidden_dim = tc_hidden_dim
         cfg.Context_Cont.temperature = cc_temperature
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
+        cfg.use_s3_layers = use_s3_layers
 
         model = base_Model(cfg).to(device)
         tc_head = TC(cfg, device).to(device)
@@ -505,6 +507,7 @@ def main(
                 'tc_hidden_dim': tc_hidden_dim,
                 'cc_temperature': cc_temperature,
                 'cc_use_cosine': cc_use_cosine,
+                "use_s3_layers": use_s3_layers,
             }
             
             # Run hyperparameter optimization
@@ -542,6 +545,7 @@ def main(
         cfg.TC.hidden_dim = tc_hidden_dim
         cfg.Context_Cont.temperature = cc_temperature
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
+        cfg.use_s3_layers = use_s3_layers
 
         # Here we can set the augmentations (potentially optimized)
         cfg.augmentation.jitter_ratio = jitter_ratio
@@ -640,8 +644,10 @@ def main(
             val_class0_pct = val_class0 / val_total * 100 if val_total > 0 else 0
             val_class1_pct = val_class1 / val_total * 100 if val_total > 0 else 0
             
-            print(f"  Fold {fold_idx+1}: Train class 0: {train_class0} ({train_class0_pct:.1f}%), class 1: {train_class1} ({train_class1_pct:.1f}%)")
-            print(f"  Fold {fold_idx+1}: Val   class 0: {val_class0} ({val_class0_pct:.1f}%), class 1: {val_class1} ({val_class1_pct:.1f}%)")
+            print(f"  Fold {fold_idx+1}: Train class 0: {train_class0} ({train_class0_pct:.1f}%), "
+                  f"class 1: {train_class1} ({train_class1_pct:.1f}%)")
+            print(f"  Fold {fold_idx+1}: Val   class 0: {val_class0} ({val_class0_pct:.1f}%), "
+                  f"class 1: {val_class1} ({val_class1_pct:.1f}%)")
             
             # Check for severely imbalanced folds (>85% one class in validation)
             if val_class0_pct > 85 or val_class1_pct > 85:
@@ -791,6 +797,8 @@ if __name__ == "__main__":
                                  help="Temperature parameter for contrastive learning")
     tstcc_arch_group.add_argument("--cc_use_cosine", action="store_true",
                                  help="Use cosine similarity for contrastive learning")
+    tstcc_arch_group.add_argument("--use_s3_layers", action="store_true",
+                                  help="If set, we use the S3 layer")
 
     # For tuning the augmentations (we tune the jitter ratio and the segments)
     # Random search as it is more efficient and faster, only for maybe 10 epochs
