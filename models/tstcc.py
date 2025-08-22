@@ -638,8 +638,12 @@ def build_tstcc_fingerprint(cfg: dict[str, any]) -> dict[str, str]:
         "tcc_epochs", "tcc_lr", "tcc_batch_size",
         "tc_timesteps", "tc_hidden_dim",
         "cc_temperature", "cc_use_cosine",
+        "use_s3_layers", "jitter_ratio", "jitter_scale_ratio", "max_seg",
+        "use_spectral_augmentation", "freq_mask_ratio_weak", "freq_mask_ratio_strong", "freq_max_seq",
+        "train_ratio_encoder", "pretrain_all_conditions",
     )
-    return {k: str(cfg[k]) for k in keys}
+    # Only include keys that exist in the config to avoid KeyError
+    return {k: str(cfg[k]) for k in keys if k in cfg}
 
 
 def search_encoder_fp(

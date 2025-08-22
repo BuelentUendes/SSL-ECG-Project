@@ -244,6 +244,11 @@ def main(
         "cc_temperature": cc_temperature,
         "cc_use_cosine": cc_use_cosine,
         "use_s3_layers": use_s3_layers,
+        "use_spectral_augmentation": use_spectral_augmentation,
+        "freq_mask_ratio_weak": freq_mask_ratio_weak,
+        "freq_mask_ratio_strong": freq_mask_ratio_strong,
+        "freq_max_seq": freq_max_seq,
+        "train_ratio_encoder": train_ratio_encoder,
     })
 
     cached = search_encoder_fp(

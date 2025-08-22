@@ -117,6 +117,7 @@ def optimize_tstcc_hyperparameters(
             cfg.TC.hidden_dim = base_config['tc_hidden_dim']
             cfg.Context_Cont.temperature = base_config['cc_temperature']
             cfg.Context_Cont.use_cosine_similarity = base_config['cc_use_cosine']
+            cfg.use_s3_layers = base_config['use_s3_layers']
             
             # Set hyperparameters being tuned
             cfg.augmentation.jitter_ratio = params['jitter_ratio']
@@ -451,6 +452,7 @@ def main(
         "tc_hidden_dim": tc_hidden_dim,
         "cc_temperature": cc_temperature,
         "cc_use_cosine": cc_use_cosine,
+        "use_s3_layers": use_s3_layers,
         "jitter_ratio": jitter_ratio,
         "jitter_scale_ratio": jitter_scale_ratio,
         "max_seg": max_segment,
