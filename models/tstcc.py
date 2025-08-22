@@ -497,7 +497,7 @@ class base_Model(nn.Module):
         show_shape("base_Model in", x_in)
 
         if self.use_s3_layer:
-            x = self.s3_layers(x_in)
+            x_in = self.s3_layers(x_in)
 
         x = self.conv_block1(x_in)
         x = self.conv_block2(x)
