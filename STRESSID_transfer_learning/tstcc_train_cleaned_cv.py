@@ -755,7 +755,7 @@ if __name__ == "__main__":
                               help="MLflow tracking URI for experiment logging")
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
-    general_group.add_argument("--seed", type=int, default=42,
+    general_group.add_argument("--seed", type=int, default=42, #
                               help="Random seed for reproducibility")
     general_group.add_argument("--verbose", action="store_true",
                               help="Show verbose output of CV for logistic regression")
@@ -804,8 +804,8 @@ if __name__ == "__main__":
     # Random search as it is more efficient and faster, only for maybe 10 epochs
     # My hypothesis is that this would outperform the trained from scratch architecture
     # Add on, add the S3 layer on top
-    tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.001, type=float)
-    tstcc_arch_group.add_argument("--jitter_ratio", default=0.001, type=float)
+    tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.0001, type=float)
+    tstcc_arch_group.add_argument("--jitter_ratio", default=0.01, type=float)
     tstcc_arch_group.add_argument("--max_segment", default = 8, type=int)
 
     # ══════════════════════════════════════════════════════════════════════════════
