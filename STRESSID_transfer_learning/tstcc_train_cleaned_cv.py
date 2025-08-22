@@ -25,6 +25,12 @@ from utils.torch_utilities import (
     run_mlp_with_cv_and_test
 )
 
+from scipy.stats import uniform
+from sklearn.model_selection import ParameterSampler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import cross_val_score
+
 from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
 from models.tstcc import (
@@ -38,6 +44,163 @@ from models.tstcc import (
     build_tstcc_fingerprint,
     search_encoder_fp,
 )
+
+
+def optimize_tstcc_hyperparameters(
+    X_train, y_train, groups_train, X_val, y_val, groups_val,
+    device, fs, window_size, base_config, n_trials=20, n_epochs_hp=10, seed=42
+):
+    """
+    Perform hyperparameter optimization for TSTCC using random search.
+    
+    Returns the best hyperparameters and their corresponding validation score.
+    """
+    print(f"Starting hyperparameter optimization with {n_trials} trials...")
+    
+    # Define hyperparameter search space
+    param_distributions = {
+        'jitter_ratio': uniform(0.0001, 0.01),  # 0.0001 to 0.0101
+        'jitter_scale_ratio': uniform(0.0001, 0.01),  # 0.0001 to 0.0101  
+        'max_segment': [4, 6, 8, 10, 12, 16]  # discrete values
+    }
+    
+    # Generate parameter combinations
+    param_sampler = ParameterSampler(
+        param_distributions, n_iter=n_trials, random_state=seed
+    )
+    
+    best_score = -np.inf
+    best_params = None
+    best_model = None
+    best_tc_head = None
+    
+    trial_results = []
+    
+    for trial_idx, params in enumerate(param_sampler):
+        print(f"\nTrial {trial_idx + 1}/{n_trials}:")
+        print(f"  jitter_ratio: {params['jitter_ratio']:.6f}")
+        print(f"  jitter_scale_ratio: {params['jitter_scale_ratio']:.6f}")
+        print(f"  max_segment: {params['max_segment']}")
+        
+        try:
+            # Create config for this trial
+            cfg = ECGConfig(fs, window_size)
+            cfg.num_epoch = n_epochs_hp
+            cfg.batch_size = base_config['tcc_batch_size']
+            cfg.TC.timesteps = base_config['tc_timesteps']
+            cfg.TC.hidden_dim = base_config['tc_hidden_dim']
+            cfg.Context_Cont.temperature = base_config['cc_temperature']
+            cfg.Context_Cont.use_cosine_similarity = base_config['cc_use_cosine']
+            
+            # Set hyperparameters being tuned
+            cfg.augmentation.jitter_ratio = params['jitter_ratio']
+            cfg.augmentation.jitter_scale_ratio = params['jitter_scale_ratio']
+            cfg.augmentation.max_seg = params['max_segment']
+            
+            # Create data loaders
+            tr_dl, va_dl, te_dl = data_generator_from_arrays(
+                X_train, y_train, X_val, y_val, X_val, y_val,  # Use val as test for HP search
+                cfg, training_mode="self_supervised"
+            )
+            
+            # Initialize model
+            set_seed(seed)
+            model = base_Model(cfg).to(device)
+            tc_head = TC(cfg, device).to(device)
+            opt_m = optim.AdamW(model.parameters(), lr=base_config['tcc_lr'], weight_decay=3e-4)
+            opt_tc = optim.AdamW(tc_head.parameters(), lr=base_config['tcc_lr'], weight_decay=3e-4)
+            
+            # Train TSTCC with current hyperparameters
+            workdir = tempfile.mkdtemp(prefix=f"tstcc_hp_trial_{trial_idx}_")
+            Trainer(
+                model=model,
+                temporal_contr_model=tc_head,
+                model_optimizer=opt_m,
+                temp_cont_optimizer=opt_tc,
+                train_dl=tr_dl, valid_dl=va_dl, test_dl=te_dl,
+                device=device, config=cfg,
+                experiment_log_dir=workdir,
+                training_mode="self_supervised",
+            )
+            
+            # Extract representations from validation set
+            model.eval()
+            tc_head.eval()
+            with torch.no_grad():
+                val_repr, _ = encode_representations(
+                    X_val, y_val, model, tc_head, base_config['tcc_batch_size'], device
+                )
+            
+            # Filter to binary task (baseline vs mental_stress)
+            val_mask = np.isin(y_val, [0, 1])
+            val_repr_filtered = val_repr[val_mask]
+            y_val_filtered = y_val[val_mask]
+            groups_val_filtered = groups_val[val_mask]
+            
+            # Quick logistic regression evaluation
+            if len(np.unique(y_val_filtered)) >= 2 and len(val_repr_filtered) >= 10:
+                # Use simple cross-validation on validation set for scoring
+                cv_splitter, _ = get_participant_cv_splitter(
+                    groups_val_filtered, min_participants_for_kfold=3, k=3
+                )
+                
+                if cv_splitter is not None:
+                    lr = LogisticRegression(random_state=seed, max_iter=1000)
+                    cv_scores = cross_val_score(
+                        lr, val_repr_filtered, y_val_filtered, 
+                        cv=cv_splitter, scoring='roc_auc', groups=groups_val_filtered
+                    )
+                    trial_score = np.mean(cv_scores)
+                else:
+                    # Fallback: simple train on validation set
+                    lr = LogisticRegression(random_state=seed, max_iter=1000)
+                    lr.fit(val_repr_filtered, y_val_filtered)
+                    y_pred_proba = lr.predict_proba(val_repr_filtered)[:, 1]
+                    trial_score = roc_auc_score(y_val_filtered, y_pred_proba)
+            else:
+                trial_score = 0.0  # Invalid trial
+            
+            print(f"  Trial score (AUROC): {trial_score:.4f}")
+            
+            trial_results.append({
+                'trial_idx': trial_idx,
+                'params': params.copy(),
+                'score': trial_score
+            })
+            
+            # Update best if this trial is better
+            if trial_score > best_score:
+                best_score = trial_score
+                best_params = params.copy()
+                # Keep the best model
+                best_model = model.state_dict().copy()
+                best_tc_head = tc_head.state_dict().copy()
+                print(f"  *** New best score: {best_score:.4f} ***")
+            
+            # Cleanup
+            del model, tc_head, opt_m, opt_tc, tr_dl, va_dl, te_dl
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
+            
+        except Exception as e:
+            print(f"  Trial failed with error: {e}")
+            trial_results.append({
+                'trial_idx': trial_idx,
+                'params': params.copy(),
+                'score': -1.0,  # Mark as failed
+                'error': str(e)
+            })
+    
+    print(f"\nHyperparameter optimization completed!")
+    print(f"Best score: {best_score:.4f}")
+    print(f"Best params: {best_params}")
+    
+    return {
+        'best_params': best_params,
+        'best_score': best_score,
+        'best_model_state': best_model,
+        'best_tc_head_state': best_tc_head,
+        'all_trials': trial_results
+    }
 
 
 def handle_missing_data(data, drop_values=True, verbose=True):
@@ -110,6 +273,9 @@ def main(
         tc_hidden_dim: int,
         cc_temperature: float,
         cc_use_cosine: bool,
+        jitter_scale_ratio: float,
+        jitter_ratio: float,
+        max_segment: int,
         classifier_model: str,
         classifier_epochs: int,
         classifier_lr: float,
@@ -120,6 +286,9 @@ def main(
         min_participants_for_kfold: int = 5,
         verbose: bool = False,
         scoring_metric: str = "roc_auc",
+        optimize_hyperparameters: bool = False,
+        hp_n_trials: int = 20,
+        hp_n_epochs: int = 10,
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -223,6 +392,7 @@ def main(
 
     # Map back to original indices
     groups_train_idx_encoder = groups_train_all_encoder[train_idx_encoder]  # 60% of original data
+    # We could use these for the hyperparameter tuning
     groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
 
     assert len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) + len(np.unique(groups[test_idx])) == 65, \
@@ -252,6 +422,9 @@ def main(
         "tc_hidden_dim": tc_hidden_dim,
         "cc_temperature": cc_temperature,
         "cc_use_cosine": cc_use_cosine,
+        "jitter_ratio": jitter_ratio,
+        "jitter_scale_ratio": jitter_scale_ratio,
+        "max_seg": max_segment,
     })
 
     cached = search_encoder_fp(
@@ -285,6 +458,54 @@ def main(
 
     else:
         print("No cached encoder; training TS-TCC from scratch")
+        
+        if optimize_hyperparameters:
+            print("=== Hyperparameter Optimization Mode ===")
+            # Prepare data for hyperparameter optimization
+            Xtr = X[train_idx_encoder].astype(np.float32)
+            Xva = X[val_idx_encoder].astype(np.float32)
+            ytr = y[train_idx_encoder]
+            yva = y[val_idx_encoder]
+            groups_tr = groups_train_idx_encoder
+            groups_va = groups_val_idx_encoder
+            
+            # Base configuration for hyperparameter optimization
+            base_config = {
+                'tcc_batch_size': tcc_batch_size,
+                'tcc_lr': tcc_lr,
+                'tc_timesteps': tc_timesteps,
+                'tc_hidden_dim': tc_hidden_dim,
+                'cc_temperature': cc_temperature,
+                'cc_use_cosine': cc_use_cosine,
+            }
+            
+            # Run hyperparameter optimization
+            hp_results = optimize_tstcc_hyperparameters(
+                Xtr, ytr, groups_tr, Xva, yva, groups_va,
+                device, fs, window_size, base_config,
+                n_trials=hp_n_trials, n_epochs_hp=hp_n_epochs, seed=seed
+            )
+            
+            # Log hyperparameter optimization results
+            mlflow.log_params({
+                'hp_optimization': True,
+                'hp_n_trials': hp_n_trials,
+                'hp_n_epochs': hp_n_epochs,
+                'hp_best_score': hp_results['best_score'],
+                **{f"hp_best_{k}": v for k, v in hp_results['best_params'].items()}
+            })
+            
+            # Use the best hyperparameters to train final model with full epochs
+            print(f"Training final model with best hyperparameters: {hp_results['best_params']}")
+            jitter_ratio = hp_results['best_params']['jitter_ratio']
+            jitter_scale_ratio = hp_results['best_params']['jitter_scale_ratio']
+            max_segment = hp_results['best_params']['max_segment']
+            
+            # Save hyperparameter optimization results
+            hp_results_path = os.path.join(results_save_path, "hyperparameter_optimization.json")
+            with open(hp_results_path, "w") as f:
+                json.dump(hp_results, f, indent=2, default=str)
+            
         cfg = ECGConfig(fs, window_size)
         cfg.num_epoch = tcc_epochs
         cfg.batch_size = tcc_batch_size
@@ -292,6 +513,11 @@ def main(
         cfg.TC.hidden_dim = tc_hidden_dim
         cfg.Context_Cont.temperature = cc_temperature
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
+
+        # Here we can set the augmentations (potentially optimized)
+        cfg.augmentation.jitter_ratio = jitter_ratio
+        cfg.augmentation.jitter_scale_ratio = jitter_scale_ratio
+        cfg.augmentation.max_seg = max_segment
 
         # data loaders
         Xtr = X[train_idx_encoder].astype(np.float32)
@@ -391,11 +617,11 @@ def main(
             # Check for severely imbalanced folds (>85% one class in validation)
             if val_class0_pct > 85 or val_class1_pct > 85:
                 problematic_folds.append(fold_idx + 1)
-                print(f"  ⚠️  WARNING: Fold {fold_idx+1} validation set is severely imbalanced!")
+                print(f"    WARNING: Fold {fold_idx+1} validation set is severely imbalanced!")
             
             # Check for empty classes
             if len(np.unique(y_train_fold)) < 2 or len(np.unique(y_val_fold)) < 2:
-                print(f"  🚨 CRITICAL: Fold {fold_idx+1} has missing classes!")
+                print(f"    CRITICAL: Fold {fold_idx+1} has missing classes!")
                 problematic_folds.append(fold_idx + 1)
         
         if problematic_folds:
@@ -494,7 +720,7 @@ if __name__ == "__main__":
                               help="MLflow tracking URI for experiment logging")
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
-    general_group.add_argument("--seed", type=int, default=42,
+    general_group.add_argument("--seed", type=int, default=123,
                               help="Random seed for reproducibility")
     general_group.add_argument("--verbose", action="store_true",
                               help="Show verbose output of CV for logistic regression")
@@ -537,6 +763,14 @@ if __name__ == "__main__":
     tstcc_arch_group.add_argument("--cc_use_cosine", action="store_true",
                                  help="Use cosine similarity for contrastive learning")
 
+    # For tuning the augmentations (we tune the jitter ratio and the segments)
+    # Random search as it is more efficient and faster, only for maybe 10 epochs
+    # My hypothesis is that this would outperform the trained from scratch architecture
+    # Add on, add the S3 layer on top
+    tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.001, type=float)
+    tstcc_arch_group.add_argument("--jitter_ratio", default=0.001, type=float)
+    tstcc_arch_group.add_argument("--max_segment", default = 8, type=int)
+
     # ══════════════════════════════════════════════════════════════════════════════
     # Downstream Classifier Configuration
     # ══════════════════════════════════════════════════════════════════════════════
@@ -565,10 +799,23 @@ if __name__ == "__main__":
                          choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
                          help="Scoring metric for cross-validation hyperparameter selection")
 
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Hyperparameter Optimization Configuration
+    # ══════════════════════════════════════════════════════════════════════════════
+    hp_group = parser.add_argument_group('Hyperparameter Optimization')
+    hp_group.add_argument("--optimize_hyperparameters", action="store_true",
+                         help="Enable hyperparameter optimization for TSTCC augmentation parameters")
+    hp_group.add_argument("--hp_n_trials", type=int, default=5,
+                         help="Number of trials for hyperparameter optimization")
+    hp_group.add_argument("--hp_n_epochs", type=int, default=5,
+                         help="Number of epochs for each hyperparameter optimization trial")
+
     # Parse arguments and run main function
     args = parser.parse_args()
 
     #Important:
     args.pretrain_all_conditions = True
+
+    args.optimize_hyperparameters = True
 
     main(**vars(args))
