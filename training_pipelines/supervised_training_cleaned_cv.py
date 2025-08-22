@@ -36,7 +36,8 @@ from models.supervised import (
     TCNClassifier,
     TransformerECGClassifier,
     DeepECGNet,
-    PatchTSTECGClassifier
+    PatchTSTECGClassifier,
+    MomentFMClassifier
 )
 
 
@@ -92,6 +93,8 @@ def run_supervised_model_with_cv_and_test(
                         model = DeepECGNet(dropout_rate=dropout_rate)
                     elif model_type.lower() == "patchtst":
                         model = PatchTSTECGClassifier(dropout=dropout_rate)
+                    elif model_type.lower() == "moment":
+                        model = MomentFMClassifier(dropout=dropout_rate)
                     else:
                         model = TransformerECGClassifier(dropout=dropout_rate)
 
@@ -194,6 +197,8 @@ def run_supervised_model_with_cv_and_test(
         final_model = DeepECGNet(dropout_rate=best_params["dropout"]).to(device)
     elif model_type.lower() == "patchtst":
         final_model = PatchTSTECGClassifier(dropout=best_params["dropout"]).to(device)
+    elif model_type.lower() == "moment":
+        final_model = MomentFMClassifier(dropout=best_params["dropout"]).to(device)
     else:
         final_model = TransformerECGClassifier(dropout=best_params["dropout"]).to(device)
 
@@ -380,6 +385,7 @@ def main(
         "transformer": "Supervised_Transformer",
         "deep_ecg_net": "Deep ECG Net",
         "patchtst": "PatchTST",
+        "moment": "MOMENT Foundation Model",
     }
     experiment_name = exp_map.get(model_type.lower())
     if experiment_name is None:
@@ -481,6 +487,8 @@ def main(
             model = DeepECGNet()
         elif model_type.lower() == "patchtst":
             model = PatchTSTECGClassifier()
+        elif model_type.lower() == "moment":
+            model = MomentFMClassifier()
         else:
             model = TransformerECGClassifier()
 
@@ -526,7 +534,7 @@ if __name__ == "__main__":
     parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
     parser.add_argument("--dataset", choices=("stressid", "wesad", "ours"), default="ours", type=str)
     parser.add_argument("--model_type",
-                        choices=["cnn", "tcn", "transformer", "deep_ecg_net", "patchtst"], default="cnn")
+                        choices=["cnn", "tcn", "transformer", "deep_ecg_net", "patchtst", "moment"], default="cnn")
     parser.add_argument("--label_fraction", type=float, default=0.05,
                         help="Percent of labeled participants in the training stage.")
     parser.add_argument("--window_size", type=int, default=10,
