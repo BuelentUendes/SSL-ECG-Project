@@ -832,7 +832,7 @@ if __name__ == "__main__":
                          help="Number of folds for cross-validation")
     cv_group.add_argument("--min_participants_for_kfold", type=int, default=5,
                          help="Minimum participants needed for k-fold (otherwise use Leave-one-participant-out-CV)")
-    cv_group.add_argument("--scoring_metric", type=str, default="f1",
+    cv_group.add_argument("--scoring_metric", type=str, default="roc_auc",
                          choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
                          help="Scoring metric for cross-validation hyperparameter selection")
 
