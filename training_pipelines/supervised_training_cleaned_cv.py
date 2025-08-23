@@ -51,6 +51,9 @@ def run_supervised_model_with_cv_and_test(
     torch.autograd.set_detect_anomaly(True)
 
     lr_rates = [1e-3, 1e-4, 1e-5]
+    if model_type == "transformer":
+        # Too low of learning rate causes issue for transformer
+        lr_rates = [1e-4, 1e-5]
     dropout_rates = [0.1, 0.2, 0.3, 0.5]
 
     num_workers = min(8, os.cpu_count() or 2)
@@ -531,11 +534,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train ECG classifier")
     parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
-    parser.add_argument("--fs", default=1000, type=str, help="What sample frequency used for training")
-    parser.add_argument("--dataset", choices=("stressid", "wesad", "ours"), default="ours", type=str)
+    parser.add_argument("--fs", default=500, type=str, help="What sample frequency used for training")
+    parser.add_argument("--dataset", choices=("stressid", "wesad", "ours"), default="stressid", type=str)
     parser.add_argument("--model_type",
                         choices=["cnn", "tcn", "transformer", "deep_ecg_net", "patchtst", "moment"], default="cnn")
-    parser.add_argument("--label_fraction", type=float, default=0.05,
+    parser.add_argument("--label_fraction", type=float, default=0.25,
                         help="Percent of labeled participants in the training stage.")
     parser.add_argument("--window_size", type=int, default=10,
                            help="Window size in seconds")
@@ -544,8 +547,8 @@ if __name__ == "__main__":
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--force_retraining", action="store_true")
-    parser.add_argument("--lr", type=float, default=1e-5) #lr 1e-4 was good
-    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--lr", type=float, default=1e-5)
+    parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_epochs", type=int, default=25)
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--scheduler_mode", default="min")
