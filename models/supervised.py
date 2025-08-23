@@ -174,8 +174,19 @@ class Improved1DCNN_v2(nn.Module):
     A more complex 1D CNN model with 3 convolutional blocks with 
     3-layer classification head with dropout.
     """
-    def __init__(self, dropout=None):
+    def __init__(self, dropout=None, use_s3_layers=False, **kwargs):
         super(Improved1DCNN_v2, self).__init__()
+
+        self.use_s3_layers = use_s3_layers
+
+        if self.use_s3_layers:
+            self.s3_layers = S3(
+                num_layers=kwargs.get("num_layers", 2),
+                    initial_num_segments=kwargs.get("initial_num_segments", 2),
+                    shuffle_vector_dim=kwargs.get("shuffle_vector_dim", 1),
+                    segment_multiplier=kwargs.get("segment_multiplier", 2),
+            )
+
         self.bn_input = nn.BatchNorm1d(1)
         # Block 1
         self.conv1_1 = nn.Conv1d(1, 32, kernel_size=5, padding=2, bias=False)
@@ -202,6 +213,13 @@ class Improved1DCNN_v2(nn.Module):
     
     def forward(self, x):
         # Input x: (batch, channels, length)
+        if self.use_s3_layers:
+            # S3 expects (N, L, C) but we have (N, C, L)
+            x_s3 = x.transpose(1, 2)  # (N, C, L) → (N, L, C)
+            x_s3 = self.s3_layers(x_s3)
+            x_in = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
+            x = self.s3_layers(x_in)
+
         x = self.bn_input(x)
         # Block 1
         x = F.gelu(self.conv1_1(x))
@@ -362,8 +380,29 @@ class TransformerECGClassifier(nn.Module):
 # TCN Model Class
 # ----------------------
 class TCNClassifier(nn.Module):
-    def __init__(self, input_length=10000, n_inputs=1, Kt=11, dropout=0.3, Ft=11):
+    def __init__(
+            self,
+            input_length=10000,
+            n_inputs=1,
+            Kt=11,
+            dropout=0.3,
+            Ft=11,
+            use_s3_layers=False,
+            **kwargs
+    ):
+
         super(TCNClassifier, self).__init__()
+
+        self.use_s3_layers = use_s3_layers
+
+        if self.use_s3_layers:
+            self.s3_layers = S3(
+                num_layers=kwargs.get("num_layers", 2),
+                    initial_num_segments=kwargs.get("initial_num_segments", 2),
+                    shuffle_vector_dim=kwargs.get("shuffle_vector_dim", 1),
+                    segment_multiplier=kwargs.get("segment_multiplier", 2),
+            )
+
         # Initial 1x1 convolution to expand channels
         self.pad0 = nn.ConstantPad1d(padding=(Kt-1, 0), value=0)
         self.conv0 = nn.Conv1d(in_channels=n_inputs, out_channels=n_inputs + 1, kernel_size=Kt, bias=False)
@@ -421,6 +460,13 @@ class TCNClassifier(nn.Module):
         
     def forward(self, x):
         # Input shape: (batch, channels, sequence_length)
+        if self.use_s3_layers:
+            # S3 expects (N, L, C) but we have (N, C, L)
+            x_s3 = x.transpose(1, 2)  # (N, C, L) → (N, L, C)
+            x_s3 = self.s3_layers(x_s3)
+            x_in = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
+            x = self.s3_layers(x_in)
+
         x = self.pad0(x)
         x = self.conv0(x)
         x = self.batchnorm0(x)
