@@ -110,6 +110,11 @@ def main(
         tc_hidden_dim: int,
         cc_temperature: float,
         cc_use_cosine: bool,
+        use_s3_layers: bool,
+        initial_num_segments: int,
+        jitter_scale_ratio: float,
+        jitter_ratio: float,
+        max_segment: int,
         classifier_model: str,
         classifier_epochs: int,
         classifier_lr: float,
@@ -227,7 +232,8 @@ def main(
     groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
 
     # Test that we have all 127 participants moved in one of the categories
-    assert len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) + len(np.unique(groups[test_idx])) == 15, \
+    assert (len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) +
+            len(np.unique(groups[test_idx])) == 15), \
         "Something went wrong with the participant split!"
 
     print(f"Labelled windows for training classifier: train {len(train_idx)}, test {len(test_idx)}")
@@ -254,6 +260,11 @@ def main(
         "tc_hidden_dim": tc_hidden_dim,
         "cc_temperature": cc_temperature,
         "cc_use_cosine": cc_use_cosine,
+        "use_s3_layers": use_s3_layers,
+        "initial_num_segments": initial_num_segments,
+        "jitter_ratio": jitter_ratio,
+        "jitter_scale_ratio": jitter_scale_ratio,
+        "max_seg": max_segment,
     })
 
     cached = search_encoder_fp(
@@ -500,6 +511,13 @@ if __name__ == "__main__":
                                  help="Temperature parameter for contrastive learning")
     tstcc_arch_group.add_argument("--cc_use_cosine", action="store_true",
                                  help="Use cosine similarity for contrastive learning")
+    tstcc_arch_group.add_argument("--use_s3_layers", action="store_true",
+                                  help="If set, we use the S3 layer")
+    tstcc_arch_group.add_argument("--initial_num_segments", type=int, default=2)
+
+    tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.001, type=float)
+    tstcc_arch_group.add_argument("--jitter_ratio", default=0.001, type=float)
+    tstcc_arch_group.add_argument("--max_segment", default = 8, type=int)
 
     # ══════════════════════════════════════════════════════════════════════════════
     # Downstream Classifier Configuration
