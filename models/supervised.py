@@ -104,10 +104,10 @@ class EmotionRecognitionCNN(nn.Module):
 #Implement the DeepECGNet
 # DeepECGNet: https://www.liebertpub.com/doi/epub/10.1089/tmj.2017.0250
 class DeepECGNet(nn.Module):
-    def __init__(self, dropout_rate=0.3, frequency=1_000, use_s3_layer=False, **kwargs):
+    def __init__(self, dropout_rate=0.3, frequency=1_000, use_s3_layers=False, **kwargs):
         super(DeepECGNet, self).__init__()
 
-        self.use_s3_layer = use_s3_layer
+        self.use_s3_layers = use_s3_layers
 
         if self.use_s3_layer:
             self.s3_layers = S3(
