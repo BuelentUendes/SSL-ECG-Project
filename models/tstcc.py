@@ -20,6 +20,7 @@ from typing import Union, Sequence
 from mlflow.tracking import MlflowClient
 
 from S3 import S3
+import neurokit2 as nk
 
 # ----------------------------------------------------------------------
 # augmentations.py
