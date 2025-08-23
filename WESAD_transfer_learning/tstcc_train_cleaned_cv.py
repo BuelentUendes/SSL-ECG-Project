@@ -34,65 +34,10 @@ from models.tstcc import (
     TC,
     Config as ECGConfig,
     encode_representations,
-    show_shape,
     build_tstcc_fingerprint,
     search_encoder_fp,
+    optimize_tstcc_hyperparameters
 )
-
-
-def handle_missing_data(data, drop_values=True, verbose=True):
-    """Handle missing values and infinity values in the data."""
-    if isinstance(data, np.ndarray):
-        df = pd.DataFrame(data)
-        was_numpy = True
-    else:
-        df = data.copy()
-        was_numpy = False
-
-    original_data_len = len(df)
-
-    # Identify rows and columns with infinity values
-    inf_mask = df.isin([np.inf, -np.inf])
-    rows_with_inf = inf_mask.any(axis=1)
-    cols_with_inf = inf_mask.any(axis=0)
-
-    if verbose:
-        print(f"Rows with infinity values: {rows_with_inf.sum()}")
-        print(f"Columns with infinity values:")
-        for col in df.columns[cols_with_inf]:
-            inf_count = inf_mask[col].sum()
-            print(f"  - {col}: {inf_count} infinity values ({(inf_count / len(df)) * 100:.2f}%)")
-
-    # Identify rows and columns with NaN values
-    nan_mask = df.isna()
-    rows_with_nan = nan_mask.any(axis=1)
-    cols_with_nan = nan_mask.any(axis=0)
-
-    if verbose:
-        print(f"Rows with NaN values: {rows_with_nan.sum()}")
-        print(f"Columns with NaN values:")
-        for col in df.columns[cols_with_nan]:
-            nan_count = nan_mask[col].sum()
-            print(f"  - {col}: {nan_count} NaN values ({(nan_count / len(df)) * 100:.2f}%)")
-
-    if drop_values:
-        clean_data = df[~df.isin([np.inf, -np.inf]).any(axis=1)]
-        clean_data = clean_data.dropna()
-
-        dropped_percent = ((original_data_len - len(clean_data)) / original_data_len) * 100
-        if verbose:
-            print(f"Dropping these rows removed {np.round(dropped_percent, 4)}% of the original data")
-
-        if was_numpy:
-            return clean_data.values
-        else:
-            return clean_data
-    else:
-        if was_numpy:
-            return df.values
-        else:
-            return df
-
 
 def main(
         mlflow_tracking_uri: str,
@@ -127,6 +72,10 @@ def main(
         min_participants_for_kfold: int = 5,
         verbose: bool = False,
         scoring_metric: str = "roc_auc",
+        optimize_hyperparameters: bool = False,
+        hp_n_trials: int = 20,
+        hp_n_epochs: int = 10,
+        hp_search_type: str = "random",
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -306,6 +255,63 @@ def main(
 
     else:
         print("No cached encoder; training TS-TCC from scratch")
+
+        if optimize_hyperparameters:
+            print("=== Hyperparameter Optimization Mode ===")
+            # Prepare data for hyperparameter optimization
+            Xtr = X[train_idx_encoder].astype(np.float32)
+            Xva = X[val_idx_encoder].astype(np.float32)
+            ytr = y[train_idx_encoder]
+            yva = y[val_idx_encoder]
+            groups_tr = groups_train_idx_encoder
+            groups_va = groups_val_idx_encoder
+
+            # Base configuration for hyperparameter optimization
+            base_config = {
+                'tcc_batch_size': tcc_batch_size,
+                'tcc_lr': tcc_lr,
+                'tc_timesteps': tc_timesteps,
+                'tc_hidden_dim': tc_hidden_dim,
+                'cc_temperature': cc_temperature,
+                'cc_use_cosine': cc_use_cosine,
+                "use_s3_layers": use_s3_layers,
+                "initial_num_segments": initial_num_segments,
+                "num_s3_layers": num_s3_layers,
+                "segment_multiplier": segment_multiplier,
+            }
+
+            # Run hyperparameter optimization
+            hp_results = optimize_tstcc_hyperparameters(
+                Xtr, ytr, Xva, yva, groups_va,
+                device, fs, window_size, base_config,
+                n_trials=hp_n_trials, n_epochs_hp=hp_n_epochs, seed=seed,
+                search_type=hp_search_type
+            )
+
+            # Log hyperparameter optimization results
+            mlflow.log_params({
+                'hp_optimization': True,
+                'hp_n_trials': hp_n_trials,
+                'hp_n_epochs': hp_n_epochs,
+                'hp_best_score': hp_results['best_score'],
+                **{f"hp_best_{k}": v for k, v in hp_results['best_params'].items()}
+            })
+
+            # Use the best hyperparameters to train final model with full epochs
+            print(f"Training final model with best hyperparameters: {hp_results['best_params']}")
+            jitter_ratio = hp_results['best_params']['jitter_ratio']
+            jitter_scale_ratio = hp_results['best_params']['jitter_scale_ratio']
+            max_segment = hp_results['best_params']['max_segment']
+
+            initial_num_segments = hp_results['best_params']["initial_num_segments"]
+            num_s3_layers = hp_results["best_params"]["num_s3_layers"]
+            segment_multiplier = hp_results["best_params"]["segment_multiplier"]
+
+            # Save hyperparameter optimization results
+            hp_results_path = os.path.join(results_save_path, "hyperparameter_optimization.json")
+            with open(hp_results_path, "w") as f:
+                json.dump(hp_results, f, indent=2, default=str)
+
         cfg = ECGConfig(fs, window_size)
         cfg.num_epoch = tcc_epochs
         cfg.batch_size = tcc_batch_size
@@ -565,6 +571,20 @@ if __name__ == "__main__":
     cv_group.add_argument("--scoring_metric", type=str, default="f1",
                          choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
                          help="Scoring metric for cross-validation hyperparameter selection")
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Hyperparameter Optimization Configuration
+    # ══════════════════════════════════════════════════════════════════════════════
+    hp_group = parser.add_argument_group('Hyperparameter Optimization')
+    hp_group.add_argument("--optimize_hyperparameters", action="store_true",
+                         help="Enable hyperparameter optimization for TSTCC augmentation parameters")
+    hp_group.add_argument("--hp_n_trials", type=int, default=20,
+                         help="Number of trials for hyperparameter optimization")
+    hp_group.add_argument("--hp_n_epochs", type=int, default=10,
+                         help="Number of epochs for each hyperparameter optimization trial")
+    hp_group.add_argument("--hp_search_type", type=str, default="grid",
+                         choices=["random", "grid"],
+                         help="Search strategy: 'random' for random search, 'grid' for grid search")
 
     # Parse arguments and run main function
     args = parser.parse_args()
