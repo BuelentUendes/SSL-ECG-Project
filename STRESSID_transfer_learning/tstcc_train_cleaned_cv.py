@@ -484,6 +484,7 @@ def main(
         cfg.Context_Cont.temperature = cc_temperature
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
         cfg.use_s3_layers = use_s3_layers
+        cfg.initial_num_segments = initial_num_segments
 
         model = base_Model(cfg).to(device)
         tc_head = TC(cfg, device).to(device)
@@ -667,7 +668,7 @@ def main(
                 problematic_folds.append(fold_idx + 1)
         
         if problematic_folds:
-            print(f"\n🔍 DIAGNOSIS: Fold(s) {problematic_folds} have severe class imbalance.")
+            print(f"\n DIAGNOSIS: Fold(s) {problematic_folds} have severe class imbalance.")
         print()
 
     # ── Step 5: Run CV with Logistic Regression or MLP ─────────────────────────────────
