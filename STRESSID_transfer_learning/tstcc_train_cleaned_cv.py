@@ -8,7 +8,6 @@ import tempfile
 import gc
 
 import numpy as np
-import pandas as pd
 import torch
 import torch.optim as optim
 import mlflow
@@ -24,12 +23,6 @@ from utils.torch_utilities import (
     run_logistic_regression_with_gridsearch_verbose,
     run_mlp_with_cv_and_test
 )
-
-from scipy.stats import uniform, randint
-from sklearn.model_selection import ParameterSampler, ParameterGrid
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import cross_val_score
 
 from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
