@@ -139,7 +139,7 @@ class DeepECGNet(nn.Module):
 
     def forward(self, x):
 
-        if self.use_s3_layer:
+        if self.use_s3_layers:
             # S3 expects (N, L, C) but we have (N, C, L)
             x_s3 = x.transpose(1, 2)  # (N, C, L) → (N, L, C)
             x_s3 = self.s3_layers(x_s3)
