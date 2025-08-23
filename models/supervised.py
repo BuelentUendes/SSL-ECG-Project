@@ -109,7 +109,7 @@ class DeepECGNet(nn.Module):
 
         self.use_s3_layers = use_s3_layers
 
-        if self.use_s3_layer:
+        if self.use_s3_layers:
             self.s3_layers = S3(
                 num_layers=kwargs.get("num_layers", 2),
                     initial_num_segments=kwargs.get("initial_num_segments", 2),
