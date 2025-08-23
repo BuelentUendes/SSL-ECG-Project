@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import warnings
 from torch.utils.data import Dataset, DataLoader
+from S3 import S3
 
 try:
     from transformers import PatchTSTConfig, PatchTSTForClassification
@@ -103,8 +104,18 @@ class EmotionRecognitionCNN(nn.Module):
 #Implement the DeepECGNet
 # DeepECGNet: https://www.liebertpub.com/doi/epub/10.1089/tmj.2017.0250
 class DeepECGNet(nn.Module):
-    def __init__(self, dropout_rate=0.3, frequency=1_000):
+    def __init__(self, dropout_rate=0.3, frequency=1_000, use_s3_layer=False, **kwargs):
         super(DeepECGNet, self).__init__()
+
+        self.use_s3_layer = use_s3_layer
+
+        if self.use_s3_layer:
+            self.s3_layers = S3(
+                num_layers=kwargs.get("num_layers", 2),
+                    initial_num_segments=kwargs.get("initial_num_segments", 2),
+                    shuffle_vector_dim=kwargs.get("shuffle_vector_dim", 1),
+                    segment_multiplier=kwargs.get("segment_multiplier", 2),
+            )
 
         # Conv Block 1
         # According to the paper 0.6s is best for conv layer, out channels was set to 50
@@ -127,6 +138,14 @@ class DeepECGNet(nn.Module):
         self.fc1 = nn.Linear(16, 1)
 
     def forward(self, x):
+
+        if self.use_s3_layer:
+            # S3 expects (N, L, C) but we have (N, C, L)
+            x_s3 = x.transpose(1, 2)  # (N, C, L) → (N, L, C)
+            x_s3 = self.s3_layers(x_s3)
+            x_in = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
+            x = self.s3_layers(x_in)
+
         # First block
         x = F.relu(self.conv1(x))
         x = self.pool1(x)
