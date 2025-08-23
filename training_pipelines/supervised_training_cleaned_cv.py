@@ -93,9 +93,21 @@ def run_supervised_model_with_cv_and_test(
 
                     # model
                     if model_type.lower() == "cnn":
-                        model = Improved1DCNN_v2(dropout=dropout_rate)
+                        model = Improved1DCNN_v2(
+                            dropout=dropout_rate,
+                            use_s3_layers=use_s3_layers,
+                            initial_num_segments=initial_num_segments,
+                            num_s3_layers=num_s3_layers,
+                            segment_multiplier=segment_multiplier,
+                        )
                     elif model_type.lower() == "tcn":
-                        model = TCNClassifier(dropout=dropout_rate)
+                        model = TCNClassifier(
+                            dropout=dropout_rate,
+                            use_s3_layers=use_s3_layers,
+                            initial_num_segments=initial_num_segments,
+                            num_s3_layers=num_s3_layers,
+                            segment_multiplier=segment_multiplier,
+                        )
                     elif model_type.lower() == "deep_ecg_net":
                         model = DeepECGNet(
                             dropout_rate=dropout_rate,
