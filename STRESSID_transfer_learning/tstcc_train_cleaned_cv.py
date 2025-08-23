@@ -499,6 +499,11 @@ def main(
         cfg.num_s3_layers = num_s3_layers
         cfg.segment_multiplier = segment_multiplier
 
+        # Here we can set the augmentations (potentially optimized)
+        cfg.augmentation.jitter_ratio = jitter_ratio
+        cfg.augmentation.jitter_scale_ratio = jitter_scale_ratio
+        cfg.augmentation.max_seg = max_segment
+
         model = base_Model(cfg).to(device)
         tc_head = TC(cfg, device).to(device)
         state = torch.load(ckpt_path, map_location=device)
