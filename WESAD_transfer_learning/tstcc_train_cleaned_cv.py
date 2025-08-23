@@ -112,6 +112,8 @@ def main(
         cc_use_cosine: bool,
         use_s3_layers: bool,
         initial_num_segments: int,
+        num_s3_layers: int,
+        segment_multiplier: int,
         jitter_scale_ratio: float,
         jitter_ratio: float,
         max_segment: int,
@@ -262,6 +264,8 @@ def main(
         "cc_use_cosine": cc_use_cosine,
         "use_s3_layers": use_s3_layers,
         "initial_num_segments": initial_num_segments,
+        "num_s3_layers": num_s3_layers,
+        "segment_multiplier": segment_multiplier,
         "jitter_ratio": jitter_ratio,
         "jitter_scale_ratio": jitter_scale_ratio,
         "max_seg": max_segment,
@@ -289,6 +293,10 @@ def main(
         cfg.TC.hidden_dim = tc_hidden_dim
         cfg.Context_Cont.temperature = cc_temperature
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
+        cfg.use_s3_layers = use_s3_layers
+        cfg.initial_num_segments = initial_num_segments
+        cfg.num_s3_layers = num_s3_layers
+        cfg.segment_multiplier = segment_multiplier
 
         model = base_Model(cfg).to(device)
         tc_head = TC(cfg, device).to(device)
@@ -305,6 +313,15 @@ def main(
         cfg.TC.hidden_dim = tc_hidden_dim
         cfg.Context_Cont.temperature = cc_temperature
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
+        cfg.use_s3_layers = use_s3_layers
+        cfg.initial_num_segments = initial_num_segments
+        cfg.num_s3_layers = num_s3_layers
+        cfg.segment_multiplier = segment_multiplier
+
+        # Here we can set the augmentations (potentially optimized)
+        cfg.augmentation.jitter_ratio = jitter_ratio
+        cfg.augmentation.jitter_scale_ratio = jitter_scale_ratio
+        cfg.augmentation.max_seg = max_segment
 
         # data loaders
         Xtr = X[train_idx_encoder].astype(np.float32)
@@ -514,6 +531,8 @@ if __name__ == "__main__":
     tstcc_arch_group.add_argument("--use_s3_layers", action="store_true",
                                   help="If set, we use the S3 layer")
     tstcc_arch_group.add_argument("--initial_num_segments", type=int, default=2)
+    tstcc_arch_group.add_argument("--num_s3_layers", type=int, default=2)
+    tstcc_arch_group.add_argument("--segment_multiplier", type=int, default=2)
 
     tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.001, type=float)
     tstcc_arch_group.add_argument("--jitter_ratio", default=0.001, type=float)
