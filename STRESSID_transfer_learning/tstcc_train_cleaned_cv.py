@@ -302,6 +302,7 @@ def main(
         cc_temperature: float,
         cc_use_cosine: bool,
         use_s3_layers: bool,
+        initial_num_segments: int,
         jitter_scale_ratio: float,
         jitter_ratio: float,
         max_segment: int,
@@ -405,8 +406,8 @@ def main(
     train_labels = y[train_idx]
     print(f"  Class 0 (baseline): {np.sum(train_labels == 0)} samples")
     print(f"  Class 1 (stress): {np.sum(train_labels == 1)} samples")
-    print(
-        f"  Class balance ratio: {np.sum(train_labels == 0) / len(train_labels):.3f} / {np.sum(train_labels == 1) / len(train_labels):.3f}")
+    print(f"  Class balance ratio: {np.sum(train_labels == 0) / len(train_labels):.3f} / "
+          f"{np.sum(train_labels == 1) / len(train_labels):.3f}")
 
     # This is the dataset we use for training of the encoder!
     groups_train_all_encoder = groups[all_train_idx]
@@ -425,7 +426,8 @@ def main(
     # We could use these for the hyperparameter tuning
     groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
 
-    assert len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) + len(np.unique(groups[test_idx])) == 65, \
+    assert (len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) +
+            len(np.unique(groups[test_idx])) == 65), \
         "Something went wrong with the participant split!"
 
     print(f"Labelled windows for training classifier: train {len(train_idx)}, test {len(test_idx)}")
@@ -453,6 +455,7 @@ def main(
         "cc_temperature": cc_temperature,
         "cc_use_cosine": cc_use_cosine,
         "use_s3_layers": use_s3_layers,
+        "initial_num_segments": initial_num_segments,
         "jitter_ratio": jitter_ratio,
         "jitter_scale_ratio": jitter_scale_ratio,
         "max_seg": max_segment,
@@ -510,6 +513,7 @@ def main(
                 'cc_temperature': cc_temperature,
                 'cc_use_cosine': cc_use_cosine,
                 "use_s3_layers": use_s3_layers,
+                "initial_num_segments": initial_num_segments,
             }
             
             # Run hyperparameter optimization
@@ -548,6 +552,7 @@ def main(
         cfg.Context_Cont.temperature = cc_temperature
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
         cfg.use_s3_layers = use_s3_layers
+        cfg.initial_num_segments = initial_num_segments
 
         # Here we can set the augmentations (potentially optimized)
         cfg.augmentation.jitter_ratio = jitter_ratio
@@ -801,6 +806,7 @@ if __name__ == "__main__":
                                  help="Use cosine similarity for contrastive learning")
     tstcc_arch_group.add_argument("--use_s3_layers", action="store_true",
                                   help="If set, we use the S3 layer")
+    tstcc_arch_group.add_argument("--initial_num_segments", type=int, default=2)
 
     # For tuning the augmentations (we tune the jitter ratio and the segments)
     # Random search as it is more efficient and faster, only for maybe 10 epochs
