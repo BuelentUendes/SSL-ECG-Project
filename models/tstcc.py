@@ -679,7 +679,8 @@ def search_encoder_fp(
 # trainer.py
 # ----------------------------------------------------------------------
 def Trainer(
-        model, temporal_contr_model, model_optimizer, temp_cont_optimizer, train_dl, valid_dl, test_dl, device, config, experiment_log_dir, training_mode
+        model, temporal_contr_model, model_optimizer, temp_cont_optimizer, train_dl, valid_dl,
+        test_dl, device, config, experiment_log_dir, training_mode
 ):
     # Start training
     print("Training started ....")

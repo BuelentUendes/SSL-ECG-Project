@@ -67,7 +67,10 @@ def optimize_tstcc_hyperparameters(
         param_grid = {
             'jitter_ratio': [1e-4, 1e-3, 1e-2],  # discrete values
             'jitter_scale_ratio': [1e-4, 1e-3, 1e-2],  # discrete values
-            'max_segment': [8, 12, 16]  # discrete values
+            'max_segment': [8, 12, 16],  # discrete values
+            'initial_num_segments': [2,4,8],
+            "num_s3_layers": [1,2,3],
+            "segment_multiplier": [1, 2],
         }
         
         # Generate all parameter combinations for grid search
@@ -83,7 +86,10 @@ def optimize_tstcc_hyperparameters(
         param_distributions = {
             'jitter_ratio': uniform(1e-4, 0.1),  # continuous distribution
             'jitter_scale_ratio': uniform(1e-4, 0.1),  # continuous distribution
-            'max_segment': randint(4, 13)  # discrete values between 8 and 16
+            'max_segment': randint(4, 13),  # discrete values between 8 and 16
+            'initial_num_segments': randint(2,9),
+            'num_s3_layers': randint(1,4),
+            'segment_multiplier': randint(1, 3)
         }
         
         print(f"Starting random search with {n_trials} trials...")
@@ -118,7 +124,10 @@ def optimize_tstcc_hyperparameters(
             cfg.Context_Cont.temperature = base_config['cc_temperature']
             cfg.Context_Cont.use_cosine_similarity = base_config['cc_use_cosine']
             cfg.use_s3_layers = base_config['use_s3_layers']
-            
+            cfg.initial_num_segments = params['initial_num_segments']
+            cfg.num_s3_layers = params["num_s3_layers"]
+            cfg.segment_multiplier = params["segment_multiplier"]
+
             # Set hyperparameters being tuned
             cfg.augmentation.jitter_ratio = params['jitter_ratio']
             cfg.augmentation.jitter_scale_ratio = params['jitter_scale_ratio']
@@ -303,6 +312,8 @@ def main(
         cc_use_cosine: bool,
         use_s3_layers: bool,
         initial_num_segments: int,
+        num_s3_layers: int,
+        segment_multiplier: int,
         jitter_scale_ratio: float,
         jitter_ratio: float,
         max_segment: int,
@@ -373,8 +384,6 @@ def main(
     create_directory(results_save_path)
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
-
-
     if pretrain_all_conditions:
         label_map = {"baseline": 0, "mental_stress": 1, "relax": 2, "other": 3}
     else:
@@ -456,6 +465,8 @@ def main(
         "cc_use_cosine": cc_use_cosine,
         "use_s3_layers": use_s3_layers,
         "initial_num_segments": initial_num_segments,
+        "num_s3_layers": num_s3_layers,
+        "segment_multiplier": segment_multiplier,
         "jitter_ratio": jitter_ratio,
         "jitter_scale_ratio": jitter_scale_ratio,
         "max_seg": max_segment,
@@ -485,6 +496,8 @@ def main(
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
         cfg.use_s3_layers = use_s3_layers
         cfg.initial_num_segments = initial_num_segments
+        cfg.num_s3_layers = num_s3_layers
+        cfg.segment_multiplier = segment_multiplier
 
         model = base_Model(cfg).to(device)
         tc_head = TC(cfg, device).to(device)
@@ -515,6 +528,8 @@ def main(
                 'cc_use_cosine': cc_use_cosine,
                 "use_s3_layers": use_s3_layers,
                 "initial_num_segments": initial_num_segments,
+                "num_s3_layers": num_s3_layers,
+                "segment_multiplier": segment_multiplier,
             }
             
             # Run hyperparameter optimization
@@ -539,7 +554,11 @@ def main(
             jitter_ratio = hp_results['best_params']['jitter_ratio']
             jitter_scale_ratio = hp_results['best_params']['jitter_scale_ratio']
             max_segment = hp_results['best_params']['max_segment']
-            
+
+            initial_num_segments = hp_results['best_params']["initial_num_segments"]
+            num_s3_layers = hp_results["best_params"]["num_s3_layers"]
+            segment_multiplier = hp_results["best_params"]["segment_multiplier"]
+
             # Save hyperparameter optimization results
             hp_results_path = os.path.join(results_save_path, "hyperparameter_optimization.json")
             with open(hp_results_path, "w") as f:
@@ -554,6 +573,8 @@ def main(
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
         cfg.use_s3_layers = use_s3_layers
         cfg.initial_num_segments = initial_num_segments
+        cfg.num_s3_layers = num_s3_layers
+        cfg.segment_multiplier = segment_multiplier
 
         # Here we can set the augmentations (potentially optimized)
         cfg.augmentation.jitter_ratio = jitter_ratio
@@ -808,11 +829,9 @@ if __name__ == "__main__":
     tstcc_arch_group.add_argument("--use_s3_layers", action="store_true",
                                   help="If set, we use the S3 layer")
     tstcc_arch_group.add_argument("--initial_num_segments", type=int, default=2)
+    tstcc_arch_group.add_argument("--num_s3_layers", type=int, default=2)
+    tstcc_arch_group.add_argument("--segment_multiplier", type=int, default=2)
 
-    # For tuning the augmentations (we tune the jitter ratio and the segments)
-    # Random search as it is more efficient and faster, only for maybe 10 epochs
-    # My hypothesis is that this would outperform the trained from scratch architecture
-    # Add on, add the S3 layer on top
     tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.0001, type=float)
     tstcc_arch_group.add_argument("--jitter_ratio", default=0.01, type=float)
     tstcc_arch_group.add_argument("--max_segment", default = 8, type=int)
@@ -851,7 +870,7 @@ if __name__ == "__main__":
     hp_group = parser.add_argument_group('Hyperparameter Optimization')
     hp_group.add_argument("--optimize_hyperparameters", action="store_true",
                          help="Enable hyperparameter optimization for TSTCC augmentation parameters")
-    hp_group.add_argument("--hp_n_trials", type=int, default=5,
+    hp_group.add_argument("--hp_n_trials", type=int, default=20,
                          help="Number of trials for hyperparameter optimization")
     hp_group.add_argument("--hp_n_epochs", type=int, default=10,
                          help="Number of epochs for each hyperparameter optimization trial")
