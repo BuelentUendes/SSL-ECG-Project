@@ -44,7 +44,11 @@ from models.supervised import (
 def run_supervised_model_with_cv_and_test(
         model_type, X_train, y_train, groups_train, X_test, y_test,
         cv_splitter, device, classifier_epochs=25, classifier_batch_size=32,
-        classifier_lr=1e-4, pin_memory=False, scoring_metric="roc_auc"
+        classifier_lr=1e-4, pin_memory=False, scoring_metric="roc_auc",
+        use_s3_layers: bool = False,
+        initial_num_segments: int = 2,
+        num_s3_layers: int = 2,
+        segment_multiplier: int = 2,
 ):
     """Run CV for Supervised model  then train final model and test."""
 
@@ -93,7 +97,13 @@ def run_supervised_model_with_cv_and_test(
                     elif model_type.lower() == "tcn":
                         model = TCNClassifier(dropout=dropout_rate)
                     elif model_type.lower() == "deep_ecg_net":
-                        model = DeepECGNet(dropout_rate=dropout_rate)
+                        model = DeepECGNet(
+                            dropout_rate=dropout_rate,
+                            use_s3_layers = use_s3_layers,
+                            initial_num_segments = initial_num_segments,
+                            num_s3_layers = num_s3_layers,
+                            segment_multiplier = segment_multiplier,
+                        )
                     elif model_type.lower() == "patchtst":
                         model = PatchTSTECGClassifier(dropout=dropout_rate)
                     elif model_type.lower() == "moment":
@@ -367,8 +377,13 @@ def main(
         scheduler_min_lr: float = 1e-11,
         k_folds: int = 5,
         min_participants_for_kfold: int = 5,
-        scoring_metric: str = "roc_auc"
+        scoring_metric: str = "roc_auc",
+        use_s3_layers: bool = False,
+        initial_num_segments: int=2,
+        num_s3_layers: int = 2,
+        segment_multiplier: int =2,
 ):
+
     set_seed(seed)
 
     # device
@@ -401,7 +416,9 @@ def main(
     create_directory(SAVED_MODELS_PATH)
     create_directory(RESULTS_PATH)
 
-    model_save_path, results_save_path, window_data_path = get_paths(dataset, fs, model_type, seed, label_fraction, window_size,step_size)
+    model_save_path, results_save_path, window_data_path = get_paths(
+        dataset, fs, model_type, seed, label_fraction, window_size,step_size
+    )
     create_directory(model_save_path)
     create_directory(results_save_path)
 
@@ -458,7 +475,10 @@ def main(
         results, final_model = run_supervised_model_with_cv_and_test(
             model_type, X_train, y_train, groups_train, X_test, y_test,
             cv_splitter, device, classifier_epochs=num_epochs, classifier_batch_size=batch_size,
-            classifier_lr=lr, pin_memory=pin_memory, scoring_metric=scoring_metric)
+            classifier_lr=lr, pin_memory=pin_memory, scoring_metric=scoring_metric,
+            use_s3_layers=use_s3_layers, initial_num_segments=initial_num_segments,
+            num_s3_layers=num_s3_layers, segment_multiplier=segment_multiplier,
+        )
 
         # log the results:
         mlflow.log_metrics({
@@ -561,6 +581,12 @@ if __name__ == "__main__":
     parser.add_argument("--scoring_metric", type=str, default="roc_auc",
                          choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
                          help="Scoring metric for cross-validation hyperparameter selection")
+
+    parser.add_argument("--use_s3_layers", action="store_true",
+                                  help="If set, we use the S3 layer")
+    parser.add_argument("--initial_num_segments", type=int, default=2)
+    parser.add_argument("--num_s3_layers", type=int, default=2)
+    parser.add_argument("--segment_multiplier", type=int, default=2)
 
     args = parser.parse_args()
 
