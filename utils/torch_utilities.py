@@ -1,6 +1,5 @@
 import os
 import tempfile
-import sys
 from pathlib import Path
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
@@ -9,7 +8,6 @@ import random
 import warnings
 import numpy as np
 import h5py
-import json
 import math
 import torch
 import torch.nn as nn
@@ -22,9 +20,12 @@ from torcheval.metrics.functional import multiclass_f1_score
 
 #Scikit learn imports
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+import xgboost as xgb
+
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, roc_auc_score, average_precision_score
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.model_selection import GroupKFold, LeaveOneGroupOut, GridSearchCV, RandomizedSearchCV
+from sklearn.model_selection import GroupKFold, LeaveOneGroupOut, GridSearchCV, RandomizedSearchCV, StratifiedGroupKFold
 from scipy.stats import loguniform
 
 # MLflow imports
@@ -818,7 +819,8 @@ def get_participant_cv_splitter(groups, min_participants_for_kfold=5, k=5):
         print(f"Using Leave-One-Group-Out CV ({n_splits} splits)")
     else:
         actual_k = min(k, n_participants)
-        cv_splitter = GroupKFold(n_splits=actual_k)
+        # cv_splitter = StratifiedGroupKFold(n_splits=actual_k)
+        cv_splitter =GroupKFold(n_splits=actual_k)
         n_splits = actual_k
         print(f"Using {actual_k}-Fold Group CV ({n_splits} splits)")
 
@@ -832,7 +834,7 @@ def get_participant_cv_splitter(groups, min_participants_for_kfold=5, k=5):
 def run_logistic_regression_with_gridsearch(
         X_train, y_train, groups_train, X_test, y_test, feature_names, cv_splitter, 
         standardize=False, seed=42, search_type='grid', n_iter=50,
-        scoring_metric="f1",
+        scoring_metric="roc_auc", classifier_model="logistic_regression"
 ):
     """Run GridSearchCV or RandomizedSearchCV for Logistic Regression, then evaluate on test set.
     
@@ -845,11 +847,45 @@ def run_logistic_regression_with_gridsearch(
     if standardize:
         X_train, _, X_test = standardize_features(X_train, None, X_test, feature_names)
 
-    # Parameter grid for grid search
-    param_grid = {
-        'C': [1e-5, 0.0001, 0.001, 0.01, 0.1, 1.0, 10., 100.],
-        'penalty': ['l1', 'l2'],
+    model_param_grid = {
+        "logistic_regression": {
+        'C': [1e-6, 1e-5, 0.0001, 0.001, 0.01, 0.1, 1.0, 10., 100.],
+        'penalty': ['l2', None],
         'max_iter': [10_000],
+        'class_weight': ["balanced", None]
+        },
+        "random_forest": {
+            'n_estimators':[50,100, 150, 300],
+            'max_depth': [5,10,15,25,50],
+            'min_samples_split':[5,10,15,20],
+            'min_samples_leaf': [5, 10, 15, 20],
+        },
+        "xgboost": {
+            "n_estimators": [25,50,100,150, 200],
+            "max_depth": [3,5,8],
+            "learning_rate": [1e-4, 1e-3, 1e-2, 1e-1],
+        }
+
+    }
+
+    model_default_param_grid = {
+        "logistic_regression": {
+            'C': 0.01,
+            'penalty': 'l2',
+            'max_iter': 5000,
+            'random_state': seed,
+            'n_jobs': -1,
+            'solver': 'saga'
+        },
+        "random_forest":  {
+            'n_estimators': 50,
+            'max_depth': 10,
+        },
+        "xgboost": {
+            "n_estimators": 25,
+            "max_depth": 5,
+            "learning_rate": 1e-4,
+        }
     }
 
     # Parameter distributions for random search
@@ -859,18 +895,15 @@ def run_logistic_regression_with_gridsearch(
         'max_iter': [10_000],
     }
 
-    default_best_params = {
-        'C': 0.01,
-        'penalty': 'l2',
-        'max_iter': 5000,
-        'random_state': seed,
-        'n_jobs': -1,
-        'solver': 'saga'
-    }
-
     if cv_splitter is not None:
         # Create base model for search
-        base_model = LogisticRegression(random_state=seed, n_jobs=-1, solver="saga")
+
+        if classifier_model == "logistic_regression":
+            base_model = LogisticRegression(random_state=seed, n_jobs=-1, solver="saga")
+        elif classifier_model == "random_forest":
+            base_model = RandomForestClassifier(random_state=seed, n_jobs=-1)
+        elif classifier_model == "xgboost":
+            base_model = xgb.XGBClassifier(n_jobs=-1, objective="binary:logistic")
 
         if search_type.lower() == 'random':
             # RandomizedSearchCV with GroupKFold
@@ -889,7 +922,7 @@ def run_logistic_regression_with_gridsearch(
             # GridSearchCV with GroupKFold (default)
             search = GridSearchCV(
                 estimator=base_model,
-                param_grid=param_grid,
+                param_grid=model_param_grid[classifier_model],
                 cv=cv_splitter,
                 scoring=scoring_metric,  # Use AUROC as the scoring metric
                 n_jobs=-1,
@@ -912,12 +945,18 @@ def run_logistic_regression_with_gridsearch(
     else:
         # Use default best parameters when cv_splitter is None
         print("cv_splitter is None (single participant). Using default best parameters...")
-        print(f"Default parameters: {default_best_params}")
+        print(f"Default parameters: { model_default_param_grid[classifier_model]}")
 
-        best_model = LogisticRegression(**default_best_params)
+        if classifier_model == "logistic_regression":
+            best_model = LogisticRegression(**model_default_param_grid[classifier_model])
+        elif classifier_model == "random_forest":
+            best_model = RandomForestClassifier(** model_default_param_grid[classifier_model])
+        elif classifier_model == "xgboost":
+            best_model = xgb.XGBClassifier(**model_default_param_grid[classifier_model])
+
         best_model.fit(X_train, y_train)
 
-        best_params = default_best_params
+        best_params =  model_default_param_grid[classifier_model]
         best_cv_score = None
         cv_results = None
 
