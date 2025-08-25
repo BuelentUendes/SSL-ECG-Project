@@ -417,7 +417,7 @@ def main(
     # Create feature names for representations (just numbered features)
     feature_names = [f"repr_{i}" for i in range(train_repr.shape[1])]
 
-    if classifier_model == "logistic_regression":
+    if classifier_model in ["logistic_regression", "random_forest", "xgboost"]:
         # IMPORTANT: The encoder already normalizes the features, so no need to standardize again
         # Verbose option:
         if verbose:
@@ -428,7 +428,8 @@ def main(
         else:
             results = run_logistic_regression_with_gridsearch(
                 train_repr, y_train, groups_train,
-                test_repr, y_test, feature_names, cv_splitter, False, seed, scoring_metric=scoring_metric
+                test_repr, y_test, feature_names, cv_splitter, False, seed,
+                scoring_metric=scoring_metric, classifier_model=classifier_model
             )
 
         # Log metrics
@@ -528,7 +529,6 @@ if __name__ == "__main__":
     data_group.add_argument("--train_ratio_encoder", default=0.75, type=float,
                             help="If set to 0.75, it will result in 60/20/20 split and have a validation set for TSTCC,"
                                  "Alternatively, set to 1.0 to train on all unlabelled training instances.")
-
     # ══════════════════════════════════════════════════════════════════════════════
     # TS-TCC Encoder Training
     # ══════════════════════════════════════════════════════════════════════════════
@@ -572,7 +572,7 @@ if __name__ == "__main__":
     # ══════════════════════════════════════════════════════════════════════════════
     classifier_group = parser.add_argument_group('Downstream Classifier')
     classifier_group.add_argument("--classifier_model", type=str, default="logistic_regression",
-                                 choices=("logistic_regression", "mlp"),
+                                 choices=("logistic_regression", "mlp", "random_forest", "xgboost"),
                                  help="Type of downstream classifier to use")
     classifier_group.add_argument("--classifier_epochs", type=int, default=25,
                                  help="Number of epochs for MLP classifier training")
@@ -599,9 +599,9 @@ if __name__ == "__main__":
     hp_group = parser.add_argument_group('Hyperparameter Optimization')
     hp_group.add_argument("--optimize_hyperparameters", action="store_true",
                          help="Enable hyperparameter optimization for TSTCC augmentation parameters")
-    hp_group.add_argument("--hp_n_trials", type=int, default=20,
+    hp_group.add_argument("--hp_n_trials", type=int, default=50,
                          help="Number of trials for hyperparameter optimization")
-    hp_group.add_argument("--hp_n_epochs", type=int, default=10,
+    hp_group.add_argument("--hp_n_epochs", type=int, default=15,
                          help="Number of epochs for each hyperparameter optimization trial")
     hp_group.add_argument("--hp_search_type", type=str, default="grid",
                          choices=["random", "grid"],
