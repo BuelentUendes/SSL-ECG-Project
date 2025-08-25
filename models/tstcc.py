@@ -1206,7 +1206,7 @@ def optimize_tstcc_hyperparameters(
             'jitter_ratio': uniform(1e-4, 0.1),  # continuous distribution
             'jitter_scale_ratio': uniform(1e-4, 0.1),  # continuous distribution
             'max_segment': randint(8, 9),  # We always take 8
-            'initial_num_segments': lambda: np.random.choice([2, 4, 8]),
+            'initial_num_segments': [2, 4, 8],
             'num_s3_layers': randint(1, 3),
             'segment_multiplier': randint(1, 3)
         }
