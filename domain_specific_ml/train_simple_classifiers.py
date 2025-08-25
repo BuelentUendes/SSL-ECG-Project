@@ -200,7 +200,7 @@ def main(
     )
 
     # ── Step 3: Run Model Selection + Final Training + Test Evaluation ─────────
-    if classifier_model == "logistic_regression":
+    if classifier_model in ["logistic_regression", "random_forest", "xgboost"]:
 
         #Verbose option:
         if verbose:
@@ -210,9 +210,11 @@ def main(
             )
 
         else:
+            #ToDo: Rename the function here
             results = run_logistic_regression_with_gridsearch(
                 X_train_all, y_train_all, groups_train_all,
                 X_test, y_test, feature_names, cv_splitter, True, seed,
+                classifier_model=classifier_model
             )
 
         # Log metrics
@@ -275,9 +277,9 @@ if __name__ == "__main__":
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--classifier_model", type=str, default="logistic_regression",
-                        choices=("logistic_regression", "mlp"))
-    parser.add_argument("--window_size", help="Window size in seconds", default=10, type=int)
-    parser.add_argument("--step_size", type=int, default=5)
+                        choices=("logistic_regression", "mlp", "random_forest", "xgboost"))
+    parser.add_argument("--window_size", help="Window size in seconds", default=30, type=int)
+    parser.add_argument("--step_size", type=int, default=15)
     parser.add_argument("--classifier_epochs", type=int, default=25)
     parser.add_argument("--label_fraction", type=float, default=0.01)
     parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
