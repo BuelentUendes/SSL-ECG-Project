@@ -1232,6 +1232,9 @@ def optimize_tstcc_hyperparameters(
         print(f"  jitter_ratio: {params['jitter_ratio']:.6f}")
         print(f"  jitter_scale_ratio: {params['jitter_scale_ratio']:.6f}")
         print(f"  max_segment: {params['max_segment']}")
+        print(f"  num s3 layers: {params['num_s3_layers']}")
+        print(f"  segment multiplier: {params['segment_multiplier']}")
+        print(f"  initial num segments: {params['initial_num_segments']}")
 
         try:
             # Create config for this trial
