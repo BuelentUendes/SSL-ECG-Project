@@ -208,7 +208,7 @@ def main(
     )
 
     # ── Step 3: Run Model Selection + Final Training + Test Evaluation ─────────
-    if classifier_model == "logistic_regression":
+    if classifier_model in ["logistic_regression", "xgboost", "random_forest"]:
 
         #Verbose option:
         if verbose:
@@ -220,7 +220,8 @@ def main(
         else:
             results = run_logistic_regression_with_gridsearch(
                 X_train_all, y_train_all, groups_train_all,
-                X_test, y_test, feature_names, cv_splitter, True, seed, scoring_metric=scoring_metric
+                X_test, y_test, feature_names, cv_splitter, True, seed,
+                scoring_metric=scoring_metric, classifier_model=classifier_model
             )
 
         # Log metrics
@@ -283,9 +284,9 @@ if __name__ == "__main__":
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--classifier_model", type=str, default="logistic_regression",
-                        choices=("logistic_regression", "mlp"))
+                        choices=("logistic_regression", "mlp", "xgboost"))
     parser.add_argument("--window_size", help="Window size in seconds", default=30, type=int)
-    parser.add_argument("--step_size", help="Window shift in seconds", default=10, type=int)
+    parser.add_argument("--step_size", help="Window shift in seconds", default=15, type=int)
     parser.add_argument("--use_normalized_ecg_signal", action="store_true",
                         help="If set, we use the normalized ECG signal")
     parser.add_argument("--classifier_epochs", type=int, default=25)
@@ -296,7 +297,7 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", action="store_true",
                         help="If set, we show a verbose output of CV. Only applicable for LR. "
                              "Important: This slows down the fitting!")
-    parser.add_argument("--scoring_metric", type=str, default="f1",
+    parser.add_argument("--scoring_metric", type=str, default="roc_auc",
                          choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
                          help="Scoring metric for cross-validation hyperparameter selection")
 
