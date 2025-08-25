@@ -1494,7 +1494,7 @@ class Config(object):
     Hyper-parameters tuned for windowed ECG segments
     (shape = [N, 10 000, 1])
     """
-    def __init__(self):
+    def __init__(self, fs:int=1000, window_size:int=10):
 
         # ─────────────────── CNN encoder ────────────────────
         self.input_channels      = 1         # ECG is univariate
@@ -1503,9 +1503,24 @@ class Config(object):
         self.final_out_channels  = 128       # feature maps after last conv
         self.dropout             = 0.35
 
-        # Length of the sequence that reaches the projection head
-        # 10 000 → 315 after the conv + pool stack
-        self.features_len        = 315
+        if int(fs) == 1000:
+            if window_size == 30:
+                self.features_len = 940
+            elif window_size == 10:
+                self.features_len = 315
+
+        elif int(fs) == 700:
+            if window_size == 30:
+                self.features_len = 658
+            elif window_size == 10:
+                self.features_len = 221
+
+        elif int(fs) == 500:
+            if window_size == 30:
+                self.features_len = 471
+            elif window_size == 10:
+                self.features_len = 158
+
         self.num_classes         = 2
 
         # ─────────────────── Training ───────────────────────
