@@ -143,8 +143,7 @@ class DeepECGNet(nn.Module):
             # S3 expects (N, L, C) but we have (N, C, L)
             x_s3 = x.transpose(1, 2)  # (N, C, L) → (N, L, C)
             x_s3 = self.s3_layers(x_s3)
-            x_in = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
-            x = self.s3_layers(x_in)
+            x = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
 
         # First block
         x = F.relu(self.conv1(x))
@@ -217,8 +216,7 @@ class Improved1DCNN_v2(nn.Module):
             # S3 expects (N, L, C) but we have (N, C, L)
             x_s3 = x.transpose(1, 2)  # (N, C, L) → (N, L, C)
             x_s3 = self.s3_layers(x_s3)
-            x_in = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
-            x = self.s3_layers(x_in)
+            x = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
 
         x = self.bn_input(x)
         # Block 1
@@ -464,8 +462,7 @@ class TCNClassifier(nn.Module):
             # S3 expects (N, L, C) but we have (N, C, L)
             x_s3 = x.transpose(1, 2)  # (N, C, L) → (N, L, C)
             x_s3 = self.s3_layers(x_s3)
-            x_in = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
-            x = self.s3_layers(x_in)
+            x = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
 
         x = self.pad0(x)
         x = self.conv0(x)
