@@ -473,12 +473,13 @@ class base_Model(nn.Module):
         super(base_Model, self).__init__()
 
         self.use_s3_layer = configs.use_s3_layers
-        self.s3_layers = S3(
-            num_layers=configs.num_s3_layers,
-            initial_num_segments=configs.initial_num_segments,
-            shuffle_vector_dim=configs.shuffle_vector_dim,
-            segment_multiplier=configs.segment_multiplier
-        )
+        if self.use_s3_layer:
+            self.s3_layers = S3(
+                num_layers=configs.num_s3_layers,
+                initial_num_segments=configs.initial_num_segments,
+                shuffle_vector_dim=configs.shuffle_vector_dim,
+                segment_multiplier=configs.segment_multiplier
+            )
 
         self.conv_block1 = nn.Sequential(
             nn.Conv1d(configs.input_channels, 32, kernel_size=configs.kernel_size,
