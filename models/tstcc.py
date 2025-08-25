@@ -1186,9 +1186,9 @@ def optimize_tstcc_hyperparameters(
         param_grid = {
             'jitter_ratio': [1e-4, 1e-3, 1e-2],  # discrete values
             'jitter_scale_ratio': [1e-4, 1e-3, 1e-2],  # discrete values
-            'max_segment': [8, 12, 16],  # discrete values
+            'max_segment': [8],  # discrete values
             'initial_num_segments': [2, 4, 8],
-            "num_s3_layers": [1, 2, 3],
+            "num_s3_layers": [1, 2],
             "segment_multiplier": [1, 2],
         }
 
@@ -1205,9 +1205,9 @@ def optimize_tstcc_hyperparameters(
         param_distributions = {
             'jitter_ratio': uniform(1e-4, 0.1),  # continuous distribution
             'jitter_scale_ratio': uniform(1e-4, 0.1),  # continuous distribution
-            'max_segment': randint(4, 13),  # discrete values between 8 and 16
-            'initial_num_segments': randint(2, 9),
-            'num_s3_layers': randint(1, 4),
+            'max_segment': randint(8, 9),  # We always take 8
+            'initial_num_segments': lambda: np.random.choice([2, 4, 8]),
+            'num_s3_layers': randint(1, 3),
             'segment_multiplier': randint(1, 3)
         }
 
