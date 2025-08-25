@@ -515,7 +515,6 @@ class base_Model(nn.Module):
             x_s3 = x_in.transpose(1, 2)  # (N, C, L) → (N, L, C)
             x_s3 = self.s3_layers(x_s3)
             x_in = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
-            x_in = self.s3_layers(x_in)
 
         x = self.conv_block1(x_in)
         x = self.conv_block2(x)
