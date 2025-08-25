@@ -287,7 +287,7 @@ if __name__ == "__main__":
     parser.add_argument("--classifier_model", type=str, default="logistic_regression",
                         choices=("logistic_regression", "mlp"))
     parser.add_argument("--window_size", help="Window size in seconds", default=30, type=int)
-    parser.add_argument("--step_size", help="Window shift in seconds", default=10, type=int)
+    parser.add_argument("--step_size", help="Window shift in seconds", default=15, type=int)
     parser.add_argument("--use_normalized_ecg_signal", action="store_true",
                         help="If set, we use the normalized ECG signal")
     parser.add_argument("--classifier_epochs", type=int, default=25)
@@ -298,7 +298,7 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", action="store_true",
                         help="If set, we show a verbose output of CV. Only applicable for LR. "
                              "Important: This slows down the fitting!")
-    parser.add_argument("--scoring_metric", type=str, default="f1",
+    parser.add_argument("--scoring_metric", type=str, default="roc_auc",
                          choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
                          help="Scoring metric for cross-validation hyperparameter selection")
 
