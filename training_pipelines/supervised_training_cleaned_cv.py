@@ -54,11 +54,8 @@ def run_supervised_model_with_cv_and_test(
 
     torch.autograd.set_detect_anomaly(True)
 
-    lr_rates = [1e-3, 1e-4, 1e-5]
-    if model_type == "transformer":
-        # Too low of learning rate causes issue for transformer
-        lr_rates = [1e-4, 1e-5]
-    dropout_rates = [0.1, 0.2, 0.3, 0.5]
+    lr_rates = [1e-4, 1e-5]
+    dropout_rates = [0.2, 0.3, 0.5]
 
     num_workers = min(8, os.cpu_count() or 2)
 
