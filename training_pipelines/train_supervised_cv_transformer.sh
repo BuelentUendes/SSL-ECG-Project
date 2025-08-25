@@ -6,7 +6,7 @@
  ## Bash script for running several experiments
 fractions=(0.01 0.05 0.1 0.25 0.5 1.0)
 seeds=(3 5 7 9)
-models=("cnn" "tcn" "transformer")
+models=("transformer")
 
 for model in "${models[@]}"
 do
