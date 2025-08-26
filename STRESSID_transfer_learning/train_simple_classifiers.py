@@ -286,7 +286,7 @@ if __name__ == "__main__":
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--classifier_model", type=str, default="logistic_regression",
-                        choices=("logistic_regression", "mlp"))
+                        choices=("logistic_regression", "mlp", "xgboost"))
     parser.add_argument("--window_size", help="Window size in seconds", default=30, type=int)
     parser.add_argument("--step_size", help="Window shift in seconds", default=15, type=int)
     parser.add_argument("--use_normalized_ecg_signal", action="store_true",
