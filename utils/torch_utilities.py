@@ -1179,7 +1179,7 @@ def run_mlp_with_cv_and_test(
 
     # Simple hyperparameter options for MLP
     hidden_dims = [16, 32, 64]
-    dropout_rates = [0.1, 0.2, 0.3, 0.5, 0.6, 0.75, 0.8]
+    dropout_rates = [0.1, 0.2, 0.3, 0.5]
 
     best_params = None
     best_cv_score = 0
