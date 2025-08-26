@@ -821,8 +821,6 @@ class InfoTSLightning(pl.LightningModule):
         meta_epoch=2,
         meta_beta=1.0,
         supervised_meta=True,
-        train_data=None,
-        train_labels=None,
         **kwargs,
     ):
         super().__init__()
@@ -842,7 +840,7 @@ class InfoTSLightning(pl.LightningModule):
         )
         self.net = AveragedModel(self._net)
 
-        # classifiers
+        # classifiers - fix unsup_pred to use actual batch size
         self.pred = nn.Linear(output_dims, num_cls)
         self.unsup_pred = nn.Linear(output_dims, batch_size)
 
@@ -858,10 +856,10 @@ class InfoTSLightning(pl.LightningModule):
         # schedules
         self.t0 = 2.0
         self.t1 = 0.1
-
-        # save data for train_dataloader
-        self.train_data = train_data
-        self.train_labels = train_labels
+        
+        # epoch and iteration counters for compatibility
+        self.n_epochs = 0
+        self.n_iters = 0
 
     # ------------------------------
     # Utilities
@@ -878,6 +876,7 @@ class InfoTSLightning(pl.LightningModule):
         return out1, out2
 
     def make_dataloader(self, data, labels=None, shuffle=False, drop_last=False):
+        """Process data similar to original InfoTS.get_dataloader()"""
         if self.hparams.max_train_length is not None:
             sections = data.shape[1] // self.hparams.max_train_length
             if sections >= 2:
@@ -897,11 +896,18 @@ class InfoTSLightning(pl.LightningModule):
                                     torch.from_numpy(labels).long())
         else:
             dataset = TensorDataset(torch.from_numpy(data).float())
+        
         loader = DataLoader(dataset,
                             batch_size=min(self.hparams.batch_size, len(dataset)),
                             shuffle=shuffle, drop_last=drop_last,
                             num_workers=0, pin_memory=False)
         return loader
+    
+    def setup(self, stage=None):
+        """Setup method called by Lightning - better place for data processing"""
+        # This should be called with trainer.fit(model, datamodule) or 
+        # by setting up a separate DataModule
+        pass
 
     # ------------------------------
     # Lightning hooks
@@ -998,15 +1004,161 @@ class InfoTSLightning(pl.LightningModule):
         return [encoder_optim, meta_optim, cls_optim]
 
     def train_dataloader(self):
-        return self.make_dataloader(
-            self.train_data, labels=self.train_labels if self.hparams.supervised_meta else None,
-            shuffle=True, drop_last=True
+        # This should be handled by a separate DataModule
+        # For now, return None - data should be passed via trainer.fit(model, datamodule)
+        return None
+    
+    def encode(self, data, mask=None, batch_size=None):
+        """Encode data using the trained model - equivalent to InfoTS.encode()"""
+        assert data.ndim == 3
+        if batch_size is None:
+            batch_size = self.hparams.batch_size
+            
+        org_training = self.net.training
+        self.net.eval()
+        
+        dataset = TensorDataset(torch.from_numpy(data).to(torch.float))
+        loader = DataLoader(dataset, batch_size=batch_size)
+        
+        with torch.no_grad():
+            output = []
+            for batch in loader:
+                x = batch[0]
+                out = self.net(x.to(self.device), mask)
+                out = F.max_pool1d(out.transpose(1, 2), kernel_size=out.size(1)).transpose(1, 2).cpu()
+                out = out.squeeze(1)
+                output.append(out)
+                
+            output = torch.cat(output, dim=0)
+            
+        self.net.train(org_training)
+        return output.numpy()
+    
+    def save_model(self, filepath):
+        """Save model weights - equivalent to InfoTS.save()"""
+        torch.save(self.net.state_dict(), filepath)
+    
+    def load_model(self, filepath):
+        """Load model weights - equivalent to InfoTS.load()"""
+        state_dict = torch.load(filepath, map_location=self.device)
+        self.net.load_state_dict(state_dict)
+
+
+# --------------------------------------------------------
+# InfoTS DataModule for Lightning
+# --------------------------------------------------------
+class InfoTSDataModule(pl.LightningDataModule):
+    def __init__(
+        self,
+        train_data: np.ndarray,
+        train_labels: np.ndarray = None,
+        batch_size: int = 16,
+        max_train_length: int = None,
+        supervised_meta: bool = True,
+        val_split: float = 0.2,
+        num_workers: int = 0,
+        **kwargs
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+        
+        self.train_data = train_data
+        self.train_labels = train_labels
+        self.batch_size = batch_size
+        self.max_train_length = max_train_length
+        self.supervised_meta = supervised_meta
+        self.val_split = val_split
+        self.num_workers = num_workers
+        
+        # Will be set in setup()
+        self.train_dataset = None
+        self.val_dataset = None
+    
+    def _process_data(self, data, labels=None):
+        """Apply same preprocessing as original InfoTS"""
+        if self.max_train_length is not None:
+            sections = data.shape[1] // self.max_train_length
+            if sections >= 2:
+                data = np.concatenate(split_with_nan(data, sections, axis=1), axis=0)
+                if labels is not None:
+                    labels = np.tile(labels, sections)
+
+        temporal_missing = np.isnan(data).all(axis=-1).any(axis=0)
+        if temporal_missing[0] or temporal_missing[-1]:
+            data = centerize_vary_length_series(data)
+
+        data = data[~np.isnan(data).all(axis=2).all(axis=1)]
+        data = np.nan_to_num(data)
+        
+        return data, labels
+    
+    def setup(self, stage=None):
+        if stage == "fit" or stage is None:
+            # Process training data
+            processed_data, processed_labels = self._process_data(
+                self.train_data, self.train_labels
+            )
+            
+            if self.val_split > 0:
+                # Split into train/val
+                n_samples = len(processed_data)
+                n_val = int(n_samples * self.val_split)
+                
+                val_data = processed_data[:n_val]
+                train_data = processed_data[n_val:]
+                
+                if processed_labels is not None:
+                    val_labels = processed_labels[:n_val]
+                    train_labels = processed_labels[n_val:]
+                else:
+                    val_labels = None
+                    train_labels = None
+                
+                # Create datasets
+                if self.supervised_meta and train_labels is not None:
+                    self.train_dataset = TensorDataset(
+                        torch.from_numpy(train_data).float(),
+                        torch.from_numpy(train_labels).long()
+                    )
+                    self.val_dataset = TensorDataset(
+                        torch.from_numpy(val_data).float(),
+                        torch.from_numpy(val_labels).long()
+                    )
+                else:
+                    self.train_dataset = TensorDataset(torch.from_numpy(train_data).float())
+                    self.val_dataset = TensorDataset(torch.from_numpy(val_data).float())
+            else:
+                # No validation split
+                if self.supervised_meta and processed_labels is not None:
+                    self.train_dataset = TensorDataset(
+                        torch.from_numpy(processed_data).float(),
+                        torch.from_numpy(processed_labels).long()
+                    )
+                else:
+                    self.train_dataset = TensorDataset(torch.from_numpy(processed_data).float())
+                self.val_dataset = None
+    
+    def train_dataloader(self):
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+            drop_last=True,
+            num_workers=self.num_workers,
+            pin_memory=True if torch.cuda.is_available() else False
         )
-
-
-
-
-
+    
+    def val_dataloader(self):
+        if self.val_dataset is None:
+            return None
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            drop_last=False,
+            num_workers=self.num_workers,
+            pin_memory=True if torch.cuda.is_available() else False
+        )
 
 
 # --------------------------------------------------------
