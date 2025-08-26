@@ -118,8 +118,24 @@ def local_infoNCE(z1, z2, pooling='max', temperature=1.0, k=16):
     neg_labels = neg_labels.to(z1.device)
 
     similarity_matrix = similarity_matrices[0]
-    positives = similarity_matrix[pos_labels.bool()].view(labels.shape[0], -1)
-    negatives = similarity_matrix[~neg_labels.bool()].view(similarity_matrix.shape[0], -1)
+    
+    # Handle MPS compatibility for boolean indexing
+    if z1.device.type == 'mps':
+        # Move to CPU for boolean operations to avoid nonzero warnings
+        pos_labels_cpu = pos_labels.cpu()
+        neg_labels_cpu = neg_labels.cpu()
+        similarity_matrix_cpu = similarity_matrix.cpu()
+        
+        # Apply boolean indexing on CPU
+        positives_cpu = similarity_matrix_cpu[pos_labels_cpu.bool()].view(labels.shape[0], -1)
+        negatives_cpu = similarity_matrix_cpu[~neg_labels_cpu.bool()].view(similarity_matrix.shape[0], -1)
+        
+        # Move results back to MPS
+        positives = positives_cpu.to(z1.device)
+        negatives = negatives_cpu.to(z1.device)
+    else:
+        positives = similarity_matrix[pos_labels.bool()].view(labels.shape[0], -1)
+        negatives = similarity_matrix[~neg_labels.bool()].view(similarity_matrix.shape[0], -1)
 
     logits = torch.cat([positives, negatives], dim=1)
     logits = logits / temperature
@@ -135,12 +151,33 @@ def InfoNCE(z1, z2, temperature=1.0):
     labels = labels.to(features.device)
 
     similarity_matrix = torch.matmul(features, features.T)
-    mask = torch.eye(labels.shape[0], dtype=torch.bool).to(features.device)
-    labels = labels[~mask].view(labels.shape[0], -1)
-    similarity_matrix = similarity_matrix[~mask].view(similarity_matrix.shape[0], -1)
-
-    positives = similarity_matrix[labels.bool()].view(labels.shape[0], -1)
-    negatives = similarity_matrix[~labels.bool()].view(similarity_matrix.shape[0], -1)
+    mask = torch.eye(labels.shape[0], dtype=torch.bool)
+    
+    # Handle MPS compatibility for all boolean indexing operations
+    if features.device.type == 'mps':
+        # Move to CPU for mask operations to avoid nonzero warnings
+        mask_cpu = mask.cpu()
+        labels_cpu = labels.cpu()
+        similarity_matrix_cpu = similarity_matrix.cpu()
+        
+        # Apply mask operations on CPU
+        labels_masked = labels_cpu[~mask_cpu].view(labels.shape[0], -1)
+        similarity_matrix_masked = similarity_matrix_cpu[~mask_cpu].view(similarity_matrix.shape[0], -1)
+        
+        # Get positive and negative samples on CPU
+        positives_cpu = similarity_matrix_masked[labels_masked.bool()].view(labels.shape[0], -1)
+        negatives_cpu = similarity_matrix_masked[~labels_masked.bool()].view(similarity_matrix.shape[0], -1)
+        
+        # Move results back to MPS
+        positives = positives_cpu.to(features.device)
+        negatives = negatives_cpu.to(features.device)
+    else:
+        mask = mask.to(features.device)
+        labels_masked = labels[~mask].view(labels.shape[0], -1)
+        similarity_matrix_masked = similarity_matrix[~mask].view(similarity_matrix.shape[0], -1)
+        
+        positives = similarity_matrix_masked[labels_masked.bool()].view(labels.shape[0], -1)
+        negatives = similarity_matrix_masked[~labels_masked.bool()].view(similarity_matrix.shape[0], -1)
 
     logits = torch.cat([positives, negatives], dim=1)
     labels = torch.zeros(logits.shape[0], dtype=torch.long).to(features.device)
@@ -457,8 +494,9 @@ class InfoTSEncoder(nn.Module):
             x_s3 = self.s3_layers(x_s3)
             x = x_s3.transpose(1, 2)
             
+        # Replace boolean indexing to avoid MPS fallback
         nan_mask = ~x.isnan().any(axis=-1)
-        x[~nan_mask] = 0
+        x = torch.where(nan_mask.unsqueeze(-1), x, torch.zeros_like(x))
         x = self.input_fc(x)
         
         if mask is None:
@@ -479,8 +517,8 @@ class InfoTSEncoder(nn.Module):
             mask = x.new_full((x.size(0), x.size(1)), True, dtype=torch.bool)
             mask[:, -1] = False
         
-        mask &= nan_mask
-        x[~mask] = 0
+        mask = mask & nan_mask
+        x = torch.where(mask.unsqueeze(-1), x, torch.zeros_like(x))
         
         x = x.transpose(1, 2)
         x = self.feature_extractor(x)
@@ -628,7 +666,8 @@ class InfoTS:
             interrupted = False
             
             self._net.train()
-            for batch in train_loader:
+            for idx, batch in enumerate(train_loader):
+                print(f"Processing batch {idx}. Please wait")
                 if n_iters is not None and self.n_iters >= n_iters:
                     interrupted = True
                     break
@@ -654,6 +693,7 @@ class InfoTS:
                 cum_loss += loss.item()
                 n_epoch_iters += 1
                 self.n_iters += 1
+
 
             self.n_epochs += 1
 
