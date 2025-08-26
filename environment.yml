@@ -63,3 +63,5 @@ dependencies:
       - einops
       - opencv-python
       - fastavro
+      - xgboost
+      - s3-timeseries
