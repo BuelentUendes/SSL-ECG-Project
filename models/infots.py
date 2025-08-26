@@ -785,11 +785,6 @@ class InfoTS:
         self.net.load_state_dict(state_dict)
 
 
-
-
-
-
-
 ####_____________________
 # InfoTS Lightning Module
 ###______________________
@@ -831,6 +826,7 @@ class InfoTSLightning(pl.LightningModule):
         **kwargs,
     ):
         super().__init__()
+        self.automatic_optimization = False
         self.save_hyperparameters()
 
         # main encoder
@@ -923,7 +919,16 @@ class InfoTSLightning(pl.LightningModule):
         out1, out2 = self.get_features(x, n_epochs=self.trainer.max_epochs)
         loss = global_infoNCE(out1, out2) + local_infoNCE(out1, out2, k=self.hparams.split_number) * self.hparams.beta
 
+        # manual optimization
+        encoder_optim, _, _ = self.optimizers()  # only update encoder here
+        encoder_optim.zero_grad()
+        self.manual_backward(loss)
+        encoder_optim.step()
+
+        # update SWA averaged model
         self.net.update_parameters(self._net)
+
+        # log loss
         self.log("train_loss", loss, prog_bar=True, on_epoch=True, batch_size=x.size(0))
         return loss
 
