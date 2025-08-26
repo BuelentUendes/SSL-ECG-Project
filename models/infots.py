@@ -667,7 +667,7 @@ class InfoTS:
             
             self._net.train()
             for idx, batch in enumerate(train_loader):
-                print(f"Processing batch {idx}. Please wait")
+                print(f"Processing batch {idx} / {len(train_dataset)}. Please wait")
                 if n_iters is not None and self.n_iters >= n_iters:
                     interrupted = True
                     break
