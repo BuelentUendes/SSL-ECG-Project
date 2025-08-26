@@ -210,19 +210,20 @@ def main(
     )
 
     # ── Step 3: Run Model Selection + Final Training + Test Evaluation ─────────
-    if classifier_model == "logistic_regression":
+    if classifier_model in ["logistic_regression", "xgboost", "random_forest"]:
 
         #Verbose option:
         if verbose:
             results = run_logistic_regression_with_gridsearch_verbose(
                 X_train_all, y_train_all, groups_train_all, X_test, y_test,
-                feature_names, cv_splitter, True, seed, scoring_metric=scoring_metric
+                feature_names, cv_splitter, True, seed
             )
 
         else:
             results = run_logistic_regression_with_gridsearch(
                 X_train_all, y_train_all, groups_train_all,
-                X_test, y_test, feature_names, cv_splitter, True, seed, scoring_metric=scoring_metric
+                X_test, y_test, feature_names, cv_splitter, True, seed,
+                scoring_metric=scoring_metric, classifier_model=classifier_model
             )
 
         # Log metrics
