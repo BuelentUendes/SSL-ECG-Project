@@ -274,6 +274,7 @@ def main(
             initial_num_segments=initial_num_segments,
             shuffle_vector_dim=shuffle_vector_dim,
             segment_multiplier=segment_multiplier,
+            verbose=True,
         )
 
         print(f"Created InfoTS model on device: {next(infots.net.parameters()).device}")
@@ -461,7 +462,7 @@ if __name__ == "__main__":
                              help="InfoTS hidden dimension")
     infots_group.add_argument("--infots_depth", type=int, default=10,
                              help="InfoTS depth (# dilated conv blocks)")
-    infots_group.add_argument("--infots_max_train_length", type=int, default=5000,
+    infots_group.add_argument("--infots_max_train_length", type=int, default=10_000,
                              help="InfoTS max training length")
     infots_group.add_argument("--infots_dropout", type=float, default=0.1,
                              help="InfoTS dropout rate")
@@ -517,9 +518,9 @@ if __name__ == "__main__":
     hp_group = parser.add_argument_group('Hyperparameter Optimization')
     hp_group.add_argument("--optimize_hyperparameters", action="store_true",
                          help="Enable hyperparameter optimization for InfoTS augmentation parameters")
-    hp_group.add_argument("--hp_n_trials", type=int, default=50,
+    hp_group.add_argument("--hp_n_trials", type=int, default=30,
                          help="Number of trials for hyperparameter optimization")
-    hp_group.add_argument("--hp_n_epochs", type=int, default=15,
+    hp_group.add_argument("--hp_n_epochs", type=int, default=10,
                          help="Number of epochs for each hyperparameter optimization trial")
     hp_group.add_argument("--hp_search_type", type=str, default="grid",
                          choices=["random", "grid"],
