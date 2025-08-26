@@ -620,7 +620,7 @@ class InfoTS:
 
     def fit(self, train_data, n_epochs=None, n_iters=None, verbose=True,
             supervised_meta=True, beta=1.0, valid_dataset=None, miverbose=None, 
-            split_number=8, meta_epoch=5, meta_beta=1.0, train_labels=None):
+            split_number=8, meta_epoch=2, meta_beta=1.0, train_labels=None):
         
         assert train_data.ndim == 3
         
@@ -693,7 +693,6 @@ class InfoTS:
                 cum_loss += loss.item()
                 n_epoch_iters += 1
                 self.n_iters += 1
-
 
             self.n_epochs += 1
 
@@ -784,6 +783,226 @@ class InfoTS:
     def load(self, fn):
         state_dict = torch.load(fn, map_location=self.device)
         self.net.load_state_dict(state_dict)
+
+
+
+
+
+
+
+####_____________________
+# InfoTS Lightning Module
+###______________________
+
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+from torch.utils.data import DataLoader, TensorDataset
+import pytorch_lightning as pl
+from torch.optim.swa_utils import AveragedModel
+
+class InfoTSLightning(pl.LightningModule):
+    def __init__(
+        self,
+        input_dims,
+        output_dims=320,
+        hidden_dims=60,
+        num_cls=2,
+        depth=10,
+        lr=0.001,
+        meta_lr=0.01,
+        batch_size=16,
+        max_train_length=None,
+        mask_mode='binomial',
+        dropout=0.1,
+        aug_p1=0.2,
+        aug_p2=0.0,
+        used_augs=None,
+        use_s3_layers=False,
+        beta=1.0,
+        split_number=8,
+        meta_epoch=2,
+        meta_beta=1.0,
+        supervised_meta=True,
+        train_data=None,
+        train_labels=None,
+        **kwargs,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+        # main encoder
+        self._net = InfoTSEncoder(
+            input_dims=input_dims,
+            output_dims=output_dims,
+            hidden_dims=hidden_dims,
+            depth=depth,
+            dropout=dropout,
+            mask_mode=mask_mode,
+            use_s3_layers=use_s3_layers,
+            **kwargs
+        )
+        self.net = AveragedModel(self._net)
+
+        # classifiers
+        self.pred = nn.Linear(output_dims, num_cls)
+        self.unsup_pred = nn.Linear(output_dims, batch_size)
+
+        # augmentation module
+        self.aug = InfoTSAugmentation(
+            aug_p1=aug_p1, aug_p2=aug_p2, used_augs=used_augs
+        )
+
+        # losses
+        self.CE = nn.CrossEntropyLoss()
+        self.BCE = nn.BCEWithLogitsLoss()
+
+        # schedules
+        self.t0 = 2.0
+        self.t1 = 0.1
+
+        # save data for train_dataloader
+        self.train_data = train_data
+        self.train_labels = train_labels
+
+    # ------------------------------
+    # Utilities
+    # ------------------------------
+    def get_features(self, x, n_epochs=None):
+        if n_epochs is None:
+            t = 1.0
+        else:
+            t = float(self.t0 * np.power(self.t1 / self.t0, (self.current_epoch + 1) / n_epochs))
+
+        a1, a2 = self.aug((x, t))
+        out1 = self._net(a1)
+        out2 = self._net(a2)
+        return out1, out2
+
+    def make_dataloader(self, data, labels=None, shuffle=False, drop_last=False):
+        if self.hparams.max_train_length is not None:
+            sections = data.shape[1] // self.hparams.max_train_length
+            if sections >= 2:
+                data = np.concatenate(split_with_nan(data, sections, axis=1), axis=0)
+                if labels is not None:
+                    labels = np.tile(labels, sections)
+
+        temporal_missing = np.isnan(data).all(axis=-1).any(axis=0)
+        if temporal_missing[0] or temporal_missing[-1]:
+            data = centerize_vary_length_series(data)
+
+        data = data[~np.isnan(data).all(axis=2).all(axis=1)]
+        data = np.nan_to_num(data)
+
+        if labels is not None:
+            dataset = TensorDataset(torch.from_numpy(data).float(),
+                                    torch.from_numpy(labels).long())
+        else:
+            dataset = TensorDataset(torch.from_numpy(data).float())
+        loader = DataLoader(dataset,
+                            batch_size=min(self.hparams.batch_size, len(dataset)),
+                            shuffle=shuffle, drop_last=drop_last,
+                            num_workers=0, pin_memory=False)
+        return loader
+
+    # ------------------------------
+    # Lightning hooks
+    # ------------------------------
+    def training_step(self, batch, batch_idx):
+        if self.hparams.supervised_meta:
+            x, _ = batch
+        else:
+            x = batch[0]
+
+        if self.hparams.max_train_length is not None and x.size(1) > self.hparams.max_train_length:
+            window_offset = np.random.randint(x.size(1) - self.hparams.max_train_length + 1)
+            x = x[:, window_offset : window_offset + self.hparams.max_train_length]
+
+        out1, out2 = self.get_features(x, n_epochs=self.trainer.max_epochs)
+        loss = global_infoNCE(out1, out2) + local_infoNCE(out1, out2, k=self.hparams.split_number) * self.hparams.beta
+
+        self.net.update_parameters(self._net)
+        self.log("train_loss", loss, prog_bar=True, on_epoch=True, batch_size=x.size(0))
+        return loss
+
+    def on_train_epoch_end(self):
+        """Run meta optimization every meta_epoch."""
+        if (self.current_epoch + 1) % self.hparams.meta_epoch != 0:
+            return
+
+        # switch to eval mode
+        self._net.eval()
+
+        # get optimizers
+        optimizers = self.optimizers()
+        encoder_optim, meta_optim, cls_optim = optimizers
+
+        loader = self.train_dataloader()
+        for batch in loader:
+            if self.hparams.supervised_meta:
+                x, y = batch
+            else:
+                x = batch[0]
+                y = torch.arange(x.size(0), dtype=torch.int64, device=self.device)
+
+            if self.hparams.max_train_length is not None and x.size(1) > self.hparams.max_train_length:
+                window_offset = np.random.randint(x.size(1) - self.hparams.max_train_length + 1)
+                x = x[:, window_offset: window_offset + self.hparams.max_train_length]
+
+            x, y = x.to(self.device), y.to(self.device)
+
+            meta_optim.zero_grad()
+            cls_optim.zero_grad()
+
+            outv, outx = self.get_features(x)
+            MI_vx_loss = global_infoNCE(outv, outx)
+
+            # pooled features
+            zv = F.max_pool1d(outv.transpose(1, 2), kernel_size=outv.size(1)).transpose(1, 2)
+            zx = F.max_pool1d(outx.transpose(1, 2), kernel_size=outx.size(1)).transpose(1, 2)
+
+            if self.hparams.supervised_meta:
+                pred_yv = self.pred(zv).squeeze(1)
+                pred_yx = self.pred(zx).squeeze(1)
+            else:
+                pred_yv = self.unsup_pred(zv).squeeze(1)
+                pred_yx = self.unsup_pred(zx).squeeze(1)
+
+            MI_vy_loss = self.CE(pred_yv, y)
+            MI_xy_loss = self.CE(pred_yx, y)
+
+            vx_vy_loss = self.hparams.meta_beta * (MI_vy_loss + MI_xy_loss)
+
+            total_loss = MI_vx_loss + vx_vy_loss
+            self.manual_backward(total_loss)
+
+            meta_optim.step()
+            cls_optim.step()
+
+        # restore training mode
+        self._net.train()
+
+    def configure_optimizers(self):
+        encoder_optim = torch.optim.AdamW(self._net.parameters(), lr=self.hparams.lr)
+        meta_optim = torch.optim.AdamW(self.aug.parameters(), lr=self.hparams.meta_lr)
+        cls_params = self.pred.parameters() if self.hparams.supervised_meta else self.unsup_pred.parameters()
+        cls_optim = torch.optim.AdamW(cls_params, lr=self.hparams.meta_lr)
+
+        return [encoder_optim, meta_optim, cls_optim]
+
+    def train_dataloader(self):
+        return self.make_dataloader(
+            self.train_data, labels=self.train_labels if self.hparams.supervised_meta else None,
+            shuffle=True, drop_last=True
+        )
+
+
+
+
+
+
 
 # --------------------------------------------------------
 # Utility functions for InfoTS integration
