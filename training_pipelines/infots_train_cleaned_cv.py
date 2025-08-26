@@ -283,6 +283,7 @@ def main(
             shuffle_vector_dim=shuffle_vector_dim,
             segment_multiplier=segment_multiplier,
             verbose=True,
+            train_data=X_train_encoder,  # Pass training data directly
         )
 
         trainer.fit(infots)

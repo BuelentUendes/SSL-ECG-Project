@@ -821,6 +821,8 @@ class InfoTSLightning(pl.LightningModule):
         meta_epoch=2,
         meta_beta=1.0,
         supervised_meta=True,
+        train_data=None,
+        train_labels=None,
         **kwargs,
     ):
         super().__init__()
@@ -860,6 +862,11 @@ class InfoTSLightning(pl.LightningModule):
         # epoch and iteration counters for compatibility
         self.n_epochs = 0
         self.n_iters = 0
+        
+        # Store training data (for compatibility with existing scripts)
+        self.train_data = train_data
+        self.train_labels = train_labels
+        self._train_dataset = None
 
     # ------------------------------
     # Utilities
@@ -1004,9 +1011,21 @@ class InfoTSLightning(pl.LightningModule):
         return [encoder_optim, meta_optim, cls_optim]
 
     def train_dataloader(self):
-        # This should be handled by a separate DataModule
-        # For now, return None - data should be passed via trainer.fit(model, datamodule)
-        return None
+        """Create training dataloader from stored data (for compatibility)"""
+        if self.train_data is None:
+            # If no data provided, return None and expect DataModule
+            return None
+        
+        if self._train_dataset is None:
+            # Create dataset on first call
+            self._train_dataset = self.make_dataloader(
+                self.train_data,
+                labels=self.train_labels if self.hparams.supervised_meta else None,
+                shuffle=True,
+                drop_last=True
+            )
+        
+        return self._train_dataset
     
     def encode(self, data, mask=None, batch_size=None):
         """Encode data using the trained model - equivalent to InfoTS.encode()"""
