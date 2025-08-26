@@ -580,7 +580,7 @@ class InfoTS:
         out2 = self._net(a2)
         return out1, out2
 
-    def fit(self, train_data, n_epochs=None, n_iters=None, verbose=False, 
+    def fit(self, train_data, n_epochs=None, n_iters=None, verbose=True,
             supervised_meta=True, beta=1.0, valid_dataset=None, miverbose=None, 
             split_number=8, meta_epoch=5, meta_beta=1.0, train_labels=None):
         
@@ -634,8 +634,9 @@ class InfoTS:
                     break
                 
                 x = batch[0]
-                print(f"We slice max train length!")
                 if self.max_train_length is not None and x.size(1) > self.max_train_length:
+                    print(f"We slice max train length!")
+                    print(x.size())
                     window_offset = np.random.randint(x.size(1) - self.max_train_length + 1)
                     x = x[:, window_offset : window_offset + self.max_train_length]
                 x = x.to(self.device)
