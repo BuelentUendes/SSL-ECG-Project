@@ -15,6 +15,7 @@ from mlflow.tracking import MlflowClient
 from scipy.special import softmax
 from sklearn.metrics import log_loss
 from S3 import S3
+import os
 
 # --------------------------------------------------------
 # utils.py functions needed by InfoTS
@@ -599,10 +600,13 @@ class InfoTS:
         train_data_label = []
         for i in range(len(train_dataset)):
             train_data_label.append([train_dataset[i], train_labels[i]])
+
         train_data_label_loader = DataLoader(
             train_data_label, 
             batch_size=min(self.batch_size, len(train_dataset)), 
-            shuffle=True, drop_last=True
+            shuffle=True, drop_last=True,
+            pin_memory=torch.cuda.is_available(),
+            num_workers=min(8, os.cpu_count() or 2)
         )
 
         meta_p = self.aug.parameters()
