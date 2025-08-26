@@ -181,9 +181,9 @@ class InfoTSAugmentation(nn.Module):
             lambda x: self._scaling(x, 0.001), 
             lambda x: self._time_warp(x),
             lambda x: self._window_slice(x),
-            lambda x: self._subsequence(x),
-            lambda x: self._cutout(x),
-            lambda x: self._window_warp(x)
+            # lambda x: self._subsequence(x),
+            # lambda x: self._cutout(x),
+            # lambda x: self._window_warp(x)
         ]
 
     def _jitter(self, x, sigma=0.001):
@@ -582,7 +582,7 @@ class InfoTS:
 
     def fit(self, train_data, n_epochs=None, n_iters=None, verbose=False, 
             supervised_meta=True, beta=1.0, valid_dataset=None, miverbose=None, 
-            split_number=8, meta_epoch=2, meta_beta=1.0, train_labels=None):
+            split_number=8, meta_epoch=5, meta_beta=1.0, train_labels=None):
         
         assert train_data.ndim == 3
         
@@ -605,8 +605,8 @@ class InfoTS:
             train_data_label, 
             batch_size=min(self.batch_size, len(train_dataset)), 
             shuffle=True, drop_last=True,
-            pin_memory=torch.cuda.is_available(),
-            num_workers=min(8, os.cpu_count() or 2)
+            pin_memory=False,  # Disable pin_memory to reduce overhead
+            num_workers=0      # Disable multiprocessing for now
         )
 
         meta_p = self.aug.parameters()
@@ -634,6 +634,7 @@ class InfoTS:
                     break
                 
                 x = batch[0]
+                print(f"We slice max train length!")
                 if self.max_train_length is not None and x.size(1) > self.max_train_length:
                     window_offset = np.random.randint(x.size(1) - self.max_train_length + 1)
                     x = x[:, window_offset : window_offset + self.max_train_length]
