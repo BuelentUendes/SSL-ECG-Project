@@ -326,7 +326,6 @@ def main(
         )
 
         # Model artifact logging removed (replaced with direct file saving)
-
         saved_results = os.path.join(model_save_path, model_file_name)
         torch.save(
             {"encoder": model.state_dict(),
@@ -491,8 +490,8 @@ if __name__ == "__main__":
     tstcc_arch_group.add_argument("--num_s3_layers", type=int, default=1)
     tstcc_arch_group.add_argument("--segment_multiplier", type=int, default=1)
 
-    tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.01570, type=float) #Approximately best tuned parameters!
-    tstcc_arch_group.add_argument("--jitter_ratio", default=0.01570, type=float) # Approximately best tuned parameters
+    tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.001, type=float)
+    tstcc_arch_group.add_argument("--jitter_ratio", default=0.001, type=float)
     tstcc_arch_group.add_argument("--max_segment", default = 8, type=int)
 
     # Augmentation used
