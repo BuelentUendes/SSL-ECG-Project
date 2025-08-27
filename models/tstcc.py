@@ -692,7 +692,7 @@ def search_encoder_fp(
 # ----------------------------------------------------------------------
 def Trainer(
         model, temporal_contr_model, model_optimizer, temp_cont_optimizer, train_dl, valid_dl,
-        test_dl, device, config, experiment_log_dir, training_mode
+        test_dl, device, config, experiment_log_dir, training_mode, return_val_loss=False
 ):
     # Start training
     print("Training started ....")
@@ -723,6 +723,10 @@ def Trainer(
     torch.save(chkpoint, os.path.join(experiment_log_dir, "saved_models", f'ckp_last.pt'))
 
     print("\n################## Training is Done! #########################")
+
+    if return_val_loss:
+        return val_loss
+
 
 
 def model_train(model, temporal_contr_model,
@@ -1271,7 +1275,8 @@ def optimize_tstcc_hyperparameters(
 
             # Train TSTCC with current hyperparameters
             workdir = tempfile.mkdtemp(prefix=f"tstcc_hp_trial_{trial_idx}_")
-            Trainer(
+            # We select the optimal parameters based on the best validation loss
+            trial_score = Trainer(
                 model=model,
                 temporal_contr_model=tc_head,
                 model_optimizer=opt_m,
@@ -1280,44 +1285,46 @@ def optimize_tstcc_hyperparameters(
                 device=device, config=cfg,
                 experiment_log_dir=workdir,
                 training_mode="self_supervised",
+                return_val_loss = True,
             )
 
+            # Old code for selection of hp based on labels (but this is tricky)
             # Extract representations from validation set
-            model.eval()
-            tc_head.eval()
-            with torch.no_grad():
-                val_repr, _ = encode_representations(
-                    X_val, y_val, model, tc_head, base_config['tcc_batch_size'], device
-                )
-
-            # Filter to binary task (baseline vs mental_stress)
-            val_mask = np.isin(y_val, [0, 1])
-            val_repr_filtered = val_repr[val_mask]
-            y_val_filtered = y_val[val_mask]
-            groups_val_filtered = groups_val[val_mask]
-
-            # Quick logistic regression evaluation
-            if len(np.unique(y_val_filtered)) >= 2 and len(val_repr_filtered) >= 10:
-                # Use simple cross-validation on validation set for scoring
-                cv_splitter, _ = get_participant_cv_splitter(
-                    groups_val_filtered, min_participants_for_kfold=5, k=5
-                )
-
-                if cv_splitter is not None:
-                    lr = LogisticRegression(random_state=seed, max_iter=1000)
-                    cv_scores = cross_val_score(
-                        lr, val_repr_filtered, y_val_filtered,
-                        cv=cv_splitter, scoring=scoring_metric, groups=groups_val_filtered
-                    )
-                    trial_score = np.mean(cv_scores)
-                else:
-                    # Fallback: simple train on validation set
-                    lr = LogisticRegression(random_state=seed, max_iter=1000)
-                    lr.fit(val_repr_filtered, y_val_filtered)
-                    y_pred_proba = lr.predict_proba(val_repr_filtered)[:, 1]
-                    trial_score = roc_auc_score(y_val_filtered, y_pred_proba)
-            else:
-                trial_score = 0.0  # Invalid trial
+            # model.eval()
+            # tc_head.eval()
+            # with torch.no_grad():
+            #     val_repr, _ = encode_representations(
+            #         X_val, y_val, model, tc_head, base_config['tcc_batch_size'], device
+            #     )
+            #
+            # # Filter to binary task (baseline vs mental_stress)
+            # val_mask = np.isin(y_val, [0, 1])
+            # val_repr_filtered = val_repr[val_mask]
+            # y_val_filtered = y_val[val_mask]
+            # groups_val_filtered = groups_val[val_mask]
+            #
+            # # Quick logistic regression evaluation
+            # if len(np.unique(y_val_filtered)) >= 2 and len(val_repr_filtered) >= 10:
+            #     # Use simple cross-validation on validation set for scoring
+            #     cv_splitter, _ = get_participant_cv_splitter(
+            #         groups_val_filtered, min_participants_for_kfold=5, k=5
+            #     )
+            #
+            #     if cv_splitter is not None:
+            #         lr = LogisticRegression(random_state=seed, max_iter=1000)
+            #         cv_scores = cross_val_score(
+            #             lr, val_repr_filtered, y_val_filtered,
+            #             cv=cv_splitter, scoring=scoring_metric, groups=groups_val_filtered
+            #         )
+            #         trial_score = np.mean(cv_scores)
+            #     else:
+            #         # Fallback: simple train on validation set
+            #         lr = LogisticRegression(random_state=seed, max_iter=1000)
+            #         lr.fit(val_repr_filtered, y_val_filtered)
+            #         y_pred_proba = lr.predict_proba(val_repr_filtered)[:, 1]
+            #         trial_score = roc_auc_score(y_val_filtered, y_pred_proba)
+            # else:
+            #     trial_score = 0.0  # Invalid trial
 
             print(f"  Trial score (AUROC): {trial_score:.4f}")
 
@@ -1328,7 +1335,8 @@ def optimize_tstcc_hyperparameters(
             })
 
             # Update best if this trial is better
-            if trial_score > best_score:
+            # Important we want to minimize the validation loss
+            if trial_score < best_score:
                 best_score = trial_score
                 best_params = dict(params)  # Convert to regular dict
                 # Keep the best model
@@ -1350,7 +1358,7 @@ def optimize_tstcc_hyperparameters(
             })
 
     print(f"\nHyperparameter optimization ({search_type} search) completed!")
-    print(f"Best score: {best_score:.4f}")
+    print(f"Best validation score: {best_score:.4f}")
     print(f"Best params: {best_params}")
 
     return {
