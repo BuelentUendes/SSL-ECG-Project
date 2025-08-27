@@ -186,27 +186,62 @@ def main(
         print("We found a pretrained model. Load the pretrained weights")
         ckpt_path = os.path.join(model_save_path, model_file_name)
 
-        # rebuild model
-        cfg = ECGConfig(fs, window_size)
-        cfg.num_epoch = tcc_epochs
-        cfg.batch_size = tcc_batch_size
-        cfg.TC.timesteps = tc_timesteps
-        cfg.TC.hidden_dim = tc_hidden_dim
-        cfg.Context_Cont.temperature = cc_temperature
-        cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
-        cfg.use_s3_layers = use_s3_layers
-        cfg.initial_num_segments = initial_num_segments
-        cfg.num_s3_layers = num_s3_layers
-        cfg.segment_multiplier = segment_multiplier
+        # Load the saved state
+        state = torch.load(ckpt_path, map_location=device)
+        
+        # Check if we have saved configuration (new format)
+        if "config" in state:
+            print("Found saved model configuration. Using saved config to avoid architecture mismatch.")
+            saved_cfg = state["config"]
+            
+            # rebuild model with saved configuration
+            cfg = ECGConfig(fs, window_size)
+            cfg.num_epoch = tcc_epochs
+            cfg.batch_size = tcc_batch_size
+            
+            # Use saved architecture parameters
+            cfg.TC.timesteps = saved_cfg["tc_timesteps"]
+            cfg.TC.hidden_dim = saved_cfg["tc_hidden_dim"]
+            cfg.Context_Cont.temperature = saved_cfg["cc_temperature"]
+            cfg.Context_Cont.use_cosine_similarity = saved_cfg["cc_use_cosine"]
+            cfg.use_s3_layers = saved_cfg["use_s3_layers"]
+            cfg.initial_num_segments = saved_cfg["initial_num_segments"]
+            cfg.num_s3_layers = saved_cfg["num_s3_layers"]
+            cfg.segment_multiplier = saved_cfg["segment_multiplier"]
+            
+            # Use saved augmentation parameters
+            cfg.augmentation.jitter_ratio = saved_cfg["jitter_ratio"]
+            cfg.augmentation.jitter_scale_ratio = saved_cfg["jitter_scale_ratio"]
+            cfg.augmentation.max_seg = saved_cfg["max_seg"]
+            cfg.augmentation.use_spectral_aug = saved_cfg["use_spectral_aug"]
+            cfg.augmentation.freq_mask_ratio_weak = saved_cfg["freq_mask_ratio_weak"]
+            cfg.augmentation.freq_mask_ratio_strong = saved_cfg["freq_mask_ratio_strong"]
+            cfg.augmentation.freq_max_seg = saved_cfg["freq_max_seg"]
+            
+            print(f"Using saved model with {saved_cfg['num_s3_layers']} S3 layers "
+                  f"(current args requested {num_s3_layers})")
+        else:
+            print("No saved configuration found. Using current arguments (may cause architecture mismatch).")
+            # rebuild model with current arguments (old behavior)
+            cfg = ECGConfig(fs, window_size)
+            cfg.num_epoch = tcc_epochs
+            cfg.batch_size = tcc_batch_size
+            cfg.TC.timesteps = tc_timesteps
+            cfg.TC.hidden_dim = tc_hidden_dim
+            cfg.Context_Cont.temperature = cc_temperature
+            cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
+            cfg.use_s3_layers = use_s3_layers
+            cfg.initial_num_segments = initial_num_segments
+            cfg.num_s3_layers = num_s3_layers
+            cfg.segment_multiplier = segment_multiplier
 
-        # Here we can set the augmentations (potentially optimized)
-        cfg.augmentation.jitter_ratio = jitter_ratio
-        cfg.augmentation.jitter_scale_ratio = jitter_scale_ratio
-        cfg.augmentation.max_seg = max_segment
-
+            # Here we can set the augmentations (potentially optimized)
+            cfg.augmentation.jitter_ratio = jitter_ratio
+            cfg.augmentation.jitter_scale_ratio = jitter_scale_ratio
+            cfg.augmentation.max_seg = max_segment
+        
         model = base_Model(cfg).to(device)
         tc_head = TC(cfg, device).to(device)
-        state = torch.load(ckpt_path, map_location=device)
         model.load_state_dict(state["encoder"])
         tc_head.load_state_dict(state["tc_head"])
 
@@ -319,20 +354,35 @@ def main(
         )
         model_file_name = "tstcc_spectral.pt" if use_spectral_augmentation else "tstcc.pt"
         ckpt = os.path.join(workdir, model_file_name)
-        torch.save(
-            {"encoder": model.state_dict(),
-             "tc_head": tc_head.state_dict()},
-            ckpt
-        )
+        # Save model with configuration to avoid architecture mismatches
+        model_save_dict = {
+            "encoder": model.state_dict(),
+            "tc_head": tc_head.state_dict(),
+            "config": {
+                "use_s3_layers": cfg.use_s3_layers,
+                "num_s3_layers": cfg.num_s3_layers,
+                "initial_num_segments": cfg.initial_num_segments,
+                "segment_multiplier": cfg.segment_multiplier,
+                "tc_timesteps": cfg.TC.timesteps,
+                "tc_hidden_dim": cfg.TC.hidden_dim,
+                "cc_temperature": cfg.Context_Cont.temperature,
+                "cc_use_cosine": cfg.Context_Cont.use_cosine_similarity,
+                "jitter_ratio": cfg.augmentation.jitter_ratio,
+                "jitter_scale_ratio": cfg.augmentation.jitter_scale_ratio,
+                "max_seg": cfg.augmentation.max_seg,
+                "use_spectral_aug": cfg.augmentation.use_spectral_aug,
+                "freq_mask_ratio_weak": cfg.augmentation.freq_mask_ratio_weak,
+                "freq_mask_ratio_strong": cfg.augmentation.freq_mask_ratio_strong,
+                "freq_max_seg": cfg.augmentation.freq_max_seg,
+            }
+        }
+        
+        torch.save(model_save_dict, ckpt)
 
         # Model artifact logging removed (replaced with direct file saving)
 
         saved_results = os.path.join(model_save_path, model_file_name)
-        torch.save(
-            {"encoder": model.state_dict(),
-             "tc_head": tc_head.state_dict()},
-            saved_results
-        )
+        torch.save(model_save_dict, saved_results)
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────
     model.eval()
