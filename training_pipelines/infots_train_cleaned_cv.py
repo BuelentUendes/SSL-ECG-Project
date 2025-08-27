@@ -11,7 +11,6 @@ import torch
 import torch.optim as optim
 import mlflow
 import mlflow.pytorch
-import pytorch_lightning as pl
 
 from utils.torch_utilities import (
     load_processed_data,
@@ -28,7 +27,6 @@ from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
 from models.infots import (
     InfoTS,
-    InfoTSLightning,
     build_infots_fingerprint,
     search_encoder_fp,
 )
@@ -163,7 +161,8 @@ def main(
     groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
 
     # Test that we have all 127 participants moved in one of the categories
-    assert len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) + len(np.unique(groups[test_idx])) == 127, \
+    assert (len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) +
+            len(np.unique(groups[test_idx])) == 127), \
         "Something went wrong with the participant split!"
 
     print(f"Labelled windows for training classifier: train {len(train_idx)}, test {len(test_idx)}")
@@ -258,13 +257,7 @@ def main(
         # Load data for encoder pretraining
         X_train_encoder = X[train_idx_encoder].astype(np.float32)
 
-        accelerator = "gpu" if torch.cuda.is_available() else "cpu"
-
-        trainer = pl.Trainer(
-            accelerator=accelerator, devices=-1, strategy="ddp", max_epochs=infots_epochs
-        )
-
-        infots = InfoTSLightning(
+        infots = InfoTS(
             input_dims=n_features,
             output_dims=infots_output_dims,
             hidden_dims=infots_hidden_dims,
@@ -283,42 +276,19 @@ def main(
             shuffle_vector_dim=shuffle_vector_dim,
             segment_multiplier=segment_multiplier,
             verbose=True,
-            train_data=X_train_encoder,  # Pass training data directly
         )
-
-        trainer.fit(infots)
-        # infots = InfoTS(
-        #     input_dims=n_features,
-        #     output_dims=infots_output_dims,
-        #     hidden_dims=infots_hidden_dims,
-        #     depth=infots_depth,
-        #     device=device,
-        #     lr=infots_lr,
-        #     meta_lr=infots_meta_lr,
-        #     batch_size=infots_batch_size,
-        #     max_train_length=infots_max_train_length,
-        #     dropout=infots_dropout,
-        #     aug_p1=infots_aug_p1,
-        #     aug_p2=infots_aug_p2,
-        #     use_s3_layers=use_s3_layers,
-        #     num_s3_layers=num_s3_layers,
-        #     initial_num_segments=initial_num_segments,
-        #     shuffle_vector_dim=shuffle_vector_dim,
-        #     segment_multiplier=segment_multiplier,
-        #     verbose=True,
-        # )
 
         print(f"Created InfoTS model on device: {next(infots.net.parameters()).device}")
 
         mlflow.log_params(fp)
 
         # # Train InfoTS - Note: InfoTS uses unsupervised meta-learning, so we don't provide labels
-        # loss_log = infots.fit(
-        #     X_train_encoder,
-        #     n_epochs=infots_epochs,
-        #     verbose=True,
-        #     supervised_meta=False  # InfoTS uses unsupervised meta-learning by default
-        # )
+        loss_log = infots.fit(
+            X_train_encoder,
+            n_epochs=infots_epochs,
+            verbose=True,
+            supervised_meta=False  # InfoTS uses unsupervised meta-learning by default
+        )
 
         # Save model
         mlflow.pytorch.log_model(
@@ -479,13 +449,13 @@ if __name__ == "__main__":
     # InfoTS Encoder Training
     # ══════════════════════════════════════════════════════════════════════════════
     infots_group = parser.add_argument_group('InfoTS Encoder Training')
-    infots_group.add_argument("--infots_epochs", type=int, default=3,
+    infots_group.add_argument("--infots_epochs", type=int, default=50,
                              help="Number of epochs for InfoTS pretraining")
     infots_group.add_argument("--infots_lr", type=float, default=0.001,
                              help="Learning rate for InfoTS encoder training")
     infots_group.add_argument("--infots_meta_lr", type=float, default=0.01,
                              help="Learning rate for InfoTS meta-learner")
-    infots_group.add_argument("--infots_batch_size", type=int, default=2, #16
+    infots_group.add_argument("--infots_batch_size", type=int, default=16,
                              help="Batch size for InfoTS training")
     infots_group.add_argument("--infots_output_dims", type=int, default=320,
                              help="InfoTS representation dimension")
