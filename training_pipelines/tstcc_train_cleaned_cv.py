@@ -9,8 +9,6 @@ import gc
 import numpy as np
 import torch
 import torch.optim as optim
-import mlflow
-import mlflow.pytorch
 
 from utils.torch_utilities import (
     load_processed_data,
@@ -32,14 +30,11 @@ from models.tstcc import (
     TC,
     Config as ECGConfig,
     encode_representations,
-    build_tstcc_fingerprint,
-    search_encoder_fp,
     optimize_tstcc_hyperparameters,
 )
 
 
 def main(
-        mlflow_tracking_uri: str,
         fs: str,
         window_size:int,
         step_size: int,
@@ -94,13 +89,7 @@ def main(
         device = torch.device("cpu")
 
     logging.basicConfig(level=logging.INFO)
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
-    mlflow.set_experiment(f"TSTCC with CV {classifier_model}")
-
-    # Start top‑level run
-    run = mlflow.start_run(run_name=f"tstcc_cv_{classifier_model}_{seed}_lf_{label_fraction}")
-    run_id = run.info.run_id
-    logging.info(f"MLflow run_id: {run_id}")
+    print(f"Starting TSTCC training with CV {classifier_model}, seed={seed}, label_fraction={label_fraction}")
     print(f"Using device: {device}")
 
     # Check if directory for saving model parameters exist, otherwise create it
@@ -172,7 +161,8 @@ def main(
     groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
 
     # Test that we have all 127 participants moved in one of the categories
-    assert len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) + len(np.unique(groups[test_idx])) == 127, \
+    assert (len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) +
+            len(np.unique(groups[test_idx])) == 127), \
         "Something went wrong with the participant split!"
 
     print(f"Labelled windows for training classifier: train {len(train_idx)}, test {len(test_idx)}")
@@ -187,48 +177,14 @@ def main(
     torch.cuda.empty_cache()
     set_seed(seed)
 
-    # Fingerprint & search
-    fp = build_tstcc_fingerprint({
-        "model_name": "TSTCC",
-        "seed": seed,
-        "pretrain_all_conditions": pretrain_all_conditions,
-        "tcc_epochs": tcc_epochs,
-        "tcc_lr": tcc_lr,
-        "tcc_batch_size": tcc_batch_size,
-        "tc_timesteps": tc_timesteps,
-        "tc_hidden_dim": tc_hidden_dim,
-        "cc_temperature": cc_temperature,
-        "cc_use_cosine": cc_use_cosine,
-        "use_s3_layers": use_s3_layers,
-        "initial_num_segments": initial_num_segments,
-        "num_s3_layers": num_s3_layers,
-        "segment_multiplier": segment_multiplier,
-        "jitter_ratio": jitter_ratio,
-        "jitter_scale_ratio": jitter_scale_ratio,
-        "max_seg": max_segment,
-        "use_spectral_augmentation": use_spectral_augmentation,
-        "freq_mask_ratio_weak": freq_mask_ratio_weak,
-        "freq_mask_ratio_strong": freq_mask_ratio_strong,
-        "freq_max_seq": freq_max_seq,
-        "train_ratio_encoder": train_ratio_encoder,
-    })
-
-    cached = search_encoder_fp(
-        fp, experiment_name="TSTCC", tracking_uri=mlflow_tracking_uri
-    )
+    # Model fingerprinting removed (was used for MLflow caching)
 
     model_file_name = "tstcc_spectral.pt" if use_spectral_augmentation else "tstcc.pt"
 
-    # IF we have forced retraining we will always retraining
-    if (cached or os.path.exists(os.path.join(model_save_path, model_file_name))) and not (force_retraining):
-        if cached:
-            print(f"Found cached encoder run {cached}; downloading…")
-            uri = f"runs:/{cached}/tstcc_model"
-            ckpt_dir = mlflow.artifacts.download_artifacts(uri)
-            ckpt_path = os.path.join(ckpt_dir, model_file_name)
-        else:
-            print("We found a pretrained model. Load the pretrained weights")
-            ckpt_path = os.path.join(model_save_path, model_file_name)
+    # Check if we have a locally saved model and no forced retraining
+    if os.path.exists(os.path.join(model_save_path, model_file_name)) and not force_retraining:
+        print("We found a pretrained model. Load the pretrained weights")
+        ckpt_path = os.path.join(model_save_path, model_file_name)
 
         # rebuild model
         cfg = ECGConfig(fs, window_size)
@@ -264,7 +220,7 @@ def main(
             Xva = X[val_idx_encoder].astype(np.float32)
             ytr = y[train_idx_encoder]
             yva = y[val_idx_encoder]
-            groups_tr = groups_train_idx_encoder
+            # groups_tr = groups_train_idx_encoder  # Not used
             groups_va = groups_val_idx_encoder
 
             # Base configuration for hyperparameter optimization
@@ -289,14 +245,9 @@ def main(
                 search_type=hp_search_type
             )
 
-            # Log hyperparameter optimization results
-            mlflow.log_params({
-                'hp_optimization': True,
-                'hp_n_trials': hp_n_trials,
-                'hp_n_epochs': hp_n_epochs,
-                'hp_best_score': hp_results['best_score'],
-                **{f"hp_best_{k}": v for k, v in hp_results['best_params'].items()}
-            })
+            # Log hyperparameter optimization results locally
+            print(f"Hyperparameter optimization completed with best score: {hp_results['best_score']:.4f}")
+            print(f"Best hyperparameters: {hp_results['best_params']}")
 
             # Use the best hyperparameters to train final model with full epochs
             print(f"Training final model with best hyperparameters: {hp_results['best_params']}")
@@ -354,8 +305,7 @@ def main(
         opt_m = optim.AdamW(model.parameters(), lr=tcc_lr, weight_decay=3e-4)
         opt_tc = optim.AdamW(tc_head.parameters(), lr=tcc_lr, weight_decay=3e-4)
 
-        # Deleted second start of the run
-        mlflow.log_params(fp)
+        # Create temporary working directory
         workdir = tempfile.mkdtemp(prefix="tstcc_")
         Trainer(
             model=model,
@@ -375,7 +325,7 @@ def main(
             ckpt
         )
 
-        mlflow.log_artifact(ckpt, artifact_path="tstcc_model")
+        # Model artifact logging removed (replaced with direct file saving)
 
         saved_results = os.path.join(model_save_path, model_file_name)
         torch.save(
@@ -432,16 +382,12 @@ def main(
                 scoring_metric=scoring_metric, classifier_model=classifier_model
             )
 
-        # Log metrics
-        mlflow.log_metrics({
-            "best_cv_auroc": results['best_cv_score'] if cv_splitter is not None else 0,
-            "test_accuracy": results['test_metrics']['accuracy'],
-            "test_auroc": results['test_metrics']['auroc'],
-            "test_f1": results['test_metrics']['f1'],
-            "test_pr_auc": results['test_metrics']['pr_auc'],
-        })
-
-        mlflow.log_params(results['best_params'])
+        # Log metrics locally
+        print(f"Best CV AUROC: {results['best_cv_score'] if cv_splitter is not None else 0:.4f}")
+        print(f"Test metrics - Accuracy: {results['test_metrics']['accuracy']:.4f}, "
+              f"AUROC: {results['test_metrics']['auroc']:.4f}, F1: {results['test_metrics']['f1']:.4f}, "
+              f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}")
+        print(f"Best hyperparameters: {results['best_params']}")
 
     else:
         results = run_mlp_with_cv_and_test(
@@ -450,16 +396,12 @@ def main(
             device, classifier_epochs, classifier_batch_size,classifier_lr, False, seed
         )
 
-        # Log metrics
-        mlflow.log_metrics({
-            "best_cv_auroc": results['best_cv_score'],
-            "test_accuracy": results['test_metrics']['accuracy'],
-            "test_auroc": results['test_metrics']['auroc'],
-            "test_f1": results['test_metrics']['f1'],
-            "test_pr_auc": results['test_metrics']['pr_auc'],
-        })
-
-        mlflow.log_params(results['best_params'])
+        # Log metrics locally
+        print(f"Best CV AUROC: {results['best_cv_score']:.4f}")
+        print(f"Test metrics - Accuracy: {results['test_metrics']['accuracy']:.4f}, "
+              f"AUROC: {results['test_metrics']['auroc']:.4f}, F1: {results['test_metrics']['f1']:.4f}, "
+              f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}")
+        print(f"Best hyperparameters: {results['best_params']}")
 
     # ── Step 7: Save Results ────────────────────────────────────────────────────
     test_results_name = "test_results_spectral.json" if use_spectral_augmentation else "test_results.json"
@@ -467,15 +409,10 @@ def main(
     with open(os.path.join(results_save_path, test_results_name), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
-    # Log additional parameters
-    mlflow.log_params({
-        "classifier_model": classifier_model,
-        "label_fraction": label_fraction,
-        "seed": seed,
-        "k_folds": k_folds,
-        "n_cv_splits": n_splits,
-        "pretrain_all_conditions": pretrain_all_conditions,
-    })
+    # Log additional parameters locally
+    print(f"Additional parameters - Classifier: {classifier_model}, Label fraction: {label_fraction}, "
+          f"Seed: {seed}, K-folds: {k_folds}, CV splits: {n_splits}, "
+          f"Pretrain all conditions: {pretrain_all_conditions}")
 
     # ── Cleanup ────────────────────────────────────────────────────────────────
     for _ in range(3):
@@ -487,7 +424,7 @@ def main(
           f"AUROC: {results['test_metrics']['auroc']:.4f}, "
           f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}, "
           f"F1: {results['test_metrics']['f1']:.4f} ===")
-    mlflow.end_run()
+    print("Training completed successfully!")
 
 
 if __name__ == "__main__":
@@ -500,9 +437,6 @@ if __name__ == "__main__":
     # General Setup
     # ══════════════════════════════════════════════════════════════════════════════
     general_group = parser.add_argument_group('General Setup')
-    general_group.add_argument("--mlflow_tracking_uri",
-                              default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"),
-                              help="MLflow tracking URI for experiment logging")
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
     general_group.add_argument("--seed", type=int, default=42,
@@ -550,14 +484,15 @@ if __name__ == "__main__":
                                  help="Temperature parameter for contrastive learning")
     tstcc_arch_group.add_argument("--cc_use_cosine", action="store_true",
                                  help="Use cosine similarity for contrastive learning")
-    tstcc_arch_group.add_argument("--use_s3_layers", action="store_true",
-                                  help="If set, we use the S3 layer")
-    tstcc_arch_group.add_argument("--initial_num_segments", type=int, default=2)
-    tstcc_arch_group.add_argument("--num_s3_layers", type=int, default=2)
-    tstcc_arch_group.add_argument("--segment_multiplier", type=int, default=2)
 
-    tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.0001, type=float)
-    tstcc_arch_group.add_argument("--jitter_ratio", default=0.01, type=float)
+    tstcc_arch_group.add_argument("--use_s3_layers", action="store_true",
+                                  help="If set, we use the S3 layer", default=True)
+    tstcc_arch_group.add_argument("--initial_num_segments", type=int, default=2)
+    tstcc_arch_group.add_argument("--num_s3_layers", type=int, default=1)
+    tstcc_arch_group.add_argument("--segment_multiplier", type=int, default=1)
+
+    tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.01570, type=float) #Approximately best tuned parameters!
+    tstcc_arch_group.add_argument("--jitter_ratio", default=0.01570, type=float) # Approximately best tuned parameters
     tstcc_arch_group.add_argument("--max_segment", default = 8, type=int)
 
     # Augmentation used
