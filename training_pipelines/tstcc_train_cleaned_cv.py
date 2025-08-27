@@ -131,7 +131,7 @@ def main(
     y = y.astype(np.float32)
 
     # We first get all train idx for the SSL method (label fraction 1.0) as we do not use the labels
-    # all_train_idx_(represents all training samples as we do not use their labels)
+    # train_idx_all (represents all training samples as we do not use their labels)
     # Split by participant to get train/test split
     # train_idx to the labeled ones!
     # train_p refers to the labeled training participant!
@@ -145,30 +145,25 @@ def main(
     )
     # Now we can split the
     # This is the dataset we use for training of the encoder!
-    # groups_train_all_encoder = groups[all_train_idx]
+    groups_train_all_encoder = groups[all_train_idx]
 
     # Rep is the one that we train the encoder on, for these we do not need the labels, so label fraction is set to 1.0
-    # train_idx_encoder, train_p_rep, val_idx_encoder, val_p  = split_indices_by_participant_groups(
-    #     groups_train_all_encoder,
-    #     train_ratio=train_ratio_encoder, #This will give a split of 60/20/20 0.75 achieves this!
-    #     label_fraction=1.0, # We will discard anyways all labels
-    #     seed=seed,
-    #     return_all_train_p=False,
-    # )
+    train_idx_encoder, train_p_rep, val_idx_encoder, val_p  = split_indices_by_participant_groups(
+        groups_train_all_encoder,
+        train_ratio=train_ratio_encoder, #This will give a split of 60/20/20 0.75 achieves this!
+        label_fraction=1.0, # We will discard anyways all labels
+        seed=seed,
+        return_all_train_p=False,
+    )
 
     # Map back to original indices
-    # groups_train_idx_encoder = groups_train_all_encoder[train_idx_encoder]  # 60% of original data
-    # groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
-    # We use all the training instances for tuning
-    # Test that we have all 127 participants moved in one of the categories
-    # assert (len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) +
-    #         len(np.unique(groups[test_idx])) == 127), \
-    #     "Something went wrong with the participant split!"
+    groups_train_idx_encoder = groups_train_all_encoder[train_idx_encoder]  # 60% of original data
+    groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
 
-    groups_train_idx_encoder = groups[all_train_idx]
     # Test that we have all 127 participants moved in one of the categories
-    assert (len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups[test_idx])) == 127), \
-        "Amk something went wrong with the split"
+    assert (len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) +
+            len(np.unique(groups[test_idx])) == 127), \
+        "Something went wrong with the participant split!"
 
     print(f"Labelled windows for training classifier: train {len(train_idx)}, test {len(test_idx)}")
 
@@ -220,30 +215,13 @@ def main(
 
         if optimize_hyperparameters:
             print("=== Hyperparameter Optimization Mode ===")
-            # Procedure:
-            # We have 10 training partciipants, so we optimize the hyperparameters
-            # based on the labeled training performance downstream where we do CV leave out
             # Prepare data for hyperparameter optimization
-            # Old:
-            # Xtr = X[train_idx_encoder].astype(np.float32)
-            # Xva = X[val_idx_encoder].astype(np.float32)
-            # ytr = y[train_idx_encoder]
-            # yva = y[val_idx_encoder]
-
-            # # groups_tr = groups_train_idx_encoder  # Not used
-            # groups_va = groups_val_idx_encoder
-
-            Xtr = X[all_train_idx].astype(np.float32)
-            # Here we use the labeled participants for validation, so we pretrain and use then the labeled participants
-            # As labels
-            Xva = X[train_idx].astype(np.float32)
-            ytr = y[all_train_idx]
-            yva = y[train_idx]
-
+            Xtr = X[train_idx_encoder].astype(np.float32)
+            Xva = X[val_idx_encoder].astype(np.float32)
+            ytr = y[train_idx_encoder]
+            yva = y[val_idx_encoder]
             # groups_tr = groups_train_idx_encoder  # Not used
-            groups_va = groups[train_idx]
-
-            number_groups_va = len(np.unique(groups_va))
+            groups_va = groups_val_idx_encoder
 
             # Base configuration for hyperparameter optimization
             base_config = {
@@ -313,19 +291,11 @@ def main(
         cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
 
         # data loaders
-        # Xtr = X[train_idx_encoder].astype(np.float32)
-        # Xva = X[val_idx_encoder].astype(np.float32)
-        # Xte = X[test_idx].astype(np.float32)
-        # tr_dl, va_dl, te_dl = data_generator_from_arrays(
-        #     Xtr, y[train_idx_encoder], Xva, y[val_idx_encoder], Xte, y[test_idx],
-        #     cfg, training_mode="self_supervised"
-        # )
-        #
-        Xtr = X[all_train_idx].astype(np.float32)
-        Xva = None
+        Xtr = X[train_idx_encoder].astype(np.float32)
+        Xva = X[val_idx_encoder].astype(np.float32)
         Xte = X[test_idx].astype(np.float32)
         tr_dl, va_dl, te_dl = data_generator_from_arrays(
-            Xtr, y[all_train_idx], Xva, None, Xte, y[test_idx],
+            Xtr, y[train_idx_encoder], Xva, y[val_idx_encoder], Xte, y[test_idx],
             cfg, training_mode="self_supervised"
         )
 
@@ -518,7 +488,7 @@ if __name__ == "__main__":
     tstcc_arch_group.add_argument("--use_s3_layers", action="store_true",
                                   help="If set, we use the S3 layer", default=True)
     tstcc_arch_group.add_argument("--initial_num_segments", type=int, default=2)
-    tstcc_arch_group.add_argument("--num_s3_layers", type=int, default=2)
+    tstcc_arch_group.add_argument("--num_s3_layers", type=int, default=1)
     tstcc_arch_group.add_argument("--segment_multiplier", type=int, default=1)
 
     tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.01570, type=float) #Approximately best tuned parameters!
