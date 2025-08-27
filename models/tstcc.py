@@ -188,7 +188,7 @@ def data_generator_from_arrays(
 
     # Create Dataset objects
     train_ds = Load_Dataset(train_dict, configs, training_mode)
-    if len(X_val) != 0:
+    if (len(X_val) != 0) and (X_val is not None):
         val_ds   = Load_Dataset(val_dict,   configs, training_mode)
     test_ds  = Load_Dataset(test_dict,  configs, training_mode)
 
@@ -702,7 +702,8 @@ def Trainer(
 
     for epoch in range(1, config.num_epoch + 1):
         # Train and validate
-        train_loss, train_acc = model_train(model, temporal_contr_model, model_optimizer, temp_cont_optimizer, criterion, train_dl, config, device, training_mode)
+        train_loss, train_acc = model_train(model, temporal_contr_model, model_optimizer, temp_cont_optimizer,
+                                            criterion, train_dl, config, device, training_mode)
 
         if valid_dl is not None:
             val_loss, valid_acc, _, _ = model_evaluate(model, temporal_contr_model, valid_dl, device, training_mode, config)
@@ -1186,9 +1187,10 @@ def optimize_tstcc_hyperparameters(
             'jitter_ratio': [1e-4, 1e-3, 1e-2],  # discrete values
             'jitter_scale_ratio': [1e-4, 1e-3, 1e-2],  # discrete values
             'max_segment': [8],  # discrete values
-            'initial_num_segments': [2, 4, 8],
-            "num_s3_layers": [1, 2],
-            "segment_multiplier": [1, 2],
+            'initial_num_segments': [2, 4, 8], #
+            "num_s3_layers": [2], # 2 layers
+            "segment_multiplier": [1], # Segment multiplier set to 1
+            # 27 options then to evaluate
         }
 
         # Generate all parameter combinations for grid search
@@ -1298,7 +1300,7 @@ def optimize_tstcc_hyperparameters(
             if len(np.unique(y_val_filtered)) >= 2 and len(val_repr_filtered) >= 10:
                 # Use simple cross-validation on validation set for scoring
                 cv_splitter, _ = get_participant_cv_splitter(
-                    groups_val_filtered, min_participants_for_kfold=3, k=3
+                    groups_val_filtered, min_participants_for_kfold=5, k=5
                 )
 
                 if cv_splitter is not None:
