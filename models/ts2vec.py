@@ -500,7 +500,8 @@ class TS2Vec:
             n_epoch_iters = 0
             
             interrupted = False
-            for batch in train_loader:
+            for idx, batch in enumerate(train_loader):
+                print(f"We are processing batch {idx} / {len(train_loader)}. Please wait.")
                 if n_iters is not None and self.n_iters >= n_iters:
                     interrupted = True
                     break
