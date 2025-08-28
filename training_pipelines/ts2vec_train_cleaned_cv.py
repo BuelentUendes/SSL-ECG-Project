@@ -9,8 +9,6 @@ import gc
 import numpy as np
 import torch
 import torch.optim as optim
-import mlflow
-import mlflow.pytorch
 
 from utils.torch_utilities import (
     load_processed_data,
@@ -27,13 +25,10 @@ from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
 from models.ts2vec import (
     TS2Vec,
-    build_fingerprint,
-    search_encoder_fp,
 )
 
 
 def main(
-        mlflow_tracking_uri: str,
         fs: str,
         window_size: int,
         step_size: int,
@@ -59,6 +54,10 @@ def main(
         min_participants_for_kfold: int = 5,
         verbose: bool = False,
         scoring_metric: str = "roc_auc",
+        optimize_hyperparameters: bool = False,
+        hp_n_trials: int = 20,
+        hp_n_epochs: int = 10,
+        hp_search_type: str = "random",
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -75,13 +74,7 @@ def main(
         device = torch.device("cpu")
 
     logging.basicConfig(level=logging.INFO)
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
-    mlflow.set_experiment(f"TS2Vec with CV {classifier_model}")
-
-    # Start top‑level run
-    run = mlflow.start_run(run_name=f"ts2vec_cv_{classifier_model}_{seed}_lf_{label_fraction}")
-    run_id = run.info.run_id
-    logging.info(f"MLflow run_id: {run_id}")
+    print(f"Starting TS2Vec training with CV {classifier_model}, seed={seed}, label_fraction={label_fraction}")
     print(f"Using device: {device}")
 
     # Check if directory for saving model parameters exist, otherwise create it
@@ -164,59 +157,25 @@ def main(
     torch.cuda.empty_cache()
     set_seed(seed)
 
-    # Fingerprint & search
-    fp = {
-        "model_name": "TS2Vec",
-        "seed": seed,
-        "ts2vec_epochs": ts2vec_epochs,
-        "ts2vec_output_dims": ts2vec_output_dims,
-        "ts2vec_hidden_dims": ts2vec_hidden_dims,
-        "ts2vec_depth": ts2vec_depth,
-        "ts2vec_max_train_length": ts2vec_max_train_length,
-        "ts2vec_temporal_unit": ts2vec_temporal_unit,
-        "train_ratio_encoder": train_ratio_encoder,
-    }
-    fp = build_fingerprint(fp)
+    # Model fingerprinting removed (was used for MLflow caching)
 
-    cached = search_encoder_fp(fp,
-                               experiment_name="TS2Vec",
-                               tracking_uri=mlflow_tracking_uri)
+    # Check if we have a locally saved model and no forced retraining
+    if os.path.exists(os.path.join(model_save_path, "ts2vec_model.pth")) and not force_retraining:
+        print("We found a pretrained model. Load the pretrained weights")
+        model_path = os.path.join(model_save_path, "ts2vec_model.pth")
 
-    # IF we have forced retraining we will always retrain
-    if (cached or os.path.exists(os.path.join(model_save_path, "ts2vec_model.pth"))) and not (force_retraining):
-        if cached:
-            print(f"Found cached encoder run {cached}; downloading…")
-            uri = f"runs:/{cached}/ts2vec_model"
-            net = mlflow.pytorch.load_model(uri, map_location=device)
-
-            ts2vec = TS2Vec(
-                input_dims=n_features,
-                output_dims=ts2vec_output_dims,
-                hidden_dims=ts2vec_hidden_dims,
-                depth=ts2vec_depth,
-                device=device,
-                lr=ts2vec_lr,
-                batch_size=ts2vec_batch_size,
-                max_train_length=ts2vec_max_train_length,
-                temporal_unit=ts2vec_temporal_unit,
-            )
-            ts2vec.net = ts2vec._net = net
-        else:
-            print("We found a pretrained model. Load the pretrained weights")
-            model_path = os.path.join(model_save_path, "ts2vec_model.pth")
-
-            ts2vec = TS2Vec(
-                input_dims=n_features,
-                output_dims=ts2vec_output_dims,
-                hidden_dims=ts2vec_hidden_dims,
-                depth=ts2vec_depth,
-                device=device,
-                lr=ts2vec_lr,
-                batch_size=ts2vec_batch_size,
-                max_train_length=ts2vec_max_train_length,
-                temporal_unit=ts2vec_temporal_unit,
-            )
-            ts2vec.net = ts2vec._net = torch.load(model_path, map_location=device)
+        ts2vec = TS2Vec(
+            input_dims=n_features,
+            output_dims=ts2vec_output_dims,
+            hidden_dims=ts2vec_hidden_dims,
+            depth=ts2vec_depth,
+            device=device,
+            lr=ts2vec_lr,
+            batch_size=ts2vec_batch_size,
+            max_train_length=ts2vec_max_train_length,
+            temporal_unit=ts2vec_temporal_unit,
+        )
+        ts2vec.net = ts2vec._net = torch.load(model_path, map_location=device)
 
     else:
         print("No cached encoder; training TS2Vec from scratch")
@@ -238,8 +197,6 @@ def main(
 
         print(f"Created TS2Vec model on device: {next(ts2vec.net.parameters()).device}")
 
-        mlflow.log_params(fp)
-
         # Train TS2Vec
         loss_log = ts2vec.fit(
             X_train_encoder,
@@ -248,11 +205,6 @@ def main(
         )
 
         # Save model
-        mlflow.pytorch.log_model(
-            pytorch_model=ts2vec.net,
-            artifact_path="ts2vec_model"
-        )
-
         saved_results = os.path.join(model_save_path, "ts2vec_model.pth")
         torch.save(ts2vec.net, saved_results)
 
@@ -301,16 +253,12 @@ def main(
                 scoring_metric=scoring_metric, classifier_model=classifier_model
             )
 
-        # Log metrics
-        mlflow.log_metrics({
-            "best_cv_auroc": results['best_cv_score'] if cv_splitter is not None else 0,
-            "test_accuracy": results['test_metrics']['accuracy'],
-            "test_auroc": results['test_metrics']['auroc'],
-            "test_f1": results['test_metrics']['f1'],
-            "test_pr_auc": results['test_metrics']['pr_auc'],
-        })
-
-        mlflow.log_params(results['best_params'])
+        # Log metrics locally
+        print(f"Best CV AUROC: {results['best_cv_score'] if cv_splitter is not None else 0:.4f}")
+        print(f"Test metrics - Accuracy: {results['test_metrics']['accuracy']:.4f}, "
+              f"AUROC: {results['test_metrics']['auroc']:.4f}, F1: {results['test_metrics']['f1']:.4f}, "
+              f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}")
+        print(f"Best hyperparameters: {results['best_params']}")
 
     else:
         results = run_mlp_with_cv_and_test(
@@ -319,31 +267,21 @@ def main(
             device, classifier_epochs, classifier_batch_size, classifier_lr, False, seed
         )
 
-        # Log metrics
-        mlflow.log_metrics({
-            "best_cv_auroc": results['best_cv_score'],
-            "test_accuracy": results['test_metrics']['accuracy'],
-            "test_auroc": results['test_metrics']['auroc'],
-            "test_f1": results['test_metrics']['f1'],
-            "test_pr_auc": results['test_metrics']['pr_auc'],
-        })
-
-        mlflow.log_params(results['best_params'])
+        # Log metrics locally
+        print(f"Best CV AUROC: {results['best_cv_score']:.4f}")
+        print(f"Test metrics - Accuracy: {results['test_metrics']['accuracy']:.4f}, "
+              f"AUROC: {results['test_metrics']['auroc']:.4f}, F1: {results['test_metrics']['f1']:.4f}, "
+              f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}")
+        print(f"Best hyperparameters: {results['best_params']}")
 
     # ── Step 6: Save Results ────────────────────────────────────────────────────
     with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
-    # Log additional parameters
-    mlflow.log_params({
-        "classifier_model": classifier_model,
-        "label_fraction": label_fraction,
-        "seed": seed,
-        "k_folds": k_folds,
-        "n_cv_splits": n_splits,
-        "pretrain_all_conditions": pretrain_all_conditions,
-        "train_ratio_encoder": train_ratio_encoder,
-    })
+    # Log additional parameters locally
+    print(f"Additional parameters - Classifier: {classifier_model}, Label fraction: {label_fraction}, "
+          f"Seed: {seed}, K-folds: {k_folds}, CV splits: {n_splits}, "
+          f"Pretrain all conditions: {pretrain_all_conditions}, Train ratio encoder: {train_ratio_encoder}")
 
     # ── Cleanup ────────────────────────────────────────────────────────────────
     for _ in range(3):
@@ -355,7 +293,7 @@ def main(
           f"AUROC: {results['test_metrics']['auroc']:.4f}, "
           f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}, "
           f"F1: {results['test_metrics']['f1']:.4f} ===")
-    mlflow.end_run()
+    print("Training completed successfully!")
 
 
 if __name__ == "__main__":
@@ -368,9 +306,6 @@ if __name__ == "__main__":
     # General Setup
     # ══════════════════════════════════════════════════════════════════════════════
     general_group = parser.add_argument_group('General Setup')
-    general_group.add_argument("--mlflow_tracking_uri",
-                              default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"),
-                              help="MLflow tracking URI for experiment logging")
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
     general_group.add_argument("--seed", type=int, default=42,
@@ -444,6 +379,20 @@ if __name__ == "__main__":
     cv_group.add_argument("--scoring_metric", type=str, default="roc_auc",
                          choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
                          help="Scoring metric for cross-validation hyperparameter selection")
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Hyperparameter Optimization Configuration
+    # ══════════════════════════════════════════════════════════════════════════════
+    hp_group = parser.add_argument_group('Hyperparameter Optimization')
+    hp_group.add_argument("--optimize_hyperparameters", action="store_true",
+                         help="Enable hyperparameter optimization for TS2Vec augmentation parameters")
+    hp_group.add_argument("--hp_n_trials", type=int, default=30,
+                         help="Number of trials for hyperparameter optimization")
+    hp_group.add_argument("--hp_n_epochs", type=int, default=15,
+                         help="Number of epochs for each hyperparameter optimization trial")
+    hp_group.add_argument("--hp_search_type", type=str, default="grid",
+                         choices=["random", "grid"],
+                         help="Search strategy: 'random' for random search, 'grid' for grid search")
 
     # Parse arguments and run main function
     args = parser.parse_args()
