@@ -692,7 +692,8 @@ def search_encoder_fp(
 # ----------------------------------------------------------------------
 def Trainer(
         model, temporal_contr_model, model_optimizer, temp_cont_optimizer, train_dl, valid_dl,
-        test_dl, device, config, experiment_log_dir, training_mode, return_val_loss=False
+        test_dl, device, config, experiment_log_dir, training_mode,
+        return_train_val_loss=False
 ):
     # Start training
     print("Training started ....")
@@ -724,8 +725,8 @@ def Trainer(
 
     print("\n################## Training is Done! #########################")
 
-    if return_val_loss:
-        return val_loss
+    if return_train_val_loss:
+        return train_loss, val_loss
 
 
 
@@ -1191,7 +1192,7 @@ def optimize_tstcc_hyperparameters(
             'jitter_ratio': [1e-4, 1e-3, 1e-2],  # discrete values
             'jitter_scale_ratio': [1e-4, 1e-3, 1e-2],  # discrete values
             'max_segment': [8],  # discrete values
-            'initial_num_segments': [2, 4, 8], #
+            'initial_num_segments': [2, 4], #
             "num_s3_layers": [2], # 2 layers
             "segment_multiplier": [1], # Segment multiplier set to 1
             # 27 options then to evaluate
@@ -1276,7 +1277,7 @@ def optimize_tstcc_hyperparameters(
             # Train TSTCC with current hyperparameters
             workdir = tempfile.mkdtemp(prefix=f"tstcc_hp_trial_{trial_idx}_")
             # We select the optimal parameters based on the best validation loss
-            trial_score = Trainer(
+            train_loss, trial_score = Trainer(
                 model=model,
                 temporal_contr_model=tc_head,
                 model_optimizer=opt_m,
@@ -1285,7 +1286,7 @@ def optimize_tstcc_hyperparameters(
                 device=device, config=cfg,
                 experiment_log_dir=workdir,
                 training_mode="self_supervised",
-                return_val_loss = True,
+                return_train_val_loss = True,
             )
 
             # Old code for selection of hp based on labels (but this is tricky)
@@ -1327,11 +1328,14 @@ def optimize_tstcc_hyperparameters(
                 roc_auc_score_cv = 0.0  # Invalid trial
 
             print(f"  Trial ROC AUC score (AUROC): {roc_auc_score_cv:.4f}")
+            print(f"  Trial validation loss : {trial_score:.4f}")
+            print(f"  Trial train loss: {train_loss:.4f}")
 
             trial_results.append({
                 'trial_idx': trial_idx,
                 'params': dict(params),  # Convert to regular dict
-                'score': trial_score,
+                '(val) trial score': trial_score,
+                'train trial score': train_loss,
                 'associated_roc_auc_score': roc_auc_score_cv,
             })
 
