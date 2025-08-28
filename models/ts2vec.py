@@ -194,6 +194,7 @@ def hierarchical_contrastive_loss(z1, z2, alpha=0.5, temporal_unit=0):
             loss += alpha * instance_contrastive_loss(z1, z2)
         if d >= temporal_unit:
             if 1 - alpha != 0:
+                temporal_loss = (1-alpha) * temporal_contrastive_loss(z1, z2)
                 loss += (1 - alpha) * temporal_contrastive_loss(z1, z2)
         d += 1
         z1 = F.max_pool1d(z1.transpose(1, 2), kernel_size=2).transpose(1, 2)
@@ -428,8 +429,10 @@ class TS2Vec:
             device (int): The gpu used for training and inference.
             lr (int): The learning rate.
             batch_size (int): The batch size.
-            max_train_length (Union[int, NoneType]): The maximum allowed sequence length for training. For sequence with a length greater than <max_train_length>, it would be cropped into some sequences, each of which has a length less than <max_train_length>.
-            temporal_unit (int): The minimum unit to perform temporal contrast. When training on a very long sequence, this param helps to reduce the cost of time and memory.
+            max_train_length (Union[int, NoneType]): The maximum allowed sequence length for training.
+            For sequence with a length greater than <max_train_length>, it would be cropped into some sequences, each of which has a length less than <max_train_length>.
+            temporal_unit (int): The minimum unit to perform temporal contrast. When training on a very long sequence,
+             this param helps to reduce the cost of time and memory.
             after_iter_callback (Union[Callable, NoneType]): A callback function that would be called after each iteration.
             after_epoch_callback (Union[Callable, NoneType]): A callback function that would be called after each epoch.
         '''
@@ -451,13 +454,16 @@ class TS2Vec:
         self.n_epochs = 0
         self.n_iters = 0
     
-    def fit(self, train_data, n_epochs=None, n_iters=None, verbose=False):
+    def fit(self, train_data, n_epochs=None, n_iters=None, verbose=True):
         ''' Training the TS2Vec model.
         
         Args:
-            train_data (numpy.ndarray): The training data. It should have a shape of (n_instance, n_timestamps, n_features). All missing data should be set to NaN.
+            train_data (numpy.ndarray): The training data. It should have a shape of (n_instance, n_timestamps, n_features).
+            All missing data should be set to NaN.
             n_epochs (Union[int, NoneType]): The number of epochs. When this reaches, the training stops.
-            n_iters (Union[int, NoneType]): The number of iterations. When this reaches, the training stops. If both n_epochs and n_iters are not specified, a default setting would be used that sets n_iters to 200 for a dataset with size <= 100000, 600 otherwise.
+            n_iters (Union[int, NoneType]): The number of iterations. When this reaches, the training stops.
+            If both n_epochs and n_iters are not specified,
+            a default setting would be used that sets n_iters to 200 for a dataset with size <= 100000, 600 otherwise.
             verbose (bool): Whether to print the training loss after each epoch.
             
         Returns:
