@@ -535,7 +535,7 @@ if __name__ == "__main__":
                          help="Enable hyperparameter optimization for TSTCC augmentation parameters")
     hp_group.add_argument("--hp_n_trials", type=int, default=30,
                          help="Number of trials for hyperparameter optimization")
-    hp_group.add_argument("--hp_n_epochs", type=int, default=10,
+    hp_group.add_argument("--hp_n_epochs", type=int, default=15,
                          help="Number of epochs for each hyperparameter optimization trial")
     hp_group.add_argument("--hp_search_type", type=str, default="grid",
                          choices=["random", "grid"],
