@@ -1330,6 +1330,7 @@ def optimize_tstcc_hyperparameters(
             print(f"  Trial ROC AUC score (AUROC): {roc_auc_score_cv:.4f}")
             print(f"  Trial validation loss : {trial_score:.4f}")
             print(f"  Trial train loss: {train_loss:.4f}")
+            print(f"  Best score so far: {best_score:.4f}")
 
             trial_results.append({
                 'trial_idx': trial_idx,
