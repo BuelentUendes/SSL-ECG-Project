@@ -13,6 +13,7 @@ from datetime import datetime
 import pickle
 import mlflow
 from mlflow.tracking import MlflowClient
+from tqdm import tqdm
 
 # --------------------------------------------------------
 # utils.py
@@ -500,8 +501,8 @@ class TS2Vec:
             n_epoch_iters = 0
             
             interrupted = False
-            for idx, batch in enumerate(train_loader):
-                print(f"We are processing batch {idx} / {len(train_loader)}. Please wait.")
+            for idx, batch in enumerate(tqdm(train_loader, desc="Training. Please wait")):
+                # print(f"We are processing batch {idx} / {len(train_loader)}. Please wait.", flush=True)
                 if n_iters is not None and self.n_iters >= n_iters:
                     interrupted = True
                     break
