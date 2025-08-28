@@ -1326,7 +1326,7 @@ def optimize_tstcc_hyperparameters(
             else:
                 roc_auc_score_cv = 0.0  # Invalid trial
 
-            print(f"  Trial ROC AUCH score (AUROC): {roc_auc_score_cv:.4f}")
+            print(f"  Trial ROC AUC score (AUROC): {roc_auc_score_cv:.4f}")
 
             trial_results.append({
                 'trial_idx': trial_idx,
