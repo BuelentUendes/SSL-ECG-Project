@@ -349,9 +349,9 @@ if __name__ == "__main__":
                              help="TS2Vec hidden dimension (Ch)")
     ts2vec_group.add_argument("--ts2vec_depth", type=int, default=10,
                              help="TS2Vec depth (# dilated conv blocks)")
-    ts2vec_group.add_argument("--ts2vec_max_train_length", type=int, default=5000,
+    ts2vec_group.add_argument("--ts2vec_max_train_length", type=int, default=None,
                              help="TS2Vec max training length")
-    ts2vec_group.add_argument("--ts2vec_temporal_unit", type=int, default=0,
+    ts2vec_group.add_argument("--ts2vec_temporal_unit", type=int, default=3,
                              help="TS2Vec temporal unit for hierarchical pooling")
 
     # ══════════════════════════════════════════════════════════════════════════════
