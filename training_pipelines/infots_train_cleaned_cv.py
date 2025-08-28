@@ -9,8 +9,6 @@ import gc
 import numpy as np
 import torch
 import torch.optim as optim
-import mlflow
-import mlflow.pytorch
 
 from utils.torch_utilities import (
     load_processed_data,
@@ -27,13 +25,10 @@ from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
 from models.infots import (
     InfoTS,
-    build_infots_fingerprint,
-    search_encoder_fp,
 )
 
 
 def main(
-        mlflow_tracking_uri: str,
         fs: str,
         window_size: int,
         step_size: int,
@@ -87,14 +82,7 @@ def main(
         device = torch.device("cpu")
 
     logging.basicConfig(level=logging.INFO)
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
-    mlflow.set_experiment(f"InfoTS with CV {classifier_model}")
-
-    # Start top‑level run
-    run = mlflow.start_run(run_name=f"infots_cv_{classifier_model}_{seed}_lf_{label_fraction}")
-    run_id = run.info.run_id
-    logging.info(f"MLflow run_id: {run_id}")
-    print(f"Using device: {device}")
+    print(f"Starting InfoTS training wiht CV {classifier_model}, seed={seed}, {label_fraction}")
 
     # Check if directory for saving model parameters exist, otherwise create it
     create_directory(SAVED_MODELS_PATH)
@@ -177,79 +165,33 @@ def main(
     torch.cuda.empty_cache()
     set_seed(seed)
 
-    # Fingerprint & search
-    fp = {
-        "model_name": "InfoTS",
-        "seed": seed,
-        "infots_epochs": infots_epochs,
-        "infots_output_dims": infots_output_dims,
-        "infots_hidden_dims": infots_hidden_dims,
-        "infots_depth": infots_depth,
-        "infots_max_train_length": infots_max_train_length,
-        "infots_lr": infots_lr,
-        "infots_meta_lr": infots_meta_lr,
-        "infots_aug_p1": infots_aug_p1,
-        "infots_aug_p2": infots_aug_p2,
-        "infots_dropout": infots_dropout,
-        "train_ratio_encoder": train_ratio_encoder,
-    }
-    fp = build_infots_fingerprint(fp)
+    # Model fingerprinting removed (was used for MLflow caching)
 
-    cached = search_encoder_fp(fp,
-                               experiment_name="InfoTS",
-                               tracking_uri=mlflow_tracking_uri)
+    # Check if we have a locally saved model and no forced retraining
+    if os.path.exists(os.path.join(model_save_path, "infots_model.pth")) and not force_retraining:
+        print("We found a pretrained model. Load the pretrained weights")
+        model_path = os.path.join(model_save_path, "infots_model.pth")
 
-    # IF we have forced retraining we will always retrain
-    if (cached or os.path.exists(os.path.join(model_save_path, "infots_model.pth"))) and not (force_retraining):
-        if cached:
-            print(f"Found cached encoder run {cached}; downloading…")
-            uri = f"runs:/{cached}/infots_model"
-            net = mlflow.pytorch.load_model(uri, map_location=device)
-
-            infots = InfoTS(
-                input_dims=n_features,
-                output_dims=infots_output_dims,
-                hidden_dims=infots_hidden_dims,
-                depth=infots_depth,
-                device=device,
-                lr=infots_lr,
-                meta_lr=infots_meta_lr,
-                batch_size=infots_batch_size,
-                max_train_length=infots_max_train_length,
-                dropout=infots_dropout,
-                aug_p1=infots_aug_p1,
-                aug_p2=infots_aug_p2,
-                use_s3_layers=use_s3_layers,
-                num_s3_layers=num_s3_layers,
-                initial_num_segments=initial_num_segments,
-                shuffle_vector_dim=shuffle_vector_dim,
-                segment_multiplier=segment_multiplier,
-            )
-            infots.net = infots._net = net
-        else:
-            print("We found a pretrained model. Load the pretrained weights")
-            model_path = os.path.join(model_save_path, "infots_model.pth")
-
-            infots = InfoTS(
-                input_dims=n_features,
-                output_dims=infots_output_dims,
-                hidden_dims=infots_hidden_dims,
-                depth=infots_depth,
-                device=device,
-                lr=infots_lr,
-                meta_lr=infots_meta_lr,
-                batch_size=infots_batch_size,
-                max_train_length=infots_max_train_length,
-                dropout=infots_dropout,
-                aug_p1=infots_aug_p1,
-                aug_p2=infots_aug_p2,
-                use_s3_layers=use_s3_layers,
-                num_s3_layers=num_s3_layers,
-                initial_num_segments=initial_num_segments,
-                shuffle_vector_dim=shuffle_vector_dim,
-                segment_multiplier=segment_multiplier,
-            )
-            infots.net = infots._net = torch.load(model_path, map_location=device)
+        infots = InfoTS(
+            input_dims=n_features,
+            output_dims=infots_output_dims,
+            hidden_dims=infots_hidden_dims,
+            depth=infots_depth,
+            device=device,
+            lr=infots_lr,
+            meta_lr=infots_meta_lr,
+            batch_size=infots_batch_size,
+            max_train_length=infots_max_train_length,
+            dropout=infots_dropout,
+            aug_p1=infots_aug_p1,
+            aug_p2=infots_aug_p2,
+            use_s3_layers=use_s3_layers,
+            num_s3_layers=num_s3_layers,
+            initial_num_segments=initial_num_segments,
+            shuffle_vector_dim=shuffle_vector_dim,
+            segment_multiplier=segment_multiplier,
+        )
+        infots.net = infots._net = torch.load(model_path, map_location=device)
 
     else:
         print("No cached encoder; training InfoTS from scratch")
@@ -280,9 +222,7 @@ def main(
 
         print(f"Created InfoTS model on device: {next(infots.net.parameters()).device}")
 
-        mlflow.log_params(fp)
-
-        # # Train InfoTS - Note: InfoTS uses unsupervised meta-learning, so we don't provide labels
+        # Train InfoTS - Note: InfoTS uses unsupervised meta-learning, so we don't provide labels
         loss_log = infots.fit(
             X_train_encoder,
             n_epochs=infots_epochs,
@@ -291,11 +231,6 @@ def main(
         )
 
         # Save model
-        mlflow.pytorch.log_model(
-            pytorch_model=infots.net,
-            artifact_path="infots_model"
-        )
-
         saved_results = os.path.join(model_save_path, "infots_model.pth")
         torch.save(infots.net, saved_results)
 
@@ -344,16 +279,12 @@ def main(
                 scoring_metric=scoring_metric, classifier_model=classifier_model
             )
 
-        # Log metrics
-        mlflow.log_metrics({
-            "best_cv_auroc": results['best_cv_score'] if cv_splitter is not None else 0,
-            "test_accuracy": results['test_metrics']['accuracy'],
-            "test_auroc": results['test_metrics']['auroc'],
-            "test_f1": results['test_metrics']['f1'],
-            "test_pr_auc": results['test_metrics']['pr_auc'],
-        })
-
-        mlflow.log_params(results['best_params'])
+        # Log metrics locally
+        print(f"Best CV AUROC: {results['best_cv_score'] if cv_splitter is not None else 0:.4f}")
+        print(f"Test metrics - Accuracy: {results['test_metrics']['accuracy']:.4f}, "
+              f"AUROC: {results['test_metrics']['auroc']:.4f}, F1: {results['test_metrics']['f1']:.4f}, "
+              f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}")
+        print(f"Best hyperparameters: {results['best_params']}")
 
     else:
         results = run_mlp_with_cv_and_test(
@@ -362,35 +293,23 @@ def main(
             device, classifier_epochs, classifier_batch_size, classifier_lr, False, seed
         )
 
-        # Log metrics
-        mlflow.log_metrics({
-            "best_cv_auroc": results['best_cv_score'],
-            "test_accuracy": results['test_metrics']['accuracy'],
-            "test_auroc": results['test_metrics']['auroc'],
-            "test_f1": results['test_metrics']['f1'],
-            "test_pr_auc": results['test_metrics']['pr_auc'],
-        })
-
-        mlflow.log_params(results['best_params'])
+        # Log metrics locally
+        print(f"Best CV AUROC: {results['best_cv_score']:.4f}")
+        print(f"Test metrics - Accuracy: {results['test_metrics']['accuracy']:.4f}, "
+              f"AUROC: {results['test_metrics']['auroc']:.4f}, F1: {results['test_metrics']['f1']:.4f}, "
+              f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}")
+        print(f"Best hyperparameters: {results['best_params']}")
 
     # ── Step 6: Save Results ────────────────────────────────────────────────────
     with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
-    # Log additional parameters
-    mlflow.log_params({
-        "classifier_model": classifier_model,
-        "label_fraction": label_fraction,
-        "seed": seed,
-        "k_folds": k_folds,
-        "n_cv_splits": n_splits,
-        "pretrain_all_conditions": pretrain_all_conditions,
-        "train_ratio_encoder": train_ratio_encoder,
-        "use_s3_layers": use_s3_layers,
-        "num_s3_layers": num_s3_layers,
-        "initial_num_segments": initial_num_segments,
-        "segment_multiplier": segment_multiplier,
-    })
+    # Log additional parameters locally
+    print(f"Additional parameters - Classifier: {classifier_model}, Label fraction: {label_fraction}, "
+          f"Seed: {seed}, K-folds: {k_folds}, CV splits: {n_splits}, "
+          f"Pretrain all conditions: {pretrain_all_conditions}, Train ratio encoder: {train_ratio_encoder}, "
+          f"Use S3 layers: {use_s3_layers}, Num S3 layers: {num_s3_layers}, "
+          f"Initial num segments: {initial_num_segments}, Segment multiplier: {segment_multiplier}")
 
     # ── Cleanup ────────────────────────────────────────────────────────────────
     for _ in range(3):
@@ -402,7 +321,7 @@ def main(
           f"AUROC: {results['test_metrics']['auroc']:.4f}, "
           f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}, "
           f"F1: {results['test_metrics']['f1']:.4f} ===")
-    mlflow.end_run()
+    print("Training completed successfully!")
 
 
 if __name__ == "__main__":
@@ -415,9 +334,6 @@ if __name__ == "__main__":
     # General Setup
     # ══════════════════════════════════════════════════════════════════════════════
     general_group = parser.add_argument_group('General Setup')
-    general_group.add_argument("--mlflow_tracking_uri",
-                              default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"),
-                              help="MLflow tracking URI for experiment logging")
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
     general_group.add_argument("--seed", type=int, default=42,
@@ -525,8 +441,8 @@ if __name__ == "__main__":
                          help="Number of epochs for each hyperparameter optimization trial")
     hp_group.add_argument("--hp_search_type", type=str, default="grid",
                          choices=["random", "grid"],
-                         help="Search strategy: 'random' for random search, 'grid' for grid search")
-
+                         help="Search strategy: 'random' for random search, "
+                              "'grid' for grid search")
 
     # Parse arguments and run main function
     args = parser.parse_args()
