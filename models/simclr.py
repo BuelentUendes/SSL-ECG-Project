@@ -11,6 +11,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 from torcheval.metrics.functional import multiclass_f1_score
 from typing import Union, Sequence, Tuple, Dict, Any, List
+from tqdm import tqdm
 
 # ----------------------------------------------------------------------
 # helpers
@@ -125,26 +126,26 @@ class ECGEncoder(nn.Module):
     def __init__(self, input_channels=1, dropout=0.3, window=10000):
         super(ECGEncoder, self).__init__()
         self.block1 = nn.Sequential(
-            nn.Conv1d(input_channels, 64, kernel_size=32, stride=1, padding=16, bias=False),
+            nn.Conv1d(input_channels, 32, kernel_size=32, stride=1, padding=16, bias=False),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2),
             nn.Dropout(dropout)
         )
         self.block2 = nn.Sequential(
-            nn.Conv1d(64, 128, kernel_size=16, stride=1, padding=8, bias=False),
+            nn.Conv1d(32, 64, kernel_size=16, stride=1, padding=8, bias=False),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2),
             nn.Dropout(dropout)
         )
         self.block3 = nn.Sequential(
-            nn.Conv1d(128, 256, kernel_size=8, stride=1, padding=4, bias=False),
+            nn.Conv1d(64, 128, kernel_size=8, stride=1, padding=4, bias=False),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2),
             nn.Dropout(dropout)
         )
         # After conv blocks, flatten and FC to 80 units
         self.flatten = nn.Flatten()
-        self.fc = nn.Linear(256 *  (window // 8), 80) 
+        self.fc = nn.Linear(128 *  (window // 8), 80)
         # L2 regularization to be set via optimizer weight_decay
 
     def forward(self, x):
@@ -159,8 +160,8 @@ class ECGEncoder(nn.Module):
 # Projection head g(.)
 # ----------------------------------------------------------------------
 class ProjectionHead(nn.Module):
-    """MLP → 128‑dim"""
-    def __init__(self, in_dim=80, proj_dim=128):
+    """MLP → 256‑dim"""
+    def __init__(self, in_dim=80, proj_dim=256):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(in_dim, proj_dim), nn.ReLU(inplace=True),
@@ -233,7 +234,8 @@ def simclr_data_loaders(X_train, X_val, batch_size:int):
 def pretrain_one_epoch(model, loader, loss_fn, opt, device):
     model.train()
     tot = 0
-    for v1,v2 in loader:
+    for batch_idx, (v1,v2) in enumerate(tqdm(loader, desc="Processing batches")):
+        print(f"Processing batch {batch_idx} / {len(loader)}")
         v1,v2 = v1.to(device), v2.to(device)
         _,_,z1,z2 = model(v1,v2)
         loss = loss_fn(z1, z2)
