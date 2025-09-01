@@ -219,8 +219,7 @@ def main(
             print(f"Please wait: Run epoch: {ep}")
             tr_loss = pretrain_one_epoch(model, tr_dl, loss_fn, opt, device)
             mlflow.log_metric("ssl_train_loss", tr_loss, step=ep)
-            if ep == 1 or ep % 25 == 0:
-                print(f"Epoch {ep}/{epochs}: loss={tr_loss:.4f}")
+            print(f"Epoch {ep}/{epochs}: loss={tr_loss:.4f}")
 
         # Save model locally
         saved_results = os.path.join(model_save_path, "simclr_encoder.pt")
@@ -388,6 +387,13 @@ if __name__ == "__main__":
                              help="Batch size for SimCLR training")
     simclr_group.add_argument("--temperature", type=float, default=0.2,
                              help="Temperature parameter for contrastive loss")
+
+    # S3 configurations
+    simclr_group.add_argument("--use_s3_layers", action="store_true",
+                                  help="If set, we use the S3 layer")
+    simclr_group.add_argument("--initial_num_segments", type=int, default=2)
+    simclr_group.add_argument("--num_s3_layers", type=int, default=1)
+    simclr_group.add_argument("--segment_multiplier", type=int, default=1)
 
     # ══════════════════════════════════════════════════════════════════════════════
     # Downstream Classifier Configuration
