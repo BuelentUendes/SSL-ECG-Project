@@ -15,6 +15,8 @@ import mlflow
 from mlflow.tracking import MlflowClient
 from tqdm import tqdm
 
+from S3 import S3
+
 # --------------------------------------------------------
 # utils.py
 # --------------------------------------------------------
@@ -195,7 +197,6 @@ def hierarchical_contrastive_loss(z1, z2, alpha=0.5, temporal_unit=0):
             loss += alpha * instance_contrastive_loss(z1, z2)
         if d >= temporal_unit:
             if 1 - alpha != 0:
-                temporal_loss = (1-alpha) * temporal_contrastive_loss(z1, z2)
                 loss += (1 - alpha) * temporal_contrastive_loss(z1, z2)
         d += 1
         z1 = F.max_pool1d(z1.transpose(1, 2), kernel_size=2).transpose(1, 2)
@@ -312,12 +313,33 @@ def generate_binomial_mask(B, T, p=0.5):
     return torch.from_numpy(np.random.binomial(1, p, size=(B, T))).to(torch.bool)
 
 class TSEncoder(nn.Module):
-    def __init__(self, input_dims, output_dims, hidden_dims=64, depth=10, mask_mode='binomial'):
+    def __init__(
+            self,
+            input_dims,
+            output_dims,
+            hidden_dims=64,
+            depth=10,
+            mask_mode='binomial',
+            use_s3_layers=False,
+            num_s3_layers=2,
+            initial_num_segments=2,
+            segment_multiplier=1,
+    ):
         super().__init__()
         self.input_dims = input_dims
         self.output_dims = output_dims
         self.hidden_dims = hidden_dims
         self.mask_mode = mask_mode
+        self.use_s3_layers = use_s3_layers
+
+        if use_s3_layers:
+            self.s3_layers = S3(
+                num_layers=num_s3_layers,
+                initial_num_segments=initial_num_segments,
+                shuffle_vector_dim=1,
+                segment_multiplier=segment_multiplier,
+            )
+
         self.input_fc = nn.Linear(input_dims, hidden_dims)
         self.feature_extractor = DilatedConvEncoder(
             hidden_dims,
@@ -329,6 +351,10 @@ class TSEncoder(nn.Module):
     def forward(self, x, mask=None):  # x: B x T x input_dims
         nan_mask = ~x.isnan().any(axis=-1)
         x[~nan_mask] = 0
+
+        if self.use_s3_layers:
+            x = self.s3_layers(x)
+
         x = self.input_fc(x)  # B x T x Ch
         
         # generate & apply mask
@@ -417,8 +443,12 @@ class TS2Vec:
         batch_size=16,
         max_train_length=None,
         temporal_unit=0,
+        use_s3_layers=False,
+        initial_num_segments=2,
+        num_s3_layers=2,
+        segment_multiplier=1,
         after_iter_callback=None,
-        after_epoch_callback=None
+        after_epoch_callback=None,
     ):
         ''' Initialize a TS2Vec model.
         
@@ -434,6 +464,10 @@ class TS2Vec:
             For sequence with a length greater than <max_train_length>, it would be cropped into some sequences, each of which has a length less than <max_train_length>.
             temporal_unit (int): The minimum unit to perform temporal contrast. When training on a very long sequence,
              this param helps to reduce the cost of time and memory.
+            use_s3_layers (bool): If set, we use the S3 module
+            initial_num_segments (int): Number of initial segments
+            num_s3_layers (int): Number of S3 layers
+            segment_multiplier (int):  Multiplier for S3 different layers
             after_iter_callback (Union[Callable, NoneType]): A callback function that would be called after each iteration.
             after_epoch_callback (Union[Callable, NoneType]): A callback function that would be called after each epoch.
         '''
@@ -444,8 +478,21 @@ class TS2Vec:
         self.batch_size = batch_size
         self.max_train_length = max_train_length
         self.temporal_unit = temporal_unit
-        
-        self._net = TSEncoder(input_dims=input_dims, output_dims=output_dims, hidden_dims=hidden_dims, depth=depth).to(self.device)
+        self.use_s3_layers = use_s3_layers
+        self.num_s3_layers = num_s3_layers
+        self.initial_num_segments = initial_num_segments
+        self.segment_multiplier = segment_multiplier
+
+        self._net = TSEncoder(
+            input_dims=input_dims,
+            output_dims=output_dims,
+            hidden_dims=hidden_dims,
+            use_s3_layers=use_s3_layers,
+            num_s3_layers=num_s3_layers,
+            initial_num_segments=initial_num_segments,
+            segment_multiplier=segment_multiplier,
+            depth=depth).to(self.device)
+
         self.net = torch.optim.swa_utils.AveragedModel(self._net)
         self.net.update_parameters(self._net)
         
@@ -501,7 +548,7 @@ class TS2Vec:
             n_epoch_iters = 0
             
             interrupted = False
-            for idx, batch in enumerate(tqdm(train_loader, desc="Training. Please wait")):
+            for idx, batch in enumerate(tqdm(train_loader, desc=f"Running epoch {self.n_epochs} Please wait")):
                 # print(f"We are processing batch {idx} / {len(train_loader)}. Please wait.", flush=True)
                 if n_iters is not None and self.n_iters >= n_iters:
                     interrupted = True
