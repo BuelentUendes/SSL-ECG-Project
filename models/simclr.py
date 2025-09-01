@@ -120,13 +120,13 @@ def negate(x):   return -x
 def hor_flip(x): return np.ascontiguousarray(np.flip(x))
 
 AUGS = [
-    (add_noise_with_SNR, 0.25),
-    (random_scaling,     0.20),
-    (random_crop_shift,  0.20),
-    (local_jitter,       0.15),
-    (baseline_wander,    0.10),
-    (negate,             0.05),
-    (hor_flip,           0.05),
+    (add_noise_with_SNR, 1/7), # 0.25
+    (random_scaling,     1/7), # 0.20
+    (random_crop_shift,  1/7), # 0.20
+    (local_jitter,       1/7), # 0.15
+    (baseline_wander,    1/7), # 0.10
+    (negate,             1/7), # 0.05
+    (hor_flip,           1/7), # 0.05
 ]
 
 funcs, probs = zip(*AUGS)
@@ -146,6 +146,7 @@ def DataTransform(signal):
     # v1 = sample_augmented(v1); v1 = sample_augmented(v1)
     # v2 = sample_augmented(v2); v2 = sample_augmented(v2)
 
+    # Original proposed solution
     v1 = scaling(window_warp(v1))
     v2 = scaling(window_warp(v2))
 
