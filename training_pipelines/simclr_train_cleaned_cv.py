@@ -216,6 +216,7 @@ def main(
 
         # Train SimCLR
         for ep in range(1, epochs + 1):
+            print(f"Please wait: Run epoch: {ep}")
             tr_loss = pretrain_one_epoch(model, tr_dl, loss_fn, opt, device)
             mlflow.log_metric("ssl_train_loss", tr_loss, step=ep)
             if ep == 1 or ep % 25 == 0:
@@ -371,7 +372,7 @@ if __name__ == "__main__":
                            help="Fraction of labeled participants to use (0.0-1.0)")
     data_group.add_argument("--pretrain_all_conditions", action="store_true",
                            help="Pretrain on all conditions (not just baseline/mental_stress)")
-    data_group.add_argument("--train_ratio_encoder", default=0.75, type=float,
+    data_group.add_argument("--train_ratio_encoder", default=1.0, type=float,
                             help="If set to 0.75, it will result in 60/20/20 split and have a validation set for SimCLR,"
                                  "Alternatively, set to 1.0 to train on all unlabelled training instances.")
 
@@ -379,7 +380,7 @@ if __name__ == "__main__":
     # SimCLR Encoder Training
     # ══════════════════════════════════════════════════════════════════════════════
     simclr_group = parser.add_argument_group('SimCLR Encoder Training')
-    simclr_group.add_argument("--epochs", type=int, default=100,
+    simclr_group.add_argument("--epochs", type=int, default=40,
                              help="Number of epochs for SimCLR pretraining")
     simclr_group.add_argument("--lr", type=float, default=1e-3,
                              help="Learning rate for SimCLR training")
