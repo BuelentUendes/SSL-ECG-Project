@@ -143,12 +143,12 @@ def DataTransform(signal):
     # Contrastive Self-Supervised Learning for Stress Detection from ECG Data (BioEngineering, 2022)
     # We first do time warping and then scaling which was their proposed augmentation for WESAD.
     # Legacy code:
-    # v1 = sample_augmented(v1); v1 = sample_augmented(v1)
-    # v2 = sample_augmented(v2); v2 = sample_augmented(v2)
+    v1 = sample_augmented(v1); v1 = sample_augmented(v1)
+    v2 = sample_augmented(v2); v2 = sample_augmented(v2)
 
     # Original proposed solution
-    v1 = scaling(window_warp(v1))
-    v2 = scaling(window_warp(v2))
+    # v1 = scaling(window_warp(v1))
+    # v2 = scaling(window_warp(v2))
 
     # ensure shape & contiguity
     L = sig.shape[-1]
