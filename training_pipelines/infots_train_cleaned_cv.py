@@ -25,6 +25,7 @@ from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
 from models.infots import (
     InfoTS,
+    optimize_infots_hyperparameters,
 )
 
 
@@ -77,7 +78,11 @@ def main(
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
     elif torch.backends.mps.is_available():
-        device = torch.device("mps")
+        if use_s3_layers:
+            # mps has some issues with long Conv1 layer somehow
+            device = torch.device("cpu")
+        else:
+            device = torch.device("mps")
     else:
         device = torch.device("cpu")
 
@@ -357,8 +362,10 @@ if __name__ == "__main__":
                            help="Fraction of labeled participants to use (0.0-1.0)")
     data_group.add_argument("--pretrain_all_conditions", action="store_true",
                            help="Pretrain on all conditions (not just baseline/mental_stress)")
-    data_group.add_argument("--train_ratio_encoder", default=0.75, type=float,
-                            help="If set to 0.75, it will result in 60/20/20 split and have a validation set for InfoTS,"
+    #ToDo: Check if this work with train ratio 1.0 -> works!
+    data_group.add_argument("--train_ratio_encoder", default=1.0, type=float,
+                            help="If set to 0.75, it will result in 60/20/20 split and "
+                                 "have a validation set for InfoTS,"
                                  "Alternatively, set to 1.0 to train on all unlabelled training instances.")
 
     # ══════════════════════════════════════════════════════════════════════════════
@@ -371,7 +378,7 @@ if __name__ == "__main__":
                              help="Learning rate for InfoTS encoder training")
     infots_group.add_argument("--infots_meta_lr", type=float, default=0.01,
                              help="Learning rate for InfoTS meta-learner")
-    infots_group.add_argument("--infots_batch_size", type=int, default=16,
+    infots_group.add_argument("--infots_batch_size", type=int, default=32, #original 16
                              help="Batch size for InfoTS training")
     infots_group.add_argument("--infots_output_dims", type=int, default=320,
                              help="InfoTS representation dimension")
@@ -392,6 +399,7 @@ if __name__ == "__main__":
     # S3 Configuration
     # ══════════════════════════════════════════════════════════════════════════════
     s3_group = parser.add_argument_group('S3 Configuration')
+    # We use the default hyperparameters that were tested and performed well in the S3 paper
     s3_group.add_argument("--use_s3_layers", action="store_true",
                          help="Use S3 layers in the encoder")
     s3_group.add_argument("--num_s3_layers", type=int, default=2,
@@ -400,7 +408,7 @@ if __name__ == "__main__":
                          help="Initial number of segments for S3")
     s3_group.add_argument("--shuffle_vector_dim", type=int, default=1,
                          help="Shuffle vector dimension for S3")
-    s3_group.add_argument("--segment_multiplier", type=int, default=2,
+    s3_group.add_argument("--segment_multiplier", type=int, default=1,
                          help="Segment multiplier for S3")
 
     # ══════════════════════════════════════════════════════════════════════════════
@@ -432,6 +440,7 @@ if __name__ == "__main__":
     # ══════════════════════════════════════════════════════════════════════════════
     # Hyperparameter Optimization Configuration
     # ══════════════════════════════════════════════════════════════════════════════
+    #ToDo: Do this optimization here and tune the parameters accordingly
     hp_group = parser.add_argument_group('Hyperparameter Optimization')
     hp_group.add_argument("--optimize_hyperparameters", action="store_true",
                          help="Enable hyperparameter optimization for InfoTS augmentation parameters")
@@ -449,5 +458,6 @@ if __name__ == "__main__":
 
     # Important:
     args.pretrain_all_conditions = True
+    # args.use_s3_layers=True
 
     main(**vars(args))
