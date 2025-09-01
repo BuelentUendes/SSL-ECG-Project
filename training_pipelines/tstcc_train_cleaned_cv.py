@@ -485,7 +485,7 @@ if __name__ == "__main__":
                                  help="Use cosine similarity for contrastive learning")
 
     tstcc_arch_group.add_argument("--use_s3_layers", action="store_true",
-                                  help="If set, we use the S3 layer", default=True)
+                                  help="If set, we use the S3 layer")
     tstcc_arch_group.add_argument("--initial_num_segments", type=int, default=2)
     tstcc_arch_group.add_argument("--num_s3_layers", type=int, default=1)
     tstcc_arch_group.add_argument("--segment_multiplier", type=int, default=1)
