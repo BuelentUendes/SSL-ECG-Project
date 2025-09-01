@@ -188,7 +188,14 @@ def main(
                                experiment_name="SimCLR",
                                tracking_uri=mlflow_tracking_uri)
 
-    model = get_simclr_model(window=win_len, device=device)
+    model = get_simclr_model(
+        window=win_len,
+        device=device,
+        use_s3_layers=use_s3_layers,
+        num_s3_layers=num_s3_layers,
+        initial_num_segments=initial_num_segments,
+        segment_multiplier=segment_multiplier,
+    )
 
     # IF we have forced retraining we will always retrain
     if (cached or os.path.exists(os.path.join(model_save_path, "simclr_encoder.pt"))) and not (force_retraining):
