@@ -234,8 +234,11 @@ def simclr_data_loaders(X_train, X_val, batch_size:int):
 def pretrain_one_epoch(model, loader, loss_fn, opt, device):
     model.train()
     tot = 0
-    for batch_idx, (v1,v2) in enumerate(tqdm(loader, desc="Processing batches")):
-        print(f"Processing batch {batch_idx} / {len(loader)}")
+
+    pbar = tqdm(total=len(loader), desc="Processing")
+    for batch_idx, (v1, v2) in enumerate(loader):
+        pbar.set_postfix(batch=f"{batch_idx + 1}/{len(loader)}")
+
         v1,v2 = v1.to(device), v2.to(device)
         _,_,z1,z2 = model(v1,v2)
         loss = loss_fn(z1, z2)
@@ -243,6 +246,8 @@ def pretrain_one_epoch(model, loader, loss_fn, opt, device):
         loss.backward()
         opt.step()
         tot += loss.item()
+        pbar.update(1)
+    pbar.close()
     return tot/len(loader)
 
 @torch.no_grad()
