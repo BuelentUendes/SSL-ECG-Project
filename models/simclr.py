@@ -12,6 +12,7 @@ from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 from torcheval.metrics.functional import multiclass_f1_score
 from typing import Union, Sequence, Tuple, Dict, Any, List
 from tqdm import tqdm
+import random
 
 # ----------------------------------------------------------------------
 # helpers
@@ -72,6 +73,30 @@ def add_noise_with_SNR(x, snr_db=None):
 def random_scaling(x):
     return x * np.random.uniform(0.9, 1.1)
 
+def scaling(x, sigma=0.001):
+    """Scale the time series"""
+    # This scaling is in line with the scaling function that is used for TS-TCC and InfoTS
+    factor = np.random.normal(loc=2.0, scale=sigma)
+    return x * factor
+
+def window_warp(x, window_ratio=0.3, scales=[0.5, 2.]):
+    """Warp random windows.
+    Important note: We align here the time warping with the one applied in InfoTS
+    """
+    x_warped = x.copy()
+    seq_len = x.shape[0]
+    window_len = int(seq_len * window_ratio)
+
+    # for i in range(x.shape[0]):
+    start = torch.randint(0, seq_len - window_len + 1, (1,)).item()
+    scale = random.choice(scales)
+    window = x_warped[start:start + window_len]
+
+    # Simple scaling as warping
+    x_warped[start:start + window_len] = window * scale
+
+    return x_warped
+
 def random_crop_shift(x, crop_len=8000):
     if len(x) <= crop_len:
         return x
@@ -112,8 +137,17 @@ def sample_augmented(x: np.ndarray) -> np.ndarray:
 def DataTransform(signal):
     sig = to_1d(signal)
     v1, v2 = sig.copy(), sig.copy()
-    v1 = sample_augmented(v1); v1 = sample_augmented(v1)
-    v2 = sample_augmented(v2); v2 = sample_augmented(v2)
+    # Important:
+    # Based on the paper:
+    # Contrastive Self-Supervised Learning for Stress Detection from ECG Data (BioEngineering, 2022)
+    # We first do time warping and then scaling which was their proposed augmentation for WESAD.
+    # Legacy code:
+    # v1 = sample_augmented(v1); v1 = sample_augmented(v1)
+    # v2 = sample_augmented(v2); v2 = sample_augmented(v2)
+
+    v1 = scaling(window_warp(v1))
+    v2 = scaling(window_warp(v2))
+
     # ensure shape & contiguity
     L = sig.shape[-1]
     return safe_contiguous(same_length(v1, L)), safe_contiguous(same_length(v2, L))
