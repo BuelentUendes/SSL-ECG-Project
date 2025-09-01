@@ -710,7 +710,11 @@ def Trainer(
             val_loss, valid_acc, _, _ = model_evaluate(model, temporal_contr_model, valid_dl, device, training_mode, config)
 
         if training_mode == "self_supervised":
-            print(f"Epoch {epoch:02d} | ssl_train_loss: {train_loss:.4f} | ssl_val_loss: {val_loss:.4f}")
+            if valid_dl is not None:
+                print(f"Epoch {epoch:02d} | ssl_train_loss: {train_loss:.4f} | ssl_val_loss: {val_loss:.4f}")
+            else:
+                print(f"Epoch {epoch:02d} | ssl_train_loss: {train_loss:.4f} | ssl_val_loss: No validation data used ")
+
             mlflow.log_metrics({
                 "ssl_train_loss": train_loss,
                 "ssl_val_loss": val_loss if valid_dl is not None else np.nan,
