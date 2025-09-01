@@ -547,6 +547,5 @@ if __name__ == "__main__":
 
     #Important:
     args.pretrain_all_conditions = True
-    args.use_s3_layers = True
 
     main(**vars(args))
