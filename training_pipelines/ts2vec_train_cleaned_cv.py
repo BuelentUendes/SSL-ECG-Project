@@ -45,6 +45,10 @@ def main(
         ts2vec_depth: int,
         ts2vec_max_train_length: int,
         ts2vec_temporal_unit: int,
+        use_s3_layers: bool,
+        initial_num_segments: int,
+        num_s3_layers: int,
+        segment_multiplier: int,
         classifier_model: str,
         classifier_epochs: int,
         classifier_lr: float,
@@ -174,6 +178,10 @@ def main(
             batch_size=ts2vec_batch_size,
             max_train_length=ts2vec_max_train_length,
             temporal_unit=ts2vec_temporal_unit,
+            use_s3_layers=use_s3_layers,
+            initial_num_segments=initial_num_segments,
+            num_s3_layers=num_s3_layers,
+            segment_multiplier=segment_multiplier,
         )
         ts2vec.net = ts2vec._net = torch.load(model_path, map_location=device)
 
@@ -193,6 +201,10 @@ def main(
             batch_size=ts2vec_batch_size,
             max_train_length=ts2vec_max_train_length,
             temporal_unit=ts2vec_temporal_unit,
+            use_s3_layers=use_s3_layers,
+            initial_num_segments=initial_num_segments,
+            num_s3_layers=num_s3_layers,
+            segment_multiplier=segment_multiplier,
         )
 
         print(f"Created TS2Vec model on device: {next(ts2vec.net.parameters()).device}")
@@ -354,11 +366,19 @@ if __name__ == "__main__":
     ts2vec_group.add_argument("--ts2vec_temporal_unit", type=int, default=3,
                              help="TS2Vec temporal unit for hierarchical pooling")
 
+    # Adding the S3 layers if needed with default parameters as specified in the paper
+    ts2vec_group.add_argument("--use_s3_layers", action="store_true",
+                                  help="If set, we use the S3 layer", default=True)
+    ts2vec_group.add_argument("--initial_num_segments", type=int, default=2)
+    ts2vec_group.add_argument("--num_s3_layers", type=int, default=2)
+    ts2vec_group.add_argument("--segment_multiplier", type=int, default=1)
+
     # ══════════════════════════════════════════════════════════════════════════════
     # Downstream Classifier Configuration
     # ══════════════════════════════════════════════════════════════════════════════
     classifier_group = parser.add_argument_group('Downstream Classifier')
-    classifier_group.add_argument("--classifier_model", type=str, default="logistic_regression",
+    classifier_group.add_argument("--classifier_model", type=str,
+                                  default="logistic_regression",
                                  choices=("logistic_regression", "mlp", "random_forest", "xgboost"),
                                  help="Type of downstream classifier to use")
     classifier_group.add_argument("--classifier_epochs", type=int, default=25,
