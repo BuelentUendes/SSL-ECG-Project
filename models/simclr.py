@@ -13,6 +13,7 @@ from torcheval.metrics.functional import multiclass_f1_score
 from typing import Union, Sequence, Tuple, Dict, Any, List
 from tqdm import tqdm
 import random
+from S3 import S3
 
 # ----------------------------------------------------------------------
 # helpers
@@ -157,8 +158,25 @@ def DataTransform(signal):
 # ----------------------------------------------------------------------
 class ECGEncoder(nn.Module):
     """1D CNN encoder with 3 blocks, each block: Conv1d -> ReLU -> MaxPool -> Dropout"""
-    def __init__(self, input_channels=1, dropout=0.3, window=10000):
+    def __init__(
+            self,
+            input_channels=1,
+            dropout=0.3, #Actually we could also apply dropout 0.35 to align it with the implementation of the TSTCC?
+            window=10_000,
+            use_s3_layers=False,
+            **kwargs,
+    ):
         super(ECGEncoder, self).__init__()
+
+        self.use_s3_layer = use_s3_layers
+        if self.use_s3_layer:
+            self.s3_layers = S3(
+                num_layers=kwargs.get("num_s3_layers", 2),
+                initial_num_segments=kwargs.get("initial_num_segments", 2),
+                shuffle_vector_dim=kwargs.get("shuffle_vector_dim", 1),
+                segment_multiplier=kwargs.get("segment_multiplier", 1),
+            )
+
         self.block1 = nn.Sequential(
             nn.Conv1d(input_channels, 32, kernel_size=32, stride=1, padding=16, bias=False),
             nn.ReLU(),
@@ -183,6 +201,12 @@ class ECGEncoder(nn.Module):
         # L2 regularization to be set via optimizer weight_decay
 
     def forward(self, x):
+        if self.use_s3_layer:
+            # We need to also transpose here, as the S3 module expects B, T, C and we have B, C, T
+            x = x.transpose(1, 2)
+            x = self.s3_layers(x)
+            x = x.transpose(1, 2)
+
         x = self.block1(x)
         x = self.block2(x)
         x = self.block3(x)
@@ -256,8 +280,22 @@ class SimCLRDataset(Dataset):
         v2 = torch.tensor(v2, dtype=torch.float).unsqueeze(0)
         return v1, v2
 
-def get_simclr_model(window:int=10000, device:str="cpu"):
-    enc = ECGEncoder(window=window).to(device)
+def get_simclr_model(
+        window:int=10000,
+        device:str="cpu",
+        use_s3_layers=False,
+        num_s3_layers=2,
+        initial_num_segments=2,
+        segment_multiplier=1,
+):
+    enc = ECGEncoder(
+        window=window,
+        use_s3_layers=use_s3_layers,
+        num_s3_layers=num_s3_layers,
+        initial_num_segments=initial_num_segments,
+        segment_multiplier=segment_multiplier,
+    ).to(device)
+
     proj = ProjectionHead().to(device)
     return SimCLR(enc, proj)
 
