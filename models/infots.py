@@ -12,6 +12,8 @@ from datetime import datetime
 import pickle
 import mlflow
 from mlflow.tracking import MlflowClient
+from scipy.stats import uniform, randint
+from sklearn.model_selection import ParameterSampler, ParameterGrid
 from scipy.special import softmax
 from sklearn.metrics import log_loss
 from S3 import S3
@@ -217,10 +219,10 @@ class InfoTSAugmentation(nn.Module):
             lambda x: self._jitter(x, 0.001),
             lambda x: self._scaling(x, 0.001), 
             lambda x: self._time_warp(x),
-            lambda x: self._window_slice(x),
+            lambda x: self._window_slice(x), #Window slice and subsequence are basically the same, as I do need to pad it anyways
             # lambda x: self._subsequence(x),
-            # lambda x: self._cutout(x),
-            # lambda x: self._window_warp(x)
+            lambda x: self._cutout(x),
+            lambda x: self._window_warp(x)
         ]
 
     def _jitter(self, x, sigma=0.001):
@@ -247,7 +249,7 @@ class InfoTSAugmentation(nn.Module):
         warped = x[:, indices] * (1 - weights).unsqueeze(-1) + x[:, indices_next] * weights.unsqueeze(-1)
         return warped
 
-    def _window_slice(self, x, reduce_ratio=0.9):
+    def _window_slice(self, x, reduce_ratio=0.5):
         """Randomly slice a window and pad to original length"""
         original_len = x.size(1)
         target_len = int(original_len * reduce_ratio)
@@ -275,12 +277,13 @@ class InfoTSAugmentation(nn.Module):
         pad_left = pad_len // 2
         pad_right = pad_len - pad_left
         
-        # Pad with mean values to maintain signal characteristics
+        # Pad with zero values to maintain signal characteristics
         padded = F.pad(subseq, (0, 0, pad_left, pad_right), mode='constant', value=0)
         return padded
 
-    def _cutout(self, x, area_ratio=0.001):
+    def _cutout(self, x, area_ratio=0.1):
         """Randomly mask part of the signal"""
+
         x_masked = x.clone()
         seq_len = x.size(1)
         mask_len = int(seq_len * area_ratio)
@@ -290,7 +293,7 @@ class InfoTSAugmentation(nn.Module):
             x_masked[i, start:start + mask_len] = 0
         return x_masked
 
-    def _window_warp(self, x, window_ratio=0.1, scales=[0.5, 2.]):
+    def _window_warp(self, x, window_ratio=0.3, scales=[0.5, 2.]):
         """Warp random windows"""
         x_warped = x.clone()
         seq_len = x.size(1)
@@ -1009,9 +1012,6 @@ def evaluate_classifier(
             test_metrics["test_auroc"],
             test_metrics["test_pr_auc"],
             test_metrics["test_f1"])
-
-
-
 
 ####
 # Optimization script for the InfoTS
