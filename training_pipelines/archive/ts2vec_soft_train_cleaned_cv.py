@@ -448,12 +448,12 @@ if __name__ == "__main__":
                              help="Soft TS2Vec depth (# dilated conv blocks)")
     ts2vec_group.add_argument("--ts2vec_max_train_length", type=int, default=5000,
                              help="Soft TS2Vec max training length")
-    ts2vec_group.add_argument("--ts2vec_temporal_unit", type=int, default=0,
+    ts2vec_group.add_argument("--ts2vec_temporal_unit", type=int, default=3,
                              help="Soft TS2Vec temporal unit for hierarchical pooling")
 
     # Soft contrastive learning hyperparameters
     ts2vec_soft_group = parser.add_argument_group('Soft Contrastive Learning Parameters')
-    ts2vec_soft_group.add_argument("--ts2vec_dist_type", type=str, default="EUC",
+    ts2vec_soft_group.add_argument("--ts2vec_dist_type", type=str, default="COS",
                                   choices=["DTW", "EUC", "COS", "TAM", "GAK"],
                                   help="Distance metric for soft labels")
     ts2vec_soft_group.add_argument("--ts2vec_tau_inst", type=float, default=50.0,

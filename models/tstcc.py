@@ -1356,8 +1356,8 @@ def optimize_tstcc_hyperparameters(
 
             # Update best if this trial is better
             # Important we want to minimize the validation loss
-            if trial_score < best_score:
-                best_score = trial_score
+            if train_loss < best_score:
+                best_score = train_loss
                 best_params = dict(params)  # Convert to regular dict
                 # Keep the best model
                 best_model = model.state_dict().copy()

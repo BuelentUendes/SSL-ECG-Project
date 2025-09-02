@@ -428,7 +428,7 @@ if __name__ == "__main__":
                         help="Epochs for TS2Vec pretraining")
     parser.add_argument("--ts2vec_lr", type=float, default=0.001,
                         help="Learning rate for TS2Vec")
-    parser.add_argument("--ts2vec_batch_size", type=int, default=8,
+    parser.add_argument("--ts2vec_batch_size", type=int, default=4, # 8 was set in the paper
                         help="Batch size for TS2Vec")
     parser.add_argument("--ts2vec_output_dims", type=int, default=320,
                         help="Representation dimension (Co)")
@@ -436,9 +436,9 @@ if __name__ == "__main__":
                         help="Hidden dimension (Ch)")
     parser.add_argument("--ts2vec_depth", type=int, default=10,
                         help="Depth (# dilated conv blocks)")
-    parser.add_argument("--ts2vec_max_train_length", type=int, default=5000,
+    parser.add_argument("--ts2vec_max_train_length", type=int, default=10_000,
                         help="Max training length")
-    parser.add_argument("--ts2vec_temporal_unit", type=int, default=0,
+    parser.add_argument("--ts2vec_temporal_unit", type=int, default=3,
                         help="Temporal unit for hierarchical pooling")
 
     # classifier fine-tuning
@@ -455,4 +455,7 @@ if __name__ == "__main__":
                         help="Number of Optuna trials for hyperparameter tuning")
 
     args = parser.parse_args()
+
+    args.force_retraining = True
+
     main(**vars(args))
