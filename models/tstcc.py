@@ -1231,7 +1231,7 @@ def optimize_tstcc_hyperparameters(
 
         param_iter = param_sampler
 
-    best_score = -np.inf
+    best_score = 100_000 # Very high positive number
     best_params = None
     best_model = None
     best_tc_head = None
