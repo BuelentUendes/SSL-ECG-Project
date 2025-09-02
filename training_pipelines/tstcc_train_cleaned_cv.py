@@ -438,7 +438,7 @@ if __name__ == "__main__":
     general_group = parser.add_argument_group('General Setup')
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
-    general_group.add_argument("--seed", type=int, default=42,
+    general_group.add_argument("--seed", type=int, default=1234,
                               help="Random seed for reproducibility")
     general_group.add_argument("--verbose", action="store_true",
                               help="Show verbose output of CV for logistic regression")
@@ -459,7 +459,7 @@ if __name__ == "__main__":
                            help="Fraction of labeled participants to use (0.0-1.0)")
     data_group.add_argument("--pretrain_all_conditions", action="store_true",
                            help="Pretrain on all conditions (not just baseline/mental_stress)")
-    data_group.add_argument("--train_ratio_encoder", default=0.75, type=float,
+    data_group.add_argument("--train_ratio_encoder", default=1.0, type=float,
                             help="If set to 0.75, it will result in 60/20/20 split and have a validation set for TSTCC,"
                                  "Alternatively, set to 1.0 to train on all unlabelled training instances.")
     # ══════════════════════════════════════════════════════════════════════════════
@@ -541,11 +541,11 @@ if __name__ == "__main__":
                          choices=["random", "grid"],
                          help="Search strategy: 'random' for random search, 'grid' for grid search")
 
-
     # Parse arguments and run main function
     args = parser.parse_args()
 
     #Important:
     args.pretrain_all_conditions = True
+    # args.optimize_hyperparameters = True
 
     main(**vars(args))
