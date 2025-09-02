@@ -312,7 +312,7 @@ def main(
             temporal_contr_model=tc_head,
             model_optimizer=opt_m,
             temp_cont_optimizer=opt_tc,
-            train_dl=tr_dl, valid_dl=va_dl, test_dl=te_dl,
+            train_dl=tr_dl, valid_dl=None, test_dl=te_dl,
             device=device, config=cfg,
             experiment_log_dir=workdir,
             training_mode="self_supervised",
@@ -438,7 +438,7 @@ if __name__ == "__main__":
     general_group = parser.add_argument_group('General Setup')
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
-    general_group.add_argument("--seed", type=int, default=1234,
+    general_group.add_argument("--seed", type=int, default=42,
                               help="Random seed for reproducibility")
     general_group.add_argument("--verbose", action="store_true",
                               help="Show verbose output of CV for logistic regression")
@@ -471,7 +471,7 @@ if __name__ == "__main__":
     tstcc_group.add_argument("--tcc_lr", type=float, default=3e-4,
                             help="Learning rate for TS-TCC training")
     tstcc_group.add_argument("--tcc_batch_size", type=int, default=128,
-                            help="Batch size for TS-TCC training") # reduce to 16 (was 128)
+                            help="Batch size for TS-TCC training")
 
     # TS-TCC Architecture Parameters
     tstcc_arch_group = parser.add_argument_group('TS-TCC Architecture')
