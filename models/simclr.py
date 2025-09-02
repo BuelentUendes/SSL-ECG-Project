@@ -154,12 +154,12 @@ def hor_flip(x): return np.ascontiguousarray(np.flip(x))
 
 
 AUGS = [
-    (add_noise_with_SNR, 1/7), # 0.25 before
-    (random_scaling,     1/7), # 0.20 before
-    (negate,             1/7), # 0.05 before
-    (hor_flip,           1/7), # 0.05 before
-    (permutation,        1/7),
-    (window_warp,        1/7)
+    (add_noise_with_SNR, 1/6), # 0.25 before
+    (random_scaling,     1/6), # 0.20 before
+    (negate,             1/6), # 0.05 before
+    (hor_flip,           1/6), # 0.05 before
+    (permutation,        1/6),
+    (window_warp,        1/6)
 
     # (random_crop_shift,  1/7), # 0.20 before
     # (local_jitter,       1/7), # 0.15 before
