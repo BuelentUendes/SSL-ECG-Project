@@ -693,7 +693,6 @@ def search_encoder_fp(
 def Trainer(
         model, temporal_contr_model, model_optimizer, temp_cont_optimizer, train_dl, valid_dl,
         test_dl, device, config, experiment_log_dir, training_mode,
-        return_train_val_loss=False
 ):
     # Start training
     print("Training started ....")
@@ -729,8 +728,10 @@ def Trainer(
 
     print("\n################## Training is Done! #########################")
 
-    if return_train_val_loss:
+    if valid_dl is not None:
         return train_loss, val_loss
+    else:
+        return train_loss
 
 
 
@@ -1281,12 +1282,12 @@ def optimize_tstcc_hyperparameters(
             # Train TSTCC with current hyperparameters
             workdir = tempfile.mkdtemp(prefix=f"tstcc_hp_trial_{trial_idx}_")
             # We select the optimal parameters based on the best validation loss
-            train_loss, trial_score = Trainer(
+            train_loss = Trainer(
                 model=model,
                 temporal_contr_model=tc_head,
                 model_optimizer=opt_m,
                 temp_cont_optimizer=opt_tc,
-                train_dl=tr_dl, valid_dl=va_dl, test_dl=te_dl,
+                train_dl=tr_dl, valid_dl=None, test_dl=te_dl,
                 device=device, config=cfg,
                 experiment_log_dir=workdir,
                 training_mode="self_supervised",
