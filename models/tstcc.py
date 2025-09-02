@@ -1293,56 +1293,66 @@ def optimize_tstcc_hyperparameters(
                 return_train_val_loss = True,
             )
 
-            # Old code for selection of hp based on labels (but this is tricky)
-            #Extract representations from validation set (Check if lower ssl loss is associated with better roc auc score)
-            model.eval()
-            tc_head.eval()
-            with torch.no_grad():
-                val_repr, _ = encode_representations(
-                    X_val, y_val, model, tc_head, base_config['tcc_batch_size'], device
-                )
+            # We evaluate the performance based on the training loss
 
-            # Filter to binary task (baseline vs mental_stress)
-            val_mask = np.isin(y_val, [0, 1])
-            val_repr_filtered = val_repr[val_mask]
-            y_val_filtered = y_val[val_mask]
-            groups_val_filtered = groups_val[val_mask]
 
-            # Quick logistic regression evaluation
-            if len(np.unique(y_val_filtered)) >= 2 and len(val_repr_filtered) >= 10:
-                # Use simple cross-validation on validation set for scoring
-                cv_splitter, _ = get_participant_cv_splitter(
-                    groups_val_filtered, min_participants_for_kfold=5, k=5
-                )
-
-                if cv_splitter is not None:
-                    lr = LogisticRegression(random_state=seed, max_iter=1000)
-                    cv_scores = cross_val_score(
-                        lr, val_repr_filtered, y_val_filtered,
-                        cv=cv_splitter, scoring=scoring_metric, groups=groups_val_filtered
-                    )
-                    roc_auc_score_cv = np.mean(cv_scores)
-                else:
-                    # Fallback: simple train on validation set
-                    lr = LogisticRegression(random_state=seed, max_iter=1000)
-                    lr.fit(val_repr_filtered, y_val_filtered)
-                    y_pred_proba = lr.predict_proba(val_repr_filtered)[:, 1]
-                    roc_auc_score_cv = roc_auc_score(y_val_filtered, y_pred_proba)
-            else:
-                roc_auc_score_cv = 0.0  # Invalid trial
-
-            print(f"  Trial ROC AUC score (AUROC): {roc_auc_score_cv:.4f}")
-            print(f"  Trial validation loss : {trial_score:.4f}")
+            # # Old code for selection of hp based on labels (but this is tricky)
+            # #Extract representations from validation set (Check if lower ssl loss is associated with better roc auc score)
+            # model.eval()
+            # tc_head.eval()
+            # with torch.no_grad():
+            #     val_repr, _ = encode_representations(
+            #         X_val, y_val, model, tc_head, base_config['tcc_batch_size'], device
+            #     )
+            #
+            # # Filter to binary task (baseline vs mental_stress)
+            # val_mask = np.isin(y_val, [0, 1])
+            # val_repr_filtered = val_repr[val_mask]
+            # y_val_filtered = y_val[val_mask]
+            # groups_val_filtered = groups_val[val_mask]
+            #
+            # # Quick logistic regression evaluation
+            # if len(np.unique(y_val_filtered)) >= 2 and len(val_repr_filtered) >= 10:
+            #     # Use simple cross-validation on validation set for scoring
+            #     cv_splitter, _ = get_participant_cv_splitter(
+            #         groups_val_filtered, min_participants_for_kfold=5, k=5
+            #     )
+            #
+            #     if cv_splitter is not None:
+            #         lr = LogisticRegression(random_state=seed, max_iter=1000)
+            #         cv_scores = cross_val_score(
+            #             lr, val_repr_filtered, y_val_filtered,
+            #             cv=cv_splitter, scoring=scoring_metric, groups=groups_val_filtered
+            #         )
+            #         roc_auc_score_cv = np.mean(cv_scores)
+            #     else:
+            #         # Fallback: simple train on validation set
+            #         lr = LogisticRegression(random_state=seed, max_iter=1000)
+            #         lr.fit(val_repr_filtered, y_val_filtered)
+            #         y_pred_proba = lr.predict_proba(val_repr_filtered)[:, 1]
+            #         roc_auc_score_cv = roc_auc_score(y_val_filtered, y_pred_proba)
+            # else:
+            #     roc_auc_score_cv = 0.0  # Invalid trial
+            #
+            # print(f"  Trial ROC AUC score (AUROC): {roc_auc_score_cv:.4f}")
+            # print(f"  Trial validation loss : {trial_score:.4f}")
             print(f"  Trial train loss: {train_loss:.4f}")
             print(f"  Best score so far: {best_score:.4f}")
 
             trial_results.append({
                 'trial_idx': trial_idx,
                 'params': dict(params),  # Convert to regular dict
-                '(val) trial score': trial_score,
                 'train trial score': train_loss,
-                'associated_roc_auc_score': roc_auc_score_cv,
             })
+
+
+            # trial_results.append({
+            #     'trial_idx': trial_idx,
+            #     'params': dict(params),  # Convert to regular dict
+            #     # '(val) trial score': trial_score,
+            #     'train trial score': train_loss,
+            #     # 'associated_roc_auc_score': roc_auc_score_cv,
+            # })
 
             # Update best if this trial is better
             # Important we want to minimize the validation loss
