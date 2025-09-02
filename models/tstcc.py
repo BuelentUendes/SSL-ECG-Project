@@ -1291,7 +1291,6 @@ def optimize_tstcc_hyperparameters(
                 device=device, config=cfg,
                 experiment_log_dir=workdir,
                 training_mode="self_supervised",
-                return_train_val_loss = True,
             )
 
             # We evaluate the performance based on the training loss
