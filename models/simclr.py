@@ -80,6 +80,39 @@ def scaling(x, sigma=0.001):
     factor = np.random.normal(loc=2.0, scale=sigma)
     return x * factor
 
+def permutation(x, segments=[5, 10, 15, 20]):
+    """
+    Randomly permutes the time-series
+    """
+    x_segmented = x.copy()
+    number_segments = random.choice(segments)
+
+    # Calculate segment length
+    segment_length = len(x) // number_segments
+
+    # Handle case where the array length is not perfectly divisible
+    remainder = len(x) % number_segments
+
+    # Create segments
+    segments_list = []
+    start_idx = 0
+
+    for i in range(number_segments):
+        # Add one extra element to some segments if there's a remainder
+        extra = 1 if i < remainder else 0
+        end_idx = start_idx + segment_length + extra
+        segments_list.append(x_segmented[start_idx:end_idx])
+        start_idx = end_idx
+
+    # Randomly shuffle the segments
+    random.shuffle(segments_list)
+
+    # Concatenate the shuffled segments
+    permuted_signal = np.concatenate(segments_list)
+
+    return permuted_signal
+
+
 def window_warp(x, window_ratio=0.3, scales=[0.5, 2.]):
     """Warp random windows.
     Important note: We align here the time warping with the one applied in InfoTS
@@ -119,14 +152,20 @@ def baseline_wander(x):
 def negate(x):   return -x
 def hor_flip(x): return np.ascontiguousarray(np.flip(x))
 
+
 AUGS = [
-    (add_noise_with_SNR, 1/7), # 0.25
-    (random_scaling,     1/7), # 0.20
-    (random_crop_shift,  1/7), # 0.20
-    (local_jitter,       1/7), # 0.15
-    (baseline_wander,    1/7), # 0.10
-    (negate,             1/7), # 0.05
-    (hor_flip,           1/7), # 0.05
+    (add_noise_with_SNR, 1/7), # 0.25 before
+    (random_scaling,     1/7), # 0.20 before
+    (negate,             1/7), # 0.05 before
+    (hor_flip,           1/7), # 0.05 before
+    (permutation,        1/7),
+    (window_warp,        1/7)
+
+    # (random_crop_shift,  1/7), # 0.20 before
+    # (local_jitter,       1/7), # 0.15 before
+    # (baseline_wander,    1/7), # 0.10 before
+    # (negate,             1/7), # 0.05 before
+    # (hor_flip,           1/7), # 0.05 before
 ]
 
 funcs, probs = zip(*AUGS)
