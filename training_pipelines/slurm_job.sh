@@ -9,6 +9,6 @@
 #SBATCH --mail-user=b.uendes@vu.nl
 
 module add cuda12.3/toolkit/12.3
-source activate /var/scratch/bun201/SSL-ECG-Project
+source activate /var/scratch/bun201/SSL-ECG-Project/ECG-Project
 
-python3 simclr_train_cleaned_cv.py --seed 12345 --epochs 3
+python3 simclr_train_cleaned_cv.py --seed 12345 --epochs 2
