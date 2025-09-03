@@ -125,6 +125,9 @@ def main(
     )
 
     X, y, groups = load_processed_data(window_data_path, label_map=label_map)
+    # Makes it more optimized
+    X = np.ascontiguousarray(X)  # Ensure contiguous memory layout
+
     y = y.astype(np.float32)
     n_features = X.shape[2]
 
@@ -224,6 +227,8 @@ def main(
             segment_multiplier=segment_multiplier,
             verbose=True,
         )
+
+        infots._net = torch.compile(infots._net, mode='reduce-overhead')
 
         print(f"Created InfoTS model on device: {next(infots.net.parameters()).device}")
 
@@ -362,7 +367,6 @@ if __name__ == "__main__":
                            help="Fraction of labeled participants to use (0.0-1.0)")
     data_group.add_argument("--pretrain_all_conditions", action="store_true",
                            help="Pretrain on all conditions (not just baseline/mental_stress)")
-    #ToDo: Check if this work with train ratio 1.0 -> works!
     data_group.add_argument("--train_ratio_encoder", default=1.0, type=float,
                             help="If set to 0.75, it will result in 60/20/20 split and "
                                  "have a validation set for InfoTS,"

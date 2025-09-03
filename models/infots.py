@@ -605,8 +605,20 @@ class InfoTS:
         data = data[~np.isnan(data).all(axis=2).all(axis=1)]
         data = np.nan_to_num(data)
         dataset = TensorDataset(torch.from_numpy(data).to(torch.float))
-        loader = DataLoader(dataset, batch_size=min(self.batch_size, len(dataset)), 
-                          shuffle=shuffle, drop_last=drop_last)
+
+        pin_memory = torch.cuda.is_available()
+        num_workers = 4 if torch.cuda.is_available() else 0
+
+        loader = DataLoader(
+            dataset,
+            batch_size=min(self.batch_size, len(dataset)),
+            shuffle=shuffle,
+            drop_last=drop_last,
+            pin_memory=pin_memory,
+            num_workers=num_workers,
+            persistent_workers=num_workers > 0,
+        )
+
         return data, dataset, loader
 
     def get_features(self, x, n_epochs=-1):
