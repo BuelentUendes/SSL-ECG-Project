@@ -20,6 +20,9 @@ from S3 import S3
 import os
 from tqdm import tqdm
 
+# Mixed precision training
+from torch.cuda.amp import autocast, GradScaler
+
 # --------------------------------------------------------
 # utils.py functions needed by InfoTS
 # --------------------------------------------------------
@@ -591,6 +594,10 @@ class InfoTS:
         self.eval_every_epoch = eval_every_epoch
         self.t0 = 2.0
         self.t1 = 0.1
+        
+        # Mixed precision training setup
+        self.use_amp = device.type == 'cuda'
+        self.scaler = GradScaler() if self.use_amp else None
 
     def get_dataloader(self, data, shuffle=False, drop_last=False):
         if self.max_train_length is not None:
@@ -682,6 +689,7 @@ class InfoTS:
             self._net.train()
             pbar = tqdm(total=len(train_loader), desc="Processing")
 
+            #ToDo: Include here autocast and GradScaler in case self.device == "cuda"!
             for idx, batch in enumerate(train_loader):
                 pbar.set_postfix(batch=f"{idx + 1}/{len(train_loader)}")
                 if n_iters is not None and self.n_iters >= n_iters:
@@ -699,11 +707,21 @@ class InfoTS:
                 optimizer.zero_grad()
                 meta_optimizer.zero_grad()
 
-                out1, out2 = self.get_features(x, n_epochs=n_epochs)
-                loss = global_infoNCE(out1, out2) + local_infoNCE(out1, out2, k=split_number) * beta
-
-                loss.backward()
-                optimizer.step()
+                if self.use_amp:
+                    with autocast():
+                        out1, out2 = self.get_features(x, n_epochs=n_epochs)
+                        loss = global_infoNCE(out1, out2) + local_infoNCE(out1, out2, k=split_number) * beta
+                    
+                    self.scaler.scale(loss).backward()
+                    self.scaler.step(optimizer)
+                    self.scaler.update()
+                else:
+                    out1, out2 = self.get_features(x, n_epochs=n_epochs)
+                    loss = global_infoNCE(out1, out2) + local_infoNCE(out1, out2, k=split_number) * beta
+                    
+                    loss.backward()
+                    optimizer.step()
+                    
                 self.net.update_parameters(self._net)
                     
                 cum_loss += loss.item()
@@ -745,27 +763,54 @@ class InfoTS:
                 y = torch.arange(self.batch_size, dtype=torch.int64).to(self.device)
 
             meta_optimizer.zero_grad()
-            outv, outx = self.get_features(x)
-            MI_vx_loss = global_infoNCE(outv, outx)
+            cls_optimizer.zero_grad()
+            
+            if self.use_amp:
+                with autocast():
+                    outv, outx = self.get_features(x)
+                    MI_vx_loss = global_infoNCE(outv, outx)
 
-            zv = F.max_pool1d(outv.transpose(1, 2).contiguous(), kernel_size=outv.size(1)).transpose(1, 2)
-            zx = F.max_pool1d(outx.transpose(1, 2).contiguous(), kernel_size=outx.size(1)).transpose(1, 2)
+                    zv = F.max_pool1d(outv.transpose(1, 2).contiguous(), kernel_size=outv.size(1)).transpose(1, 2)
+                    zx = F.max_pool1d(outx.transpose(1, 2).contiguous(), kernel_size=outx.size(1)).transpose(1, 2)
 
-            if supervised_meta:
-                pred_yv = torch.squeeze(self.pred(zv), 1)
-                pred_yx = torch.squeeze(self.pred(zx), 1)
+                    if supervised_meta:
+                        pred_yv = torch.squeeze(self.pred(zv), 1)
+                        pred_yx = torch.squeeze(self.pred(zx), 1)
+                    else:
+                        pred_yv = torch.squeeze(self.unsup_pred(zv), 1)
+                        pred_yx = torch.squeeze(self.unsup_pred(zx), 1)
+
+                    MI_vy_loss = self.CE(pred_yv, y)
+                    MI_xy_loss = self.CE(pred_yx, y)
+                    
+                    vx_vy_loss = meta_beta * (MI_vy_loss + MI_xy_loss)
+                
+                self.scaler.scale(vx_vy_loss).backward()
+                self.scaler.step(meta_optimizer)
+                self.scaler.step(cls_optimizer)
+                self.scaler.update()
             else:
-                pred_yv = torch.squeeze(self.unsup_pred(zv), 1)
-                pred_yx = torch.squeeze(self.unsup_pred(zx), 1)
+                outv, outx = self.get_features(x)
+                MI_vx_loss = global_infoNCE(outv, outx)
 
-            MI_vy_loss = self.CE(pred_yv, y)
-            MI_xy_loss = self.CE(pred_yx, y)
-            
-            vx_vy_loss = meta_beta * (MI_vy_loss + MI_xy_loss)
-            
-            vx_vy_loss.backward()
-            meta_optimizer.step()
-            cls_optimizer.step()
+                zv = F.max_pool1d(outv.transpose(1, 2).contiguous(), kernel_size=outv.size(1)).transpose(1, 2)
+                zx = F.max_pool1d(outx.transpose(1, 2).contiguous(), kernel_size=outx.size(1)).transpose(1, 2)
+
+                if supervised_meta:
+                    pred_yv = torch.squeeze(self.pred(zv), 1)
+                    pred_yx = torch.squeeze(self.pred(zx), 1)
+                else:
+                    pred_yv = torch.squeeze(self.unsup_pred(zv), 1)
+                    pred_yx = torch.squeeze(self.unsup_pred(zx), 1)
+
+                MI_vy_loss = self.CE(pred_yv, y)
+                MI_xy_loss = self.CE(pred_yx, y)
+                
+                vx_vy_loss = meta_beta * (MI_vy_loss + MI_xy_loss)
+                
+                vx_vy_loss.backward()
+                meta_optimizer.step()
+                cls_optimizer.step()
 
         if pre_flag:
             self._net.train()
