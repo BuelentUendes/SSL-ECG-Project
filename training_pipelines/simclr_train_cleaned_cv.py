@@ -3,17 +3,11 @@ import os
 import json
 import argparse
 import logging
-import tempfile
 import gc
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.optim as optim
-import mlflow
-import mlflow.pytorch
-
-from torch.utils.data import DataLoader, TensorDataset
 
 from utils.torch_utilities import (
     load_processed_data,
@@ -35,12 +29,10 @@ from models.simclr import (
     pretrain_one_epoch,
     encode_representations,
     build_simclr_fingerprint,
-    search_encoder_fp,
 )
 
 
 def main(
-        mlflow_tracking_uri: str,
         fs: str,
         window_size: int,
         step_size: int,
@@ -82,13 +74,7 @@ def main(
         device = torch.device("cpu")
 
     logging.basicConfig(level=logging.INFO)
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
-    mlflow.set_experiment(f"SimCLR with CV {classifier_model}")
-
-    # Start top‑level run
-    run = mlflow.start_run(run_name=f"simclr_cv_{classifier_model}_{seed}_lf_{label_fraction}")
-    run_id = run.info.run_id
-    logging.info(f"MLflow run_id: {run_id}")
+    logging.info(f"Starting SimCLR training with CV {classifier_model}, seed {seed}, label_fraction {label_fraction}")
     print(f"Using device: {device}")
 
     # Check if directory for saving model parameters exist, otherwise create it
@@ -156,7 +142,8 @@ def main(
     groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
 
     # Test that we have all 127 participants moved in one of the categories
-    assert len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) + len(np.unique(groups[test_idx])) == 127, \
+    assert (len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) +
+            len(np.unique(groups[test_idx])) == 127), \
         "Something went wrong with the participant split!"
 
     print(f"Labelled windows for training classifier: train {len(train_idx)}, test {len(test_idx)}")
@@ -184,10 +171,6 @@ def main(
     }
     fp = build_simclr_fingerprint(fp)
 
-    cached = search_encoder_fp(fp,
-                               experiment_name="SimCLR",
-                               tracking_uri=mlflow_tracking_uri)
-
     model = get_simclr_model(
         window=win_len,
         device=device,
@@ -197,18 +180,11 @@ def main(
         segment_multiplier=segment_multiplier,
     )
 
-    # IF we have forced retraining we will always retrain
-    if (cached or os.path.exists(os.path.join(model_save_path, "simclr_encoder.pt"))) and not (force_retraining):
-        if cached:
-            print(f"Found cached encoder run {cached}; downloading…")
-            uri = f"runs:/{cached}/ssl_model"
-            ckpt_dir = mlflow.artifacts.download_artifacts(uri)
-            ckpt_path = os.path.join(ckpt_dir, "simclr_encoder.pt")
-            model.load_state_dict(torch.load(ckpt_path, map_location=device))
-        else:
-            print("We found a pretrained model. Load the pretrained weights")
-            model_path = os.path.join(model_save_path, "simclr_encoder.pt")
-            model.load_state_dict(torch.load(model_path, map_location=device))
+    # Check for local pretrained model
+    if os.path.exists(os.path.join(model_save_path, "simclr_encoder.pt")) and not force_retraining:
+        print("Found pretrained model. Loading weights...")
+        model_path = os.path.join(model_save_path, "simclr_encoder.pt")
+        model.load_state_dict(torch.load(model_path, map_location=device))
 
     else:
         print("No cached encoder; training SimCLR from scratch")
@@ -223,23 +199,20 @@ def main(
 
         print(f"Created SimCLR model on device: {next(model.parameters()).device}")
 
-        mlflow.log_params(fp)
+        logging.info(f"Training parameters: {fp}")
 
         # Train SimCLR
         for ep in range(1, epochs + 1):
             print(f"Please wait: Run epoch: {ep}")
             tr_loss = pretrain_one_epoch(model, tr_dl, loss_fn, opt, device)
-            mlflow.log_metric("ssl_train_loss", tr_loss, step=ep)
+            logging.info(f"SSL train loss: {tr_loss}")
             print(f"Epoch {ep}/{epochs}: loss={tr_loss:.4f}")
 
         # Save model locally
         saved_results = os.path.join(model_save_path, "simclr_encoder.pt")
         torch.save(model.state_dict(), saved_results)
 
-        # Save encoder weights to MLflow
-        ckpt = os.path.join(tempfile.mkdtemp(), "simclr_encoder.pt")
-        torch.save(model.state_dict(), ckpt)
-        mlflow.log_artifact(ckpt, artifact_path="ssl_model")
+        logging.info("Encoder training complete")
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────
     print("\nExtracting representations...")
@@ -289,16 +262,13 @@ def main(
                 scoring_metric=scoring_metric, classifier_model=classifier_model
             )
 
-        # Log metrics
-        mlflow.log_metrics({
-            "best_cv_auroc": results['best_cv_score'] if cv_splitter is not None else 0,
-            "test_accuracy": results['test_metrics']['accuracy'],
-            "test_auroc": results['test_metrics']['auroc'],
-            "test_f1": results['test_metrics']['f1'],
-            "test_pr_auc": results['test_metrics']['pr_auc'],
-        })
-
-        mlflow.log_params(results['best_params'])
+        # Log metrics locally
+        logging.info(f"Best CV AUROC: {results['best_cv_score'] if cv_splitter is not None else 0}")
+        logging.info(f"Test metrics - Accuracy: {results['test_metrics']['accuracy']}, "
+                     f"AUROC: {results['test_metrics']['auroc']}, "
+                     f"F1: {results['test_metrics']['f1']}, "
+                     f"PR-AUC: {results['test_metrics']['pr_auc']}")
+        logging.info(f"Best parameters: {results['best_params']}")
 
     else:
         results = run_mlp_with_cv_and_test(
@@ -307,31 +277,25 @@ def main(
             device, classifier_epochs, classifier_batch_size, classifier_lr, False, seed
         )
 
-        # Log metrics
-        mlflow.log_metrics({
-            "best_cv_auroc": results['best_cv_score'],
-            "test_accuracy": results['test_metrics']['accuracy'],
-            "test_auroc": results['test_metrics']['auroc'],
-            "test_f1": results['test_metrics']['f1'],
-            "test_pr_auc": results['test_metrics']['pr_auc'],
-        })
-
-        mlflow.log_params(results['best_params'])
+        # Log metrics locally
+        logging.info(f"Best CV AUROC: {results['best_cv_score']}")
+        logging.info(f"Test metrics - Accuracy: {results['test_metrics']['accuracy']}, "
+                     f"AUROC: {results['test_metrics']['auroc']}, "
+                     f"F1: {results['test_metrics']['f1']}, "
+                     f"PR-AUC: {results['test_metrics']['pr_auc']}")
+        logging.info(f"Best parameters: {results['best_params']}")
 
     # ── Step 6: Save Results ────────────────────────────────────────────────────
     with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
-    # Log additional parameters
-    mlflow.log_params({
-        "classifier_model": classifier_model,
-        "label_fraction": label_fraction,
-        "seed": seed,
-        "k_folds": k_folds,
-        "n_cv_splits": n_splits,
-        "pretrain_all_conditions": pretrain_all_conditions,
-        "train_ratio_encoder": train_ratio_encoder,
-    })
+    # Log additional parameters locally
+    logging.info(f"Final parameters - Classifier: {classifier_model}, "
+                 f"Label fraction: {label_fraction}, "
+                 f"Seed: {seed}, K-folds: {k_folds}, "
+                 f"CV splits: {n_splits}, "
+                 f"Pretrain all: {pretrain_all_conditions}, "
+                 f"Train ratio encoder: {train_ratio_encoder}")
 
     # ── Cleanup ────────────────────────────────────────────────────────────────
     for _ in range(3):
@@ -343,7 +307,7 @@ def main(
           f"AUROC: {results['test_metrics']['auroc']:.4f}, "
           f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}, "
           f"F1: {results['test_metrics']['f1']:.4f} ===")
-    mlflow.end_run()
+    logging.info("Training pipeline complete")
 
 
 if __name__ == "__main__":
@@ -356,9 +320,6 @@ if __name__ == "__main__":
     # General Setup
     # ══════════════════════════════════════════════════════════════════════════════
     general_group = parser.add_argument_group('General Setup')
-    general_group.add_argument("--mlflow_tracking_uri",
-                              default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"),
-                              help="MLflow tracking URI for experiment logging")
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
     general_group.add_argument("--seed", type=int, default=42,
