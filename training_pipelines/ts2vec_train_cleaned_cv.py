@@ -341,7 +341,7 @@ if __name__ == "__main__":
                            help="Fraction of labeled participants to use (0.0-1.0)")
     data_group.add_argument("--pretrain_all_conditions", action="store_true",
                            help="Pretrain on all conditions (not just baseline/mental_stress)")
-    data_group.add_argument("--train_ratio_encoder", default=0.75, type=float,
+    data_group.add_argument("--train_ratio_encoder", default=1.0, type=float,
                             help="If set to 0.75, it will result in 60/20/20 split and have a validation set for TS2Vec,"
                                  "Alternatively, set to 1.0 to train on all unlabelled training instances.")
 
