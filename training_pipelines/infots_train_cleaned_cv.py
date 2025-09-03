@@ -230,8 +230,6 @@ def main(
             verbose=True,
         )
 
-        infots._net = torch.compile(infots._net, mode='reduce-overhead')
-
         print(f"Created InfoTS model on device: {next(infots.net.parameters()).device}")
 
         # Train InfoTS - Note: InfoTS uses unsupervised meta-learning, so we don't provide labels
