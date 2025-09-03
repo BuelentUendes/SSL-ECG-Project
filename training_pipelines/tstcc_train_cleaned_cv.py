@@ -89,7 +89,9 @@ def main(
         device = torch.device("cpu")
 
     logging.basicConfig(level=logging.INFO)
-    print(f"Starting TSTCC training with CV {classifier_model}, seed={seed}, label_fraction={label_fraction}")
+    model_name = "TSTCC_S3" if use_s3_layers else "TSTCC"
+
+    print(f"Starting {model_name} training with CV {classifier_model}, seed={seed}, label_fraction={label_fraction}")
     print(f"Using device: {device}")
 
     # Check if directory for saving model parameters exist, otherwise create it
@@ -100,11 +102,11 @@ def main(
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
 
     model_save_path = os.path.join(
-        SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC", pretrain_data, f"{seed}", f"{window_size}", f"{step_size}",
+        SAVED_MODELS_PATH, "ECG", str(fs), model_name, pretrain_data, f"{seed}", f"{window_size}", f"{step_size}",
         str(train_ratio_encoder)
     )
     results_save_path = os.path.join(
-        RESULTS_PATH, "ECG", "TSTCC", classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
+        RESULTS_PATH, "ECG", model_name, classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
         f"{step_size}", str(train_ratio_encoder)
     )
 
@@ -177,8 +179,6 @@ def main(
     torch.cuda.empty_cache()
     set_seed(seed)
 
-    # Model fingerprinting removed (was used for MLflow caching)
-
     model_file_name = "tstcc_spectral.pt" if use_spectral_augmentation else "tstcc.pt"
 
     # Check if we have a locally saved model and no forced retraining
@@ -220,7 +220,6 @@ def main(
             Xva = X[val_idx_encoder].astype(np.float32)
             ytr = y[train_idx_encoder]
             yva = y[val_idx_encoder]
-            # groups_tr = groups_train_idx_encoder  # Not used
             groups_va = groups_val_idx_encoder
 
             # Base configuration for hyperparameter optimization
@@ -546,6 +545,5 @@ if __name__ == "__main__":
 
     #Important:
     args.pretrain_all_conditions = True
-    # args.optimize_hyperparameters = True
 
     main(**vars(args))
