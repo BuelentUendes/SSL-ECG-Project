@@ -62,14 +62,19 @@ def jitter(x, sigma=0.8):
     return x + np.random.normal(loc=0., scale=sigma, size=x.shape)
 
 
+# def scaling(x, sigma=1.1):
+#     # https://arxiv.org/pdf/1706.00527.pdf
+#     factor = np.random.normal(loc=2., scale=sigma, size=(x.shape[0], x.shape[2]))
+#     ai = []
+#     for i in range(x.shape[1]):
+#         xi = x[:, i, :]
+#         ai.append(np.multiply(xi, factor[:, :])[:, np.newaxis, :])
+#     return np.concatenate((ai), axis=1)
+
 def scaling(x, sigma=1.1):
-    # https://arxiv.org/pdf/1706.00527.pdf
-    factor = np.random.normal(loc=2., scale=sigma, size=(x.shape[0], x.shape[2]))
-    ai = []
-    for i in range(x.shape[1]):
-        xi = x[:, i, :]
-        ai.append(np.multiply(xi, factor[:, :])[:, np.newaxis, :])
-    return np.concatenate((ai), axis=1)
+  # https://arxiv.org/pdf/1706.00527.pdf
+  factor = np.random.normal(loc=2., scale=sigma, size=(x.shape[0], x.shape[2]))
+  return x * factor[:, np.newaxis, :]
 
 
 def permutation(x, max_segments=5, seg_mode="random"):
