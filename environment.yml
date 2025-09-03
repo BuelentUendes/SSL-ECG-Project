@@ -22,10 +22,8 @@ dependencies:
   - pyarrow
   - fastparquet
   - torchinfo
-  - pytorch
-  - torchvision
-  - torchaudio
   - pip:
+      - torch torchvision --index-url https://download.pytorch.org/whl/cu126
       - numpy==1.23.5
       - pandas==1.5.3
       - ipykernel==6.17.1
