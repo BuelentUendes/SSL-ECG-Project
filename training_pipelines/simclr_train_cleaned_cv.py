@@ -410,7 +410,7 @@ if __name__ == "__main__":
     # Downstream Classifier Configuration
     # ══════════════════════════════════════════════════════════════════════════════
     classifier_group = parser.add_argument_group('Downstream Classifier')
-    classifier_group.add_argument("--classifier_model", type=str, default="logistic_regression",
+    classifier_group.add_argument("--classifier_model", type=str,default="logistic_regression",
                                  choices=("logistic_regression", "mlp", "random_forest", "xgboost"),
                                  help="Type of downstream classifier to use")
     classifier_group.add_argument("--classifier_epochs", type=int, default=25,
