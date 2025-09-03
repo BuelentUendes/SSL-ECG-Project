@@ -3,12 +3,10 @@ import os
 import json
 import argparse
 import logging
-import tempfile
 import gc
 
 import numpy as np
 import torch
-import torch.optim as optim
 
 from utils.torch_utilities import (
     load_processed_data,
@@ -78,7 +76,9 @@ def main(
         device = torch.device("cpu")
 
     logging.basicConfig(level=logging.INFO)
-    print(f"Starting TS2Vec training with CV {classifier_model}, seed={seed}, label_fraction={label_fraction}")
+    model_name = "TS2Vec_S3" if use_s3_layers else "TS2Vec"
+
+    print(f"Starting {model_name} training with CV {classifier_model}, seed={seed}, label_fraction={label_fraction}")
     print(f"Using device: {device}")
 
     # Check if directory for saving model parameters exist, otherwise create it
@@ -89,11 +89,11 @@ def main(
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
 
     model_save_path = os.path.join(
-        SAVED_MODELS_PATH, "ECG", str(fs), "TS2Vec", pretrain_data, f"{seed}", f"{window_size}", f"{step_size}",
+        SAVED_MODELS_PATH, "ECG", str(fs), model_name, pretrain_data, f"{seed}", f"{window_size}", f"{step_size}",
         str(train_ratio_encoder)
     )
     results_save_path = os.path.join(
-        RESULTS_PATH, "ECG", "TS2Vec", classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
+        RESULTS_PATH, "ECG", model_name, classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
         f"{step_size}", str(train_ratio_encoder)
     )
 
@@ -146,7 +146,8 @@ def main(
     groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
 
     # Test that we have all 127 participants moved in one of the categories
-    assert len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) + len(np.unique(groups[test_idx])) == 127, \
+    assert (len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder))
+            + len(np.unique(groups[test_idx])) == 127), \
         "Something went wrong with the participant split!"
 
     print(f"Labelled windows for training classifier: train {len(train_idx)}, test {len(test_idx)}")
@@ -160,8 +161,6 @@ def main(
     # ── Step 2: TS2Vec Pretraining ──────────────────────────────────────────────
     torch.cuda.empty_cache()
     set_seed(seed)
-
-    # Model fingerprinting removed (was used for MLflow caching)
 
     # Check if we have a locally saved model and no forced retraining
     if os.path.exists(os.path.join(model_save_path, "ts2vec_model.pth")) and not force_retraining:
