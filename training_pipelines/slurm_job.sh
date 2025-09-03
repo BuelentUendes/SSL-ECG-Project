@@ -3,6 +3,8 @@
 #SBATCH --time=0:10:00
 #SBATCH -N 1
 #SBATCH --gres=gpu:1
+#SBATCH --mail-type=BEGIN,END
+#SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_%j.out
 #SBATCH --error=ecg_%j.err
 
