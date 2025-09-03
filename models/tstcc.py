@@ -34,6 +34,8 @@ from utils.torch_utilities import (
 
 from S3 import S3
 
+from tqdm import tqdm
+
 # ----------------------------------------------------------------------
 # augmentations.py
 # ----------------------------------------------------------------------
@@ -751,7 +753,10 @@ def model_train(model, temporal_contr_model,
     batch_losses = []
 
     #for data, labels, aug1, aug2 in train_loader:
+    pbar = tqdm(total=len(train_loader), desc="Processing")
+
     for batch_idx, (data, labels, aug1, aug2) in enumerate(train_loader):
+        pbar.set_postfix(batch=f"{batch_idx + 1}/{len(train_loader)}")
         if batch_idx == 0:
             show_shape("train-loop INPUT   aug1/aug2", (aug1, aug2))
             
@@ -778,7 +783,9 @@ def model_train(model, temporal_contr_model,
         tc_opt.step()
 
         batch_losses.append(loss.item())
+        pbar.update(1)
 
+    pbar.close()
     return torch.tensor(batch_losses).mean(), torch.nan              
 
 def model_evaluate(model, temporal_contr_model,
@@ -1231,7 +1238,7 @@ def optimize_tstcc_hyperparameters(
 
         param_iter = param_sampler
 
-    best_score = 100_000 # Very high positive number
+    best_score = 100_000 # Very high positive number, as we need to minimize the function
     best_params = None
     best_model = None
     best_tc_head = None
