@@ -18,6 +18,7 @@ from scipy.special import softmax
 from sklearn.metrics import log_loss
 from S3 import S3
 import os
+from tqdm import tqdm
 
 # --------------------------------------------------------
 # utils.py functions needed by InfoTS
@@ -231,7 +232,7 @@ class InfoTSAugmentation(nn.Module):
 
     def _scaling(self, x, sigma=0.001):
         """Scale the time series"""
-        factor = torch.normal(1.0, sigma, size=(x.size(0), 1, x.size(2))).to(x.device)
+        factor = torch.normal(2.0, sigma, size=(x.size(0), 1, x.size(2))).to(x.device)
         return x * factor
 
     def _time_warp(self, x, sigma=0.2):
@@ -667,8 +668,10 @@ class InfoTS:
             interrupted = False
             
             self._net.train()
+            pbar = tqdm(total=len(train_loader), desc="Processing")
+
             for idx, batch in enumerate(train_loader):
-                print(f"Processing batch {idx} / {len(train_loader)}. Please wait")
+                pbar.set_postfix(batch=f"{idx + 1}/{len(train_loader)}")
                 if n_iters is not None and self.n_iters >= n_iters:
                     interrupted = True
                     break
@@ -695,6 +698,9 @@ class InfoTS:
                 n_epoch_iters += 1
                 self.n_iters += 1
 
+                pbar.update(1)
+
+            pbar.close()
             self.n_epochs += 1
 
             if interrupted:
