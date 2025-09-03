@@ -10,6 +10,9 @@
 
 
 # Test CUDA availability and basic torch functionality
+module load cuda12.3/toolkit
+module load cuDNN/cuda12.3
+
 python << EOF
 import torch
 import os
