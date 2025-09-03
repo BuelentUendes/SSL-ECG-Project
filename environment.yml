@@ -21,11 +21,10 @@ dependencies:
   - pyedflib
   - pyarrow
   - fastparquet
-  - pytorch::pytorch
-  - pytorch::torchvision
-  - pytorch::torchaudio
-  - pytorch::pytorch-cuda=12.3
   - torchinfo
+  - pytorch
+  - torchvision
+  - torchaudio
   - pip:
       - numpy==1.23.5
       - pandas==1.5.3
