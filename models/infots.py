@@ -596,8 +596,13 @@ class InfoTS:
         self.t1 = 0.1
         
         # Mixed precision training setup
-        self.use_amp = device.type == 'cuda'
-        self.scaler = GradScaler() if self.use_amp else None
+        self.use_amp = str(device).startswith('cuda') or str(device) == 'mps'
+        if str(device).startswith('cuda'):
+            self.scaler = GradScaler()
+        elif str(device) == 'mps':
+            self.scaler = GradScaler('cuda')  # MPS uses cuda scaler
+        else:
+            self.scaler = None
 
     def get_dataloader(self, data, shuffle=False, drop_last=False):
         if self.max_train_length is not None:
