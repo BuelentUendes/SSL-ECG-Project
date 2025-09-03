@@ -3,12 +3,10 @@ import os
 import json
 import argparse
 import logging
-import tempfile
 import gc
 
 import numpy as np
 import torch
-import torch.optim as optim
 
 from utils.torch_utilities import (
     load_processed_data,
@@ -89,7 +87,9 @@ def main(
         device = torch.device("cpu")
 
     logging.basicConfig(level=logging.INFO)
-    print(f"Starting InfoTS training wiht CV {classifier_model}, seed={seed}, {label_fraction}")
+    model_name = "InfoTS_S3" if use_s3_layers else "InfoTS"
+
+    print(f"Starting {model_name} training with CV {classifier_model}, seed={seed}, {label_fraction}")
 
     # Check if directory for saving model parameters exist, otherwise create it
     create_directory(SAVED_MODELS_PATH)
@@ -99,11 +99,11 @@ def main(
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
 
     model_save_path = os.path.join(
-        SAVED_MODELS_PATH, "ECG", str(fs), "InfoTS", pretrain_data, f"{seed}", f"{window_size}", f"{step_size}",
+        SAVED_MODELS_PATH, "ECG", str(fs), model_name, pretrain_data, f"{seed}", f"{window_size}", f"{step_size}",
         str(train_ratio_encoder)
     )
     results_save_path = os.path.join(
-        RESULTS_PATH, "ECG", "InfoTS", classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
+        RESULTS_PATH, "ECG", model_name, classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
         f"{step_size}", str(train_ratio_encoder)
     )
 
@@ -175,8 +175,6 @@ def main(
     torch.cuda.empty_cache()
     set_seed(seed)
 
-    # Model fingerprinting removed (was used for MLflow caching)
-
     # Check if we have a locally saved model and no forced retraining
     if os.path.exists(os.path.join(model_save_path, "infots_model.pth")) and not force_retraining:
         print("We found a pretrained model. Load the pretrained weights")
@@ -230,7 +228,7 @@ def main(
             verbose=True,
         )
 
-        print(f"Created InfoTS model on device: {next(infots.net.parameters()).device}")
+        print(f"Created {model_name} model on device: {next(infots.net.parameters()).device}")
 
         # Train InfoTS - Note: InfoTS uses unsupervised meta-learning, so we don't provide labels
         loss_log = infots.fit(
@@ -462,6 +460,5 @@ if __name__ == "__main__":
 
     # Important:
     args.pretrain_all_conditions = True
-    # args.use_s3_layers=True
 
     main(**vars(args))
