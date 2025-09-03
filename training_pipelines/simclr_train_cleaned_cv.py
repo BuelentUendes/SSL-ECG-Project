@@ -403,7 +403,7 @@ if __name__ == "__main__":
     simclr_group.add_argument("--use_s3_layers", action="store_true",
                                   help="If set, we use the S3 layer")
     simclr_group.add_argument("--initial_num_segments", type=int, default=2)
-    simclr_group.add_argument("--num_s3_layers", type=int, default=1)
+    simclr_group.add_argument("--num_s3_layers", type=int, default=2)
     simclr_group.add_argument("--segment_multiplier", type=int, default=1)
 
     # ══════════════════════════════════════════════════════════════════════════════
