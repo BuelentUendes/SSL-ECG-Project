@@ -77,6 +77,8 @@ def main(
         torch.cuda.set_device(f"cuda:{gpu}")
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
+        torch.backends.cuda.matmul.allow_tf32 = True
+
     elif torch.backends.mps.is_available():
         if use_s3_layers:
             # mps has some issues with long Conv1 layer somehow
