@@ -548,8 +548,10 @@ class TS2Vec:
             n_epoch_iters = 0
             
             interrupted = False
+            pbar = tqdm(total=len(train_loader), desc="Processing")
+
             for idx, batch in enumerate(tqdm(train_loader, desc=f"Running epoch {self.n_epochs} Please wait")):
-                # print(f"We are processing batch {idx} / {len(train_loader)}. Please wait.", flush=True)
+                pbar.set_postfix(batch=f"{idx + 1}/{len(train_loader)}")
                 if n_iters is not None and self.n_iters >= n_iters:
                     interrupted = True
                     break
@@ -593,6 +595,8 @@ class TS2Vec:
                 
                 if self.after_iter_callback is not None:
                     self.after_iter_callback(self, loss.item())
+
+                pbar.update(1)
             
             if interrupted:
                 break
@@ -606,6 +610,8 @@ class TS2Vec:
             
             if self.after_epoch_callback is not None:
                 self.after_epoch_callback(self, cum_loss)
+
+            pbar.close()
             
         return loss_log
     
