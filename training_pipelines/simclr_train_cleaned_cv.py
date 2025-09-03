@@ -84,12 +84,14 @@ def main(
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
 
+    model_name = "SimCLR_S3" if use_s3_layers else "SimCLR"
+
     model_save_path = os.path.join(
-        SAVED_MODELS_PATH, "ECG", str(fs), "SimCLR", pretrain_data, f"{seed}", f"{window_size}", f"{step_size}",
+        SAVED_MODELS_PATH, "ECG", str(fs), model_name, pretrain_data, f"{seed}", f"{window_size}", f"{step_size}",
         str(train_ratio_encoder)
     )
     results_save_path = os.path.join(
-        RESULTS_PATH, "ECG", "SimCLR", classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
+        RESULTS_PATH, "ECG", model_name, classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
         f"{step_size}", str(train_ratio_encoder)
     )
 
@@ -160,7 +162,7 @@ def main(
 
     # Build fingerprint and MLflow lookup
     fp = {
-        "model_name": "SimCLR",
+        "model_name": model_name,
         "seed": seed,
         "epochs": epochs,
         "lr": lr,
@@ -187,7 +189,7 @@ def main(
         model.load_state_dict(torch.load(model_path, map_location=device))
 
     else:
-        print("No cached encoder; training SimCLR from scratch")
+        print(f"No cached encoder; training {model_name} from scratch")
 
         # Load data for encoder pretraining
         X_train_encoder = X[train_idx_encoder].astype(np.float32)
@@ -197,7 +199,7 @@ def main(
         opt = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
         tr_dl, _ = simclr_data_loaders(X_train_encoder, X_val_encoder, batch_size)
 
-        print(f"Created SimCLR model on device: {next(model.parameters()).device}")
+        print(f"Created {model_name} model on device: {next(model.parameters()).device}")
 
         logging.info(f"Training parameters: {fp}")
 
