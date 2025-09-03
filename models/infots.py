@@ -596,11 +596,9 @@ class InfoTS:
         self.t1 = 0.1
         
         # Mixed precision training setup
-        self.use_amp = str(device).startswith('cuda') or str(device) == 'mps'
+        self.use_amp = str(device).startswith('cuda')
         if str(device).startswith('cuda'):
             self.scaler = GradScaler()
-        elif str(device) == 'mps':
-            self.scaler = GradScaler('cuda')  # MPS uses cuda scaler
         else:
             self.scaler = None
 
@@ -694,7 +692,6 @@ class InfoTS:
             self._net.train()
             pbar = tqdm(total=len(train_loader), desc="Processing")
 
-            #ToDo: Include here autocast and GradScaler in case self.device == "cuda"!
             for idx, batch in enumerate(train_loader):
                 pbar.set_postfix(batch=f"{idx + 1}/{len(train_loader)}")
                 if n_iters is not None and self.n_iters >= n_iters:
