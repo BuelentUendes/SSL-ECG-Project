@@ -548,7 +548,7 @@ class TS2Vec:
             n_epoch_iters = 0
             
             interrupted = False
-            pbar = tqdm(total=len(train_loader), desc="Processing")
+            pbar = tqdm(total=len(train_loader))
 
             for idx, batch in enumerate(tqdm(train_loader, desc=f"Running epoch {self.n_epochs} Please wait")):
                 pbar.set_postfix(batch=f"{idx + 1}/{len(train_loader)}")
