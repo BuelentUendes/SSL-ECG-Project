@@ -176,9 +176,9 @@ def main(
     set_seed(seed)
 
     # Check if we have a locally saved model and no forced retraining
-    if os.path.exists(os.path.join(model_save_path, "infots_model.pth")) and not force_retraining:
+    if os.path.exists(os.path.join(model_save_path, "infots_model.pt")) and not force_retraining:
         print("We found a pretrained model. Load the pretrained weights")
-        model_path = os.path.join(model_save_path, "infots_model.pth")
+        model_path = os.path.join(model_save_path, "infots_model.pt")
 
         infots = InfoTS(
             input_dims=n_features,
@@ -239,7 +239,7 @@ def main(
         )
 
         # Save model
-        saved_results = os.path.join(model_save_path, "infots_model.pth")
+        saved_results = os.path.join(model_save_path, "infots_model.pt")
         torch.save(infots.net, saved_results)
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────
