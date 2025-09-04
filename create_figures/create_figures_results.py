@@ -21,8 +21,11 @@ def load_results_from_structure(base_path):
         "ECG/Supervised/cnn",
         "ECG/Supervised/tcn",
         "ECG/Supervised/transformer",
-        "ECG/Supervised/deep_ecg_net",
+        # "ECG/Supervised/deep_ecg_net",
         "ECG/TSTCC/logistic_regression",
+        # "ECG/TSTCC/mlp",
+        "ECG/TSTCC/linear",
+        # "ECG/TSTCC/xgboost",
         "ECG_features/logistic_regression",
     ]
 
@@ -44,10 +47,16 @@ def load_results_from_structure(base_path):
             learning_method = path_parts[1]  # Supervised or TSTCC
             model_type = path_parts[2]
 
-        # Look for seed folders (like "42")
+        # Look for seed folders (including "42_s3" for TSTCC)
         for seed_folder in method_path.iterdir():
-            if seed_folder.is_dir() and seed_folder.name.isdigit():
-                seed = int(seed_folder.name)
+            if seed_folder.is_dir():
+                # Handle both numeric seeds (3, 5, 7, 9, 42) and special seeds like "42_s3"
+                if seed_folder.name.isdigit():
+                    seed = int(seed_folder.name)
+                elif seed_folder.name == "42_s3":
+                    seed = 43  # Use 43 to distinguish from regular seed 42
+                else:
+                    continue
 
                 # Look for label fraction folders
                 for label_folder in seed_folder.iterdir():
@@ -57,29 +66,44 @@ def load_results_from_structure(base_path):
 
                             window_combinations = [
                                 (10, 5),   # 10s windows, 5s shift
-                                (30, 5),   # 30s windows, 5s shift
-                                (30, 10),  # 30s windows, 10s shift
-                                (30, 15)   # 30s windows, 15s shift
+                                # (30, 5),   # 30s windows, 5s shift
+                                (30, 10), # 30s windows, 10s shift
+                                # (30, 15)   # 30s windows, 15s shift
                             ]
 
                             for window_size, window_shift in window_combinations:
+                                if learning_method == "TSTCC" and window_size == 30:
+                                    continue
                                 json_file = label_folder / str(window_size) / str(window_shift) / "test_results.json"
+                                
+                                # Special handling for different file structures
+                                if not json_file.exists():
+                                    # Try with additional subfolder for some models
+                                    if model_type == "xgboost":
+                                        json_file = label_folder / str(window_size) / str(window_shift) / "0.75" / "test_results.json"
+                                    elif model_type in ["logistic_regression", "mlp"] and learning_method == "TSTCC":
+                                        json_file = label_folder / str(window_size) / str(window_shift) / "1.0" / "test_results.json"
+                                
                                 if json_file.exists():
-                                    with open(json_file, 'r') as f:
-                                        data = json.load(f)
-                                    results.append({
-                                        'method_type': method_type,
-                                        'learning_method': learning_method,
-                                        'model_type': model_type,
-                                        'seed': seed,
-                                        'label_fraction': label_fraction,
-                                        'window_size': window_size,
-                                        'window_shift': window_shift,
-                                        'auroc': data["test_metrics"].get('auroc', np.nan),
-                                        'accuracy': data["test_metrics"].get('accuracy', np.nan),
-                                        'pr_auc': data["test_metrics"].get('pr_auc', np.nan),
-                                        'f1': data["test_metrics"].get('f1', np.nan),
-                                    })
+                                    try:
+                                        with open(json_file, 'r') as f:
+                                            data = json.load(f)
+                                        results.append({
+                                            'method_type': method_type,
+                                            'learning_method': learning_method,
+                                            'model_type': model_type,
+                                            'seed': seed,
+                                            'label_fraction': label_fraction,
+                                            'window_size': window_size,
+                                            'window_shift': window_shift,
+                                            'auroc': data["test_metrics"].get('auroc', np.nan),
+                                            'accuracy': data["test_metrics"].get('accuracy', np.nan),
+                                            'pr_auc': data["test_metrics"].get('pr_auc', np.nan),
+                                            'f1': data["test_metrics"].get('f1', np.nan),
+                                        })
+                                    except (json.JSONDecodeError, KeyError) as e:
+                                        print(f"Error reading {json_file}: {e}")
+                                        continue
 
                         except ValueError:
                             # Skip folders that aren't numeric label fractions
@@ -123,11 +147,14 @@ def load_transfer_learning_features_results(base_path, dataset_name):
             
             # Look for model type folders (e.g., logistic_regression)
             for model_folder in window_shift_folder.iterdir():
+
                 if not model_folder.is_dir():
                     continue
                     
                 model_type = model_folder.name
-                
+
+                if model_type == "xgboost":
+                    continue
                 # Look for seed folders
                 for seed_folder in model_folder.iterdir():
                     if not (seed_folder.is_dir() and seed_folder.name.isdigit()):
@@ -370,7 +397,8 @@ def create_method_labels(df):
         window_info = f"{row['window_size']}s"
         
         # Add window shift info for 30s windows to differentiate different shifts
-        if row['window_size'] == 30 and 'window_shift' in row:
+        # Also add for 10s windows when window_shift is present
+        if (row['window_size'] == 30 or row['window_size'] == 10) and 'window_shift' in row:
             window_info = f"{row['window_size']}s/{row['window_shift']}s"
         
         if row['method_type'] == 'ECG_features':
@@ -391,7 +419,7 @@ def create_method_labels(df):
     return df
 
 
-def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=None, use_participant_count=False, total_participants=None):
+def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=None, use_participant_count=False, total_participants=None, use_standard_error=False):
     """Create a plot comparing transfer learning approaches for a specific dataset
     
     Args:
@@ -429,6 +457,12 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
     # Group by method and calculate mean and std
     grouped = df.groupby(['method_label', 'label_fraction'])[metric].agg(['mean', 'std', 'count']).reset_index()
     
+    # Calculate standard error if requested
+    if use_standard_error:
+        grouped['error'] = grouped['std'] / np.sqrt(grouped['count'])
+    else:
+        grouped['error'] = grouped['std']
+    
     # Calculate number of labeled participants
     def calculate_labeled_participants(label_fraction, total_participants):
         if total_participants <= 20:
@@ -440,8 +474,8 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
     # Define colors and markers for transfer learning methods
     method_styles = {
         # Pre-trained encoder methods (solid lines) - TSTCC in light blue
-        'Pre-trained (Logistic Regression, 10s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': '-'},
-        'Pre-trained (MLP, 10s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
+        'Pre-trained (Logistic Regression, 10s/5s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': '-'},
+        'Pre-trained (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
         'Pre-trained (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'v', 'linestyle': '-'},
         'Pre-trained (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '--'},
         'Pre-trained (Logistic Regression, 30s/15s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': ':'},
@@ -450,8 +484,8 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
         'Pre-trained (MLP, 30s/15s)': {'color': '#88CCEE', 'marker': 'h', 'linestyle': ':'},
 
         # From scratch methods (dashed lines) - TSTCC in light blue
-        'From Scratch (Logistic Regression, 10s)': {'color': '#CC79A7', 'marker': 'v', 'linestyle': '-'},
-        'From Scratch (MLP, 10s)': {'color': '#009E73', 'marker': 'p', 'linestyle': '-'},
+        'From Scratch (Logistic Regression, 10s/5s)': {'color': '#CC79A7', 'marker': 'v', 'linestyle': '-'},
+        'From Scratch (MLP, 10s/5s)': {'color': '#009E73', 'marker': 'p', 'linestyle': '-'},
         'From Scratch (Logistic Regression, 30s/5s)': {'color': '#CC79A7', 'marker': 'o', 'linestyle': '-'},
         'From Scratch (Logistic Regression, 30s/10s)': {'color': '#CC79A7', 'marker': 'x', 'linestyle': '--'},
         'From Scratch (Logistic Regression, 30s/15s)': {'color': '#CC79A7', 'marker': '*', 'linestyle': ':'},
@@ -468,7 +502,7 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
         'Feature Baseline (MLP, 30s/15s)': {'color': '#E69F00', 'marker': 'D', 'linestyle': ':', 'linewidth': 3},
 
         # CNN Supervised methods
-        'Supervised (CNN, 10s)': {'color': '#FF6B35', 'marker': 's', 'linestyle': '-', 'linewidth': 3},
+        'Supervised (CNN, 10s/5s)': {'color': '#FF6B35', 'marker': 's', 'linestyle': '-', 'linewidth': 3},
         'Supervised (CNN, 30s/5s)': {'color': '#FF6B35', 'marker': 'v', 'linestyle': '-', 'linewidth': 3},
         'Supervised (CNN, 30s/10s)': {'color': '#FF6B35', 'marker': 'o', 'linestyle': '--', 'linewidth': 3},
         'Supervised (CNN, 30s/15s)': {'color': '#FF6B35', 'marker': '^', 'linestyle': ':', 'linewidth': 3},
@@ -499,11 +533,17 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
                 markeredgewidth=2,
                 markeredgecolor=style['color'])
 
-        # Add error bars if we have multiple seeds
+        # Add error visualization with fill_between if we have multiple seeds
         if method_data['count'].max() > 1:
-            yerr = method_data['std'].fillna(0)
-            ax.errorbar(x_vals, y_vals, yerr=yerr,
-                        color=style['color'], alpha=0.3, capsize=4, capthick=1.5)
+            error_vals = method_data['error'].fillna(0)
+            
+            # Use fill_between for better uncertainty visualization
+            ax.fill_between(x_vals, 
+                          y_vals - error_vals, 
+                          y_vals + error_vals,
+                          color=style['color'], 
+                          alpha=0.2, 
+                          interpolate=True)
 
     # Customize the plot
     if use_participant_count:
@@ -548,12 +588,12 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
     elif metric == "pr_auc":
         ax.axhline(y=pr_auc_baseline, color='black', linestyle='--', alpha=0.7, linewidth=2, label="Random Baseline")
 
-    legend = ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15),
-                       frameon=True, fancybox=True, shadow=True,
-                       fontsize=11, title='Transfer Learning Methods', title_fontsize=12,
+    # Customize legend
+    error_type = "Standard Error" if use_standard_error else "Standard Deviation"
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15),
+                       frameon=True, fancybox=True, shadow=False,
+                       fontsize=11, title=f'Transfer Learning Methods (±{error_type})', title_fontsize=12,
                        ncol=2)  # Optional: arrange legend items horizontally
-    legend.get_frame().set_facecolor('white')
-    legend.get_frame().set_alpha(0.9)
 
     # Improve overall appearance
     ax.spines['top'].set_visible(False)
@@ -573,8 +613,9 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
     return fig, ax
 
 
-def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_participant_count=False, total_participants=101):
-    """Create an excellent plot of AUROC vs Label Fraction
+def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_participant_count=False, 
+                                total_participants=101, use_standard_error=False):
+    """Create an excellent plot of AUROC vs Label Fraction with improved error visualization
     
     Args:
         df: DataFrame with results
@@ -582,6 +623,7 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
         save_path: Path to save the plot
         use_participant_count: If True, show number of participants instead of percentages
         total_participants: Total number of training participants (default: 101)
+        use_standard_error: If True, use standard error instead of standard deviation
     """
 
     # Set up the plotting style
@@ -593,6 +635,12 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
     # Group by method and calculate mean and std
     grouped = df.groupby(['method_label', 'label_fraction'])[metric].agg(['mean', 'std', 'count']).reset_index()
     
+    # Calculate standard error if requested
+    if use_standard_error:
+        grouped['error'] = grouped['std'] / np.sqrt(grouped['count'])
+    else:
+        grouped['error'] = grouped['std']
+    
     # Calculate number of labeled participants
     def calculate_labeled_participants(label_fraction):
         return max(1, int(total_participants * label_fraction))
@@ -601,31 +649,35 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
 
     # Define colors and markers for different methods
     method_styles = {
-        # Feature-engineered (different window configurations) - ALL ORANGE
-        'Feature-engineered (Logistic Regression, 30s/5s)': {'color': '#E69F00', 'marker': 'v', 'linestyle': '-'},
-        'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#E69F00', 'marker': 'o', 'linestyle': '--'},
-        'Feature-engineered (Logistic Regression, 30s/15s)': {'color': '#E69F00', 'marker': 's', 'linestyle': ':'},
-        'Feature-engineered (Logistic Regression, 10s)': {'color': '#E69F00', 'marker': 'x', 'linestyle': '-'},
+        # Feature-engineered (different window configurations)
+        'Feature-engineered (Logistic Regression, 30s/5s)': {'color': '#ff6361', 'marker': 'v', 'linestyle': '-'},
+        'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#ff6361', 'marker': 'o', 'linestyle': '--'},
+        'Feature-engineered (Logistic Regression, 30s/15s)': {'color': '#665191', 'marker': 's', 'linestyle': ':'},
+        'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '#E69F00', 'marker': 'x', 'linestyle': '-'},
         'Feature-engineered (MLP, 30s/5s)': {'color': '#E69F00', 'marker': '8', 'linestyle': '-'},
         'Feature-engineered (MLP, 30s/10s)': {'color': '#E69F00', 'marker': 'D', 'linestyle': '--'},
         'Feature-engineered (MLP, 30s/15s)': {'color': '#E69F00', 'marker': 'h', 'linestyle': ':'},
-        
+
+        #082a54 Dark Blue
+        #E69F00 Orange
+        #2066a8
+
         # Supervised methods (10s)
-        'Supervised (CNN, 10s)': {'color': '#D55E00', 'marker': '^', 'linestyle': '-'},
-        'Supervised (TCN, 10s)': {'color': '#44AA99', 'marker': '>', 'linestyle': '-'},
-        'Supervised (Transformer, 10s)': {'color': '#DDCC77', 'marker': 'v', 'linestyle': '-'},
-        'Supervised (DeepECGNet, 10s)': {'color': '#117733', 'marker': '<', 'linestyle': '-'},
+        'Supervised (CNN, 10s/5s)': {'color': '#D55E00', 'marker': '^', 'linestyle': '-'},
+        'Supervised (TCN, 10s/5s)': {'color': '#44AA99', 'marker': '>', 'linestyle': '-'},
+        'Supervised (Transformer, 10s/5s)': {'color': '#58508d', 'marker': '<', 'linestyle': '-'},
+        'Supervised (DeepECGNet, 10s/5s)': {'color': '#117733', 'marker': 'o', 'linestyle': '-'},
         
         # TSTCC (10s and 30s) - ALL LIGHT BLUE
-        'TSTCC (Logistic Regression, 10s)': {'color': '#88CCEE', 'marker': 'v', 'linestyle': '-'},
+        'TSTCC (Logistic Regression, 10s/5s)': {'color': '#88CCEE', 'marker': 'v', 'linestyle': '-'},
         'TSTCC (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
         'TSTCC (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '--'},
         'TSTCC (Logistic Regression, 30s/15s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': ':'},
-        'TSTCC (MLP, 10s)': {'color': '#88CCEE', 'marker': 'p', 'linestyle': '-'},
+        'TSTCC (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 'p', 'linestyle': '-'},
         'TSTCC (MLP, 30s/5s)': {'color': '#88CCEE', 'marker': '8', 'linestyle': '-'},
         'TSTCC (MLP, 30s/10s)': {'color': '#88CCEE', 'marker': 'D', 'linestyle': '--'},
         'TSTCC (MLP, 30s/15s)': {'color': '#88CCEE', 'marker': 'h', 'linestyle': ':'},
-        'TSTCC (Linear, 10s)': {'color': '#88CCEE', 'marker': '*', 'linestyle': '-'},
+        'TSTCC (Linear, 10s/5s)': {'color': '#88CCEE', 'marker': '*', 'linestyle': '-'},
         'TSTCC (Linear, 30s/5s)': {'color': '#88CCEE', 'marker': '1', 'linestyle': '-'},
         'TSTCC (Linear, 30s/10s)': {'color': '#88CCEE', 'marker': '+', 'linestyle': '--'},
         'TSTCC (Linear, 30s/15s)': {'color': '#88CCEE', 'marker': 'x', 'linestyle': ':'},
@@ -637,14 +689,17 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
         'Supervised (TCN, 30s/5s)': {'color': '#44AA99', 'marker': 'p', 'linestyle': '-'},
         'Supervised (TCN, 30s/10s)': {'color': '#44AA99', 'marker': 's', 'linestyle': '--'}, 
         'Supervised (TCN, 30s/15s)': {'color': '#44AA99', 'marker': 'D', 'linestyle': ':'},
-        'Supervised (Transformer, 30s/5s)': {'color': '#DDCC77', 'marker': '8', 'linestyle': '-'},
-        'Supervised (Transformer, 30s/10s)': {'color': '#DDCC77', 'marker': 'D', 'linestyle': '--'},
-        'Supervised (Transformer, 30s/15s)': {'color': '#DDCC77', 'marker': 'h', 'linestyle': ':'},
+        'Supervised (Transformer, 30s/5s)': {'color': '#58508d', 'marker': '8', 'linestyle': '-'},
+        'Supervised (Transformer, 30s/10s)': {'color': '#58508d', 'marker': 'D', 'linestyle': '--'},
+        'Supervised (Transformer, 30s/15s)': {'color': '#58508d', 'marker': 'h', 'linestyle': ':'},
         'Supervised (DeepECGNet, 30s/5s)': {'color': '#117733', 'marker': '1', 'linestyle': '-'},
         'Supervised (DeepECGNet, 30s/10s)': {'color': '#117733', 'marker': '>', 'linestyle': '--'},
         'Supervised (DeepECGNet, 30s/15s)': {'color': '#117733', 'marker': '<', 'linestyle': ':'},
     }
 
+    #58508d
+    # Old #DDCC77
+    # 003f5c
     # Plot each method
     for method in grouped['method_label'].unique():
         method_data = grouped[grouped['method_label'] == method].sort_values('label_fraction')
@@ -670,11 +725,17 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
                 markeredgewidth=2,
                 markeredgecolor=style['color'])
 
-        # Add error bars if we have multiple seeds
+        # Add error visualization with fill_between if we have multiple seeds
         if method_data['count'].max() > 1:
-            yerr = method_data['std'].fillna(0)
-            ax.errorbar(x_vals, y_vals, yerr=yerr,
-                        color=style['color'], alpha=0.3, capsize=4, capthick=1.5)
+            error_vals = method_data['error'].fillna(0)
+            
+            # Use fill_between for better uncertainty visualization
+            ax.fill_between(x_vals, 
+                          y_vals - error_vals, 
+                          y_vals + error_vals,
+                          color=style['color'], 
+                          alpha=0.2, 
+                          interpolate=True)
 
     # Customize the plot
     if use_participant_count:
@@ -716,10 +777,9 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
         ax.axhline(y=0.5736, color='black', linestyle='--', alpha=0.7, linewidth=2, label="Random Baseline")
 
     # Customize legend
-    legend = ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=True,
-                       fontsize=11, title='Methods', title_fontsize=12)
-    legend.get_frame().set_facecolor('white')
-    legend.get_frame().set_alpha(0.9)
+    error_type = "Standard Error" if use_standard_error else "Standard Deviation"
+    ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
+                       fontsize=11, title=f'Methods (±{error_type})', title_fontsize=12)
 
     # Improve overall appearance
     ax.spines['top'].set_visible(False)
@@ -1019,10 +1079,8 @@ def plot_feature_vs_ssl_comparison(df, metric="auroc", save_path=None, use_parti
         ax.axhline(y=0.5736, color='black', linestyle='--', alpha=0.7, linewidth=2, label="Random Baseline")
 
     # Customize legend
-    legend = ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=True,
+    ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
                        fontsize=10, title='Methods', title_fontsize=11)
-    legend.get_frame().set_facecolor('white')
-    legend.get_frame().set_alpha(0.9)
 
     # Improve overall appearance
     ax.spines['top'].set_visible(False)
@@ -1096,8 +1154,12 @@ def main():
 
     # Create the plot
     print("\nCreating plot...")
-    plot_metric_vs_label_fraction(df, save_path='ecg_auroc_vs_label_fraction.png', use_participant_count=use_participant_count)
-    plot_metric_vs_label_fraction(df, metric="pr_auc", save_path='ecg_pr_auc_vs_label_fraction.png', use_participant_count=use_participant_count)
+    # plot_metric_vs_label_fraction(df, save_path='ecg_auroc_vs_label_fraction.png', use_participant_count=use_participant_count)
+    # plot_metric_vs_label_fraction(df, metric="pr_auc", save_path='ecg_pr_auc_vs_label_fraction.png', use_participant_count=use_participant_count)
+    #
+    # Also create plots with standard error
+    plot_metric_vs_label_fraction(df, save_path='ecg_auroc_vs_label_fraction_stderr.png', use_participant_count=use_participant_count, use_standard_error=True)
+    plot_metric_vs_label_fraction(df, metric="pr_auc", save_path='ecg_pr_auc_vs_label_fraction_stderr.png', use_participant_count=use_participant_count, use_standard_error=True)
 
     # Also save the data to CSV for further analysis
     df.to_csv('ecg_results_summary.csv', index=False)
@@ -1169,7 +1231,8 @@ def main():
             metric="auroc", 
             save_path=f'{dataset_name.lower()}_transfer_learning_auroc.png',
             use_participant_count=use_participant_count,
-            total_participants=total_participants
+            total_participants=total_participants,
+            use_standard_error=True
         )
         
         # Create transfer learning plots for PR-AUC
@@ -1180,7 +1243,8 @@ def main():
             metric="pr_auc", 
             save_path=f'{dataset_name.lower()}_transfer_learning_pr_auc.png',
             use_participant_count=use_participant_count,
-            total_participants=total_participants
+            total_participants=total_participants,
+            use_standard_error=True
         )
         
         # Save transfer learning data to CSV
