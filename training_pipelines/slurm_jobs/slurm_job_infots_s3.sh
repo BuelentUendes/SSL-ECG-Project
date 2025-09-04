@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=ECG_INFOTS
+#SBATCH --job-name=ECG_INFOTS_S3
 #SBATCH --time=10:00:00
 #SBATCH -N 1
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=b.uendes@vu.nl
-#SBATCH --output=ecg_infots_%j.out
-#SBATCH --error=ecg_infots_%j.err
+#SBATCH --output=ecg_infots_s3_%j.out
+#SBATCH --error=ecg_infots_s3_%j.err
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -48,20 +48,20 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.1 --force_retraining
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.01
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.025
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.05
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.25
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.5
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 1.0
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.1 --force_retraining --use_s3_layers
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.01 --use_s3_layers
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.025 --use_s3_layers
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.05 --use_s3_layers
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.25 --use_s3_layers
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.5 --use_s3_layers
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 1.0 --use_s3_layers
 
 # Command to run the job
 #  for SEED in 50 51 52 53 54; do
-#      sbatch --job-name=ECG_INFOTS_seed_${SEED} \
-#             --output=ecg_infots_${SEED}_%j.out \
+#      sbatch --job-name=ECG_INFOTS_s3_seed_${SEED} \
+#             --output=ecg_infots_s3_${SEED}_%j.out \
 #             --time=10:00:00 \
-#             --error=ecg_infots_${SEED}_%j.err \
-#             ./slurm_jobs/slurm_job_infots.sh $SEED
+#             --error=ecg_infots_s3_${SEED}_%j.err \
+#             ./slurm_jobs/slurm_job_infots_s3.sh $SEED
 #  done
 ##
