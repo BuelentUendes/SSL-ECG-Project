@@ -56,10 +56,6 @@ def main(
         min_participants_for_kfold: int = 5,
         verbose: bool = False,
         scoring_metric: str = "roc_auc",
-        optimize_hyperparameters: bool = False,
-        hp_n_trials: int = 20,
-        hp_n_epochs: int = 10,
-        hp_search_type: str = "random",
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -367,7 +363,7 @@ if __name__ == "__main__":
 
     # Adding the S3 layers if needed with default parameters as specified in the paper
     ts2vec_group.add_argument("--use_s3_layers", action="store_true",
-                                  help="If set, we use the S3 layer", default=True)
+                                  help="If set, we use the S3 layer")
     ts2vec_group.add_argument("--initial_num_segments", type=int, default=2)
     ts2vec_group.add_argument("--num_s3_layers", type=int, default=2)
     ts2vec_group.add_argument("--segment_multiplier", type=int, default=1)
