@@ -20,6 +20,8 @@ source activate ECG-Project
 python << EOF
 import torch
 import os
+from datetime import datetime
+print(f"Current time: {datetime.now()}")
 print(f"PyTorch version: {torch.__version__}")
 print(f"CUDA available: {torch.cuda.is_available()}")
 if torch.cuda.is_available():
