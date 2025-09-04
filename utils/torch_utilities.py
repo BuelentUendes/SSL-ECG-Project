@@ -36,7 +36,9 @@ from mlflow.models import ModelSignature
 from mlflow.tracking import MlflowClient
 
 from models.supervised import LinearClassifier, MLPClassifier
+import warnings
 
+warnings.filterwarnings('ignore')
 
 
 # MLflow helpers
