@@ -395,20 +395,6 @@ if __name__ == "__main__":
                          choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
                          help="Scoring metric for cross-validation hyperparameter selection")
 
-    # ══════════════════════════════════════════════════════════════════════════════
-    # Hyperparameter Optimization Configuration
-    # ══════════════════════════════════════════════════════════════════════════════
-    hp_group = parser.add_argument_group('Hyperparameter Optimization')
-    hp_group.add_argument("--optimize_hyperparameters", action="store_true",
-                         help="Enable hyperparameter optimization for TS2Vec augmentation parameters")
-    hp_group.add_argument("--hp_n_trials", type=int, default=30,
-                         help="Number of trials for hyperparameter optimization")
-    hp_group.add_argument("--hp_n_epochs", type=int, default=15,
-                         help="Number of epochs for each hyperparameter optimization trial")
-    hp_group.add_argument("--hp_search_type", type=str, default="grid",
-                         choices=["random", "grid"],
-                         help="Search strategy: 'random' for random search, 'grid' for grid search")
-
     # Parse arguments and run main function
     args = parser.parse_args()
 
