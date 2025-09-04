@@ -45,17 +45,17 @@ print(f"SLURM_JOB_GPUS: {os.environ.get('SLURM_JOB_GPUS', 'Not set')}")
 EOF
 
 echo "=== GPU Test Completed ==="
-# The first run runs it and retrains it for the specfic seed
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 5 --label_fraction 0.1
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 5 --label_fraction 0.01
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 5 --label_fraction 0.025
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 5 --label_fraction 0.05
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 5 --label_fraction 0.25
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 5 --label_fraction 0.5
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 5 --label_fraction 1.0
+# The first run runs it and retrains it for the specific seed
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 2 --label_fraction 0.1
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 2 --label_fraction 0.01
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 2 --label_fraction 0.025
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 2 --label_fraction 0.05
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 2 --label_fraction 0.25
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 2 --label_fraction 0.5
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 2 --label_fraction 1.0
 
 # Command to run the job
-#  for SEED in 51 52 53; do
+#  for SEED in 50 51 52 53 54; do
 #      sbatch --job-name=ECG_TSTCC_seed_${SEED} \
 #             --output=ecg_tstcc_${SEED}_%j.out \
 #             --error=ecg_tstcc_${SEED}_%j.err \
