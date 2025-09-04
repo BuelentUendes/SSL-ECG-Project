@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=ECG_TSTCC_seed_$1
+#SBATCH --job-name=ECG_TSTCC
 #SBATCH --time=0:20:00
 #SBATCH -N 1
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=b.uendes@vu.nl
-#SBATCH --output=ecg_tstcc_$1_%j.out
-#SBATCH --error=ecg_tstcc_$!_%j.err
+#SBATCH --output=ecg_tstcc_%j.out
+#SBATCH --error=ecg_tstcc_%j.err
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -54,4 +54,11 @@ python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 5 --label_fraction 0.25
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 5 --label_fraction 0.5
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 5 --label_fraction 1.0
 
-
+# Command to run the job
+#  for SEED in 51 52 53; do
+#      sbatch --job-name=ECG_TSTCC_seed_${SEED} \
+#             --output=ecg_tstcc_${SEED}_%j.out \
+#             --error=ecg_tstcc_${SEED}_%j.err \
+#             slurm_job_tstcc.sh $SEED
+#  done
+##
