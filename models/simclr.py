@@ -160,12 +160,6 @@ AUGS = [
     (hor_flip,           1/6), # 0.05 before
     (permutation,        1/6),
     (window_warp,        1/6)
-
-    # (random_crop_shift,  1/7), # 0.20 before
-    # (local_jitter,       1/7), # 0.15 before
-    # (baseline_wander,    1/7), # 0.10 before
-    # (negate,             1/7), # 0.05 before
-    # (hor_flip,           1/7), # 0.05 before
 ]
 
 funcs, probs = zip(*AUGS)
@@ -254,6 +248,76 @@ class ECGEncoder(nn.Module):
         h = self.fc(x)
         return h
 
+#------------------------------------------------------------------------
+# TSTCC-based Encoder for comparison reasons
+
+class ECGEncoder_TSTCC(nn.Module):
+    def __init__(
+            self,
+            use_s3_layers,
+            num_s3_layers=2,
+            initial_num_segments=2,
+            shuffle_vector_dim=1,
+            segment_multiplier=1,
+    ):
+        super(ECGEncoder_TSTCC, self).__init__()
+
+        self.use_s3_layer = use_s3_layers
+        if self.use_s3_layer:
+            self.s3_layers = S3(
+                num_layers=num_s3_layers,
+                initial_num_segments=initial_num_segments,
+                shuffle_vector_dim=shuffle_vector_dim,
+                segment_multiplier=segment_multiplier
+            )
+
+        self.conv_block1 = nn.Sequential(
+            nn.Conv1d(1, 32, kernel_size=32,
+                      stride=4, bias=False, padding=(32//2)),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2, stride=2, padding=1),
+            nn.Dropout(0.35)
+        )
+
+        self.conv_block2 = nn.Sequential(
+            nn.Conv1d(32, 64, kernel_size=8, stride=1, bias=False, padding=4),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2, stride=2, padding=1)
+        )
+
+        self.conv_block3 = nn.Sequential(
+            nn.Conv1d(64, 128, kernel_size=8, stride=1, bias=False, padding=4),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2, stride=2, padding=1),
+        )
+
+        model_output_dim = 315
+        # The out_features for the SIMCLR needs to be 80 as the projection head expects this
+        self.logits = nn.Linear(model_output_dim * 128, out_features=80)
+
+    def forward(self, x_in):
+        show_shape("base_Model in", x_in)
+
+        if self.use_s3_layer:
+            # S3 expects (N, L, C) but we have (N, C, L)
+            x_s3 = x_in.transpose(1, 2)  # (N, C, L) → (N, L, C)
+            x_s3 = self.s3_layers(x_s3)
+            x_in = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
+
+        x = self.conv_block1(x_in)
+        x = self.conv_block2(x)
+        x = self.conv_block3(x)
+
+        x_flat = x.reshape(x.shape[0], -1)
+        show_shape("base_Model feat_out(flat)", x_flat)
+        logits = self.logits(x_flat)
+        return logits
+
+#------------------------------------------------------------------------
+
 # ----------------------------------------------------------------------
 # Projection head g(.)
 # ----------------------------------------------------------------------
@@ -327,14 +391,24 @@ def get_simclr_model(
         num_s3_layers=2,
         initial_num_segments=2,
         segment_multiplier=1,
+        use_tstcc_encoder=False
 ):
-    enc = ECGEncoder(
-        window=window,
-        use_s3_layers=use_s3_layers,
-        num_s3_layers=num_s3_layers,
-        initial_num_segments=initial_num_segments,
-        segment_multiplier=segment_multiplier,
-    ).to(device)
+    if use_tstcc_encoder:
+        enc = ECGEncoder_TSTCC(
+            use_s3_layers=use_s3_layers,
+            num_s3_layers=num_s3_layers,
+            initial_num_segments=initial_num_segments,
+            segment_multiplier=segment_multiplier,
+        ).to(device)
+
+    else:
+        enc = ECGEncoder(
+            window=window,
+            use_s3_layers=use_s3_layers,
+            num_s3_layers=num_s3_layers,
+            initial_num_segments=initial_num_segments,
+            segment_multiplier=segment_multiplier,
+        ).to(device)
 
     proj = ProjectionHead().to(device)
     return SimCLR(enc, proj)

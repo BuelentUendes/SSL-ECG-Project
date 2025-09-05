@@ -45,6 +45,7 @@ def main(
         lr: float,
         batch_size: int,
         temperature: float,
+        use_tstcc_encoder: bool,
         use_s3_layers: bool,
         initial_num_segments: int,
         num_s3_layers: int,
@@ -84,7 +85,16 @@ def main(
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
 
-    model_name = "SimCLR_S3" if use_s3_layers else "SimCLR"
+    if use_s3_layers:
+        if use_tstcc_encoder:
+            model_name = "SimCLR_S3_TSTCC_Encoder"
+        else:
+            model_name = "SimCLR_S3"
+    else:
+        if use_tstcc_encoder:
+            model_name = "SimCLR_TSTCC_Encoder"
+        else:
+            model_name = "SimCLR"
 
     model_save_path = os.path.join(
         SAVED_MODELS_PATH, "ECG", str(fs), model_name, pretrain_data, f"{seed}", f"{window_size}", f"{step_size}",
@@ -361,6 +371,8 @@ if __name__ == "__main__":
                              help="Batch size for SimCLR training")
     simclr_group.add_argument("--temperature", type=float, default=0.2,
                              help="Temperature parameter for contrastive loss")
+    simclr_group.add_argument("--use_tstcc_encoder", action="store_true",
+                              help="If set, we use the tstcc encoder (differs from the original architecture.")
 
     # S3 configurations
     simclr_group.add_argument("--use_s3_layers", action="store_true",
