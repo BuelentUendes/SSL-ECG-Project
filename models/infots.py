@@ -287,7 +287,6 @@ class InfoTSAugmentation(nn.Module):
 
     def _cutout(self, x, area_ratio=0.1):
         """Randomly mask part of the signal"""
-
         x_masked = x.clone()
         seq_len = x.size(1)
         mask_len = int(seq_len * area_ratio)
@@ -666,12 +665,17 @@ class InfoTS:
         for i in range(len(train_dataset)):
             train_data_label.append([train_dataset[i], train_labels[i]])
 
+        pin_memory = torch.cuda.is_available()
+        num_workers = 4 if torch.cuda.is_available() else 0
+
         train_data_label_loader = DataLoader(
             train_data_label, 
             batch_size=min(self.batch_size, len(train_dataset)), 
-            shuffle=True, drop_last=True,
-            pin_memory=False,  # Disable pin_memory to reduce overhead
-            num_workers=0      # Disable multiprocessing for now
+            shuffle=True,
+            drop_last=True,
+            pin_memory=pin_memory,
+            num_workers=num_workers,
+            persistent_workers=num_workers>0,
         )
 
         meta_p = self.aug.parameters()
