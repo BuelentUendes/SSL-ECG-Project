@@ -475,46 +475,42 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
     
     grouped['n_labeled_participants'] = grouped['label_fraction'].apply(calculate_labeled_participants, total_participants=total_participants)
 
-    # Define colors and markers for transfer learning methods
-
-    # Logistic regression (30/10) '#ff6361'
-    # Logistic regression (10/5) '#E69F00'
-
+    # Define colors and markers for transfer learning methods - aligned with plot_metric_vs_label_fraction
     method_styles = {
-        # Pre-trained encoder methods (solid lines) - TSTCC in light blue
-        'Pre-trained (Logistic Regression, 10s/5s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': '-'},
-        'Pre-trained (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
-        'Pre-trained (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'v', 'linestyle': '-'},
+        # Pre-trained encoder methods - TSTCC methods use light blue like main plot
+        'Pre-trained (Logistic Regression, 10s/5s)': {'color': '#88CCEE', 'marker': 'v', 'linestyle': '-'},
+        'Pre-trained (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 'p', 'linestyle': '-'},
+        'Pre-trained (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
         'Pre-trained (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '--'},
         'Pre-trained (Logistic Regression, 30s/15s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': ':'},
         'Pre-trained (MLP, 30s/5s)': {'color': '#88CCEE', 'marker': '8', 'linestyle': '-'},
         'Pre-trained (MLP, 30s/10s)': {'color': '#88CCEE', 'marker': 'D', 'linestyle': '--'},
         'Pre-trained (MLP, 30s/15s)': {'color': '#88CCEE', 'marker': 'h', 'linestyle': ':'},
 
-        # From scratch methods (dashed lines) - TSTCC in light blue
+        # From scratch methods - use different colors to distinguish from pre-trained
         'From Scratch (Logistic Regression, 10s/5s)': {'color': '#CC79A7', 'marker': 'v', 'linestyle': '-'},
-        'From Scratch (MLP, 10s/5s)': {'color': '#009E73', 'marker': 'p', 'linestyle': '-'},
+        'From Scratch (MLP, 10s/5s)': {'color': '#CC79A7', 'marker': 'p', 'linestyle': '-'},
         'From Scratch (Logistic Regression, 30s/5s)': {'color': '#CC79A7', 'marker': 'o', 'linestyle': '-'},
-        'From Scratch (Logistic Regression, 30s/10s)': {'color': '#CC79A7', 'marker': 'x', 'linestyle': '--'},
-        'From Scratch (Logistic Regression, 30s/15s)': {'color': '#CC79A7', 'marker': '*', 'linestyle': ':'},
-        'From Scratch (MLP, 30s/5s)': {'color': '#009E73', 'marker': '8', 'linestyle': '-'},
-        'From Scratch (MLP, 30s/10s)': {'color': '#009E73', 'marker': '+', 'linestyle': '--'},
-        'From Scratch (MLP, 30s/15s)': {'color': '#009E73', 'marker': '1', 'linestyle': ':'},
+        'From Scratch (Logistic Regression, 30s/10s)': {'color': '#CC79A7', 'marker': 's', 'linestyle': '--'},
+        'From Scratch (Logistic Regression, 30s/15s)': {'color': '#CC79A7', 'marker': '^', 'linestyle': ':'},
+        'From Scratch (MLP, 30s/5s)': {'color': '#CC79A7', 'marker': '8', 'linestyle': '-'},
+        'From Scratch (MLP, 30s/10s)': {'color': '#CC79A7', 'marker': 'D', 'linestyle': '--'},
+        'From Scratch (MLP, 30s/15s)': {'color': '#CC79A7', 'marker': 'h', 'linestyle': ':'},
         
-        # Feature baseline methods (thick dotted lines) - ALL ORANGE
-        'Feature Baseline (Logistic Regression, 30s/5s)': {'color': '#E69F00', 'marker': 'v', 'linestyle': ':', 'linewidth': 3},
-        'Feature Baseline (Logistic Regression, 30s/10s)': {'color': '#ff6361', 'marker': 'h', 'linestyle': ':', 'linewidth': 3},
-        'Feature Baseline (Logistic Regression, 30s/15s)': {'color': '#E69F00', 'marker': 's', 'linestyle': ':', 'linewidth': 3},
-        'Feature Baseline (Logistic Regression,  10s/5s)': {'color': '#E69F00',  'marker': 's', 'linestyle': ':', 'linewidth': 3},
-        'Feature Baseline (MLP, 30s/5s)': {'color': '#E69F00', 'marker': '1', 'linestyle': ':', 'linewidth': 3},
-        'Feature Baseline (MLP, 30s/10s)': {'color': '#E69F00', 'marker': '8', 'linestyle': ':', 'linewidth': 3},
-        'Feature Baseline (MLP, 30s/15s)': {'color': '#E69F00', 'marker': 'D', 'linestyle': ':', 'linewidth': 3},
+        # Feature baseline methods - use orange colors like main plot feature-engineered methods
+        'Feature Baseline (Logistic Regression, 30s/5s)': {'color': '#ff6361', 'marker': 'v', 'linestyle': '-'},
+        'Feature Baseline (Logistic Regression, 30s/10s)': {'color': '#E69F00', 'marker': 'o', 'linestyle': '--'},
+        'Feature Baseline (Logistic Regression, 30s/15s)': {'color': '#665191', 'marker': 's', 'linestyle': ':'},
+        'Feature Baseline (Logistic Regression, 10s/5s)': {'color': '#F0746E', 'marker': 'x', 'linestyle': '-'},
+        'Feature Baseline (MLP, 30s/5s)': {'color': '#E69F00', 'marker': '8', 'linestyle': '-'},
+        'Feature Baseline (MLP, 30s/10s)': {'color': '#E69F00', 'marker': 'D', 'linestyle': '--'},
+        'Feature Baseline (MLP, 30s/15s)': {'color': '#E69F00', 'marker': 'h', 'linestyle': ':'},
 
-        # CNN Supervised methods
-        'Supervised (CNN, 10s/5s)': {'color': '#FF6B35', 'marker': 's', 'linestyle': '-', 'linewidth': 3},
-        'Supervised (CNN, 30s/5s)': {'color': '#FF6B35', 'marker': 'v', 'linestyle': '-', 'linewidth': 3},
-        'Supervised (CNN, 30s/15s)': {'color': '#FF6B35', 'marker': '^', 'linestyle': ':', 'linewidth': 3},
-        'Supervised (CNN, 30s/10s)': {'color': '#D55E00', 'marker': 'o', 'linestyle': '--', 'linewidth': 3},
+        # CNN Supervised methods - use same colors as main plot supervised methods
+        'Supervised (CNN, 10s/5s)': {'color': '#226E9C', 'marker': '^', 'linestyle': '-'},
+        'Supervised (CNN, 30s/5s)': {'color': '#D55E00', 'marker': 'v', 'linestyle': '-'},
+        'Supervised (CNN, 30s/10s)': {'color': '#D55E00', 'marker': 'o', 'linestyle': '--'},
+        'Supervised (CNN, 30s/15s)': {'color': '#D55E00', 'marker': 's', 'linestyle': ':'},
     }
 
     # Plot each method
@@ -680,8 +676,10 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
         # Pruple: #7CCBA2
         # Nice one: #AB1866
 
-
-        'Supervised (TCN, 10s/5s)': {'color': '#E32977', 'marker': '>', 'linestyle': '-'},
+        # "#991f17" This is a good one :)
+        # '#E32977' old redish
+        # "#b04238"
+        'Supervised (TCN, 10s/5s)': {'color': "#b04238", 'marker': '>', 'linestyle': '-'},
         'Supervised (Transformer, 10s/5s)': {'color': '#7CCBA2', 'marker': '<', 'linestyle': '-'},
         'Supervised (DeepECGNet, 10s/5s)': {'color': '#117733', 'marker': 'o', 'linestyle': '-'},
         
@@ -1376,9 +1374,9 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
         'TSTCC (Linear, 10s/5s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': '-', 'linewidth': 3},
         
         # TSTCC_S3 (soft version) - Darker Blue
-        'TSTCC_S3 (Logistic Regression, 10s/5s)': {'color': '#4477AA', 'marker': 'o', 'linestyle': '--', 'linewidth': 3},
-        'TSTCC_S3 (MLP, 10s/5s)': {'color': '#4477AA', 'marker': 's', 'linestyle': '--', 'linewidth': 3},
-        'TSTCC_S3 (Linear, 10s/5s)': {'color': '#4477AA', 'marker': '^', 'linestyle': '--', 'linewidth': 3},
+        'TSTCC+S3 (Logistic Regression, 10s/5s)': {'color': '#4477AA', 'marker': 'o', 'linestyle': '--', 'linewidth': 3},
+        'TSTCC+S3 (MLP, 10s/5s)': {'color': '#4477AA', 'marker': 's', 'linestyle': '--', 'linewidth': 3},
+        'TSTCC+S3 (Linear, 10s/5s)': {'color': '#4477AA', 'marker': '^', 'linestyle': '--', 'linewidth': 3},
         
         # SimCLR (regular) - Light Green
         'SimCLR (Logistic Regression, 10s/5s)': {'color': '#44AA99', 'marker': 'v', 'linestyle': '-', 'linewidth': 3},
@@ -1386,14 +1384,18 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
         'SimCLR (Linear, 10s/5s)': {'color': '#44AA99', 'marker': 'p', 'linestyle': '-', 'linewidth': 3},
         
         # SimCLR_S3 (soft version) - Darker Green
-        'SimCLR_S3 (Logistic Regression, 10s/5s)': {'color': '#117733', 'marker': 'v', 'linestyle': '--', 'linewidth': 3},
-        'SimCLR_S3 (MLP, 10s/5s)': {'color': '#117733', 'marker': 'D', 'linestyle': '--', 'linewidth': 3},
-        'SimCLR_S3 (Linear, 10s/5s)': {'color': '#117733', 'marker': 'p', 'linestyle': '--', 'linewidth': 3},
+        'SimCLR+S3 (Logistic Regression, 10s/5s)': {'color': '#117733', 'marker': 'v', 'linestyle': '--', 'linewidth': 3},
+        'SimCLR+S3 (MLP, 10s/5s)': {'color': '#117733', 'marker': 'D', 'linestyle': '--', 'linewidth': 3},
+        'SimCLR+S3 (Linear, 10s/5s)': {'color': '#117733', 'marker': 'p', 'linestyle': '--', 'linewidth': 3},
     }
 
     # Plot each method
     for method in grouped['method_label'].unique():
         method_data = grouped[grouped['method_label'] == method].sort_values('label_fraction')
+
+        if "_S3" in method:
+            method = method.replace("_S3", "+S3")
+
         style = method_styles.get(method, {'color': 'black', 'marker': 'o', 'linestyle': '-', 'linewidth': 2.5})
 
         # Choose x-axis values based on use_participant_count parameter
