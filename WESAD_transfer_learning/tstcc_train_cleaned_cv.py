@@ -51,6 +51,7 @@ def main(
         tcc_lr: float,
         tcc_batch_size: int,
         pretrain_all_conditions: bool,
+        train_ratio_encoder: float,
         tc_timesteps: int,
         tc_hidden_dim: int,
         cc_temperature: float,
@@ -108,19 +109,35 @@ def main(
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
 
     if use_pretrained_encoder:
-        model_save_path = os.path.join(
-            SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC", pretrain_data, f"{seed}", f"{window_size}", f"{step_size}"
-        )
+
+        if use_s3_layers:
+            model_save_path = os.path.join(
+                SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC_S3", pretrain_data, f"{seed}",
+                f"{window_size}", f"{step_size}", f"{train_ratio_encoder}",
+            )
+        else:
+            model_save_path = os.path.join(
+                SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC", pretrain_data, f"{seed}",
+                f"{window_size}", f"{step_size}", f"{train_ratio_encoder}",
+            )
 
     else:
-        model_save_path = os.path.join(
-            SAVED_MODELS_PATH, "WESAD", "TSTCC", f"{seed}", f"{window_size}", f"{step_size}"
-        )
+        if use_s3_layers:
+            model_save_path = os.path.join(
+                SAVED_MODELS_PATH, "WESAD", "TSTCC_S3", f"{seed}", f"{window_size}", f"{step_size}"
+            )
+
+        else:
+            model_save_path = os.path.join(
+                SAVED_MODELS_PATH, "WESAD", "TSTCC", f"{seed}", f"{window_size}", f"{step_size}"
+            )
 
     #Save the results based on either pretrained from our dataset or trained from scratch
     subfolder_name = "pretrained_encoder" if use_pretrained_encoder else "trained_from_scratch"
+
+    model_name = "TSTCC_S3" if use_s3_layers else "TSTCC"
     results_save_path = os.path.join(
-        RESULTS_PATH, "Transfer_learning", "WESAD", subfolder_name, "TSTCC", classifier_model,
+        RESULTS_PATH, "Transfer_learning", "WESAD", subfolder_name, model_name, classifier_model,
         f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
     )
 
@@ -172,7 +189,7 @@ def main(
     # Rep is the one that we train the encoder on, for these we do not need the labels, so label fraction is set to 1.0
     train_idx_encoder, train_p_rep, val_idx_encoder, val_p  = split_indices_by_participant_groups(
         groups_train_all_encoder,
-        train_ratio=0.75, #This will give a split of 60/20/20
+        train_ratio=train_ratio_encoder, #This will give a split of 60/20/20
         label_fraction=1.0, # We will discard anyways all labels
         seed=seed,
         return_all_train_p=False,
@@ -512,7 +529,9 @@ if __name__ == "__main__":
                            help="Fraction of labeled participants to use (0.0-1.0)")
     data_group.add_argument("--pretrain_all_conditions", action="store_true",
                            help="Pretrain on all conditions (not just baseline/mental_stress)")
-
+    data_group.add_argument("--train_ratio_encoder", default=1.0, type=float,
+                            help="If set to 0.75, it will result in 60/20/20 split and have a validation set for TSTCC,"
+                                 "Alternatively, set to 1.0 to train on all unlabelled training instances.")
     # ══════════════════════════════════════════════════════════════════════════════
     # TS-TCC Encoder Training
     # ══════════════════════════════════════════════════════════════════════════════
