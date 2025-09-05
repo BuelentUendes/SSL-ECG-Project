@@ -1,12 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=ECG_INFOTS
-#SBATCH --time=12:00:00
+#SBATCH --time=30:00:00
 #SBATCH -N 1
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_infots_%j.out
 #SBATCH --error=ecg_infots_%j.err
+#SBATCH -C A5000
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -48,19 +49,19 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 infots_train_cleaned_cv.py --seed 12345 --infots_epochs 2 --label_fraction 0.1 --force_retraining
-#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.01
-#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.025
-#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.05
-#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.25
-#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 0.5
-#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 2 --label_fraction 1.0
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.1 --force_retraining
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.01
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.025
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.05
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.25
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.5
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 1.0
 
 # Command to run the job
 #  for SEED in 3 5 7 9 42; do
 #      sbatch --job-name=ECG_INFOTS_seed_${SEED} \
 #             --output=ecg_infots_${SEED}_%j.out \
-#             --time=12:00:00 \
+#             --time=30:00:00 \
 #             --begin=20:00 \
 #             --error=ecg_infots_${SEED}_%j.err \
 #             ./slurm_jobs/slurm_job_infots.sh $SEED
