@@ -1,12 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=ECG_TS2Vec_S3
-#SBATCH --time=12:00:00
+#SBATCH --time=60:00:00
 #SBATCH -N 1
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_ts2vec_s3_%j.out
 #SBATCH --error=ecg_ts2vec_s3_%j.err
+#SBATCH -C A4000
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -48,19 +49,20 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 ts2vec_train_cleaned_cv.py --seed 12345 --ts2vec_epochs 2 --label_fraction 0.1 --force_retraining --use_s3_layers
-#python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.01 --use_s3_layers
-#python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.025 --use_s3_layers
-#python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.05 --use_s3_layers
-#python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.25 --use_s3_layers
-#python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.5 --use_s3_layers
-#python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 1.0 --use_s3_layers
+python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.1 --force_retraining --use_s3_layers
+python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.01 --use_s3_layers
+python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.025 --use_s3_layers
+python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.05 --use_s3_layers
+python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.25 --use_s3_layers
+python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.5 --use_s3_layers
+python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 1.0 --use_s3_layers
 
 # Command to run the job
 #  for SEED in 3 5 7 9 42; do
 #      sbatch --job-name=ECG_TS2Vec_s3_seed_${SEED} \
 #             --output=ecg_ts2vec_s3_${SEED}_%j.out \
-#             --time=12:00:00 \
+#             --time=60:00:00 \
+#             --begin=20:00 \
 #             --error=ecg_ts2vec_s3_${SEED}_%j.err \
 #             ./slurm_jobs/slurm_job_ts2vec_s3.sh $SEED
 #  done
