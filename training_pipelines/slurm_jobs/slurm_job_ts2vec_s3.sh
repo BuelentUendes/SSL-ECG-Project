@@ -49,7 +49,7 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.1 --force_retraining --use_s3_layers
+python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.1 --use_s3_layers
 python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.01 --use_s3_layers
 python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.025 --use_s3_layers
 python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.05 --use_s3_layers
