@@ -178,7 +178,7 @@ def main(
             num_s3_layers=num_s3_layers,
             segment_multiplier=segment_multiplier,
         )
-        ts2vec.net = ts2vec._net = torch.load(model_path, map_location=device)
+        ts2vec.net = ts2vec._net = torch.load(model_path, map_location=device, weights_only=False)
 
     else:
         print("No cached encoder; training TS2Vec from scratch")

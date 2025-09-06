@@ -199,7 +199,7 @@ def main(
             shuffle_vector_dim=shuffle_vector_dim,
             segment_multiplier=segment_multiplier,
         )
-        infots.net = infots._net = torch.load(model_path, map_location=device)
+        infots.net = infots._net = torch.load(model_path, map_location=device, weights_only=False)
 
     else:
         print("No cached encoder; training InfoTS from scratch")
