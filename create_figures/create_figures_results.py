@@ -1329,7 +1329,7 @@ def create_ssl_method_labels(df):
 
 
 def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_count=False, 
-                       total_participants=101, use_standard_error=False):
+                       total_participants=101, use_standard_error=False, include_features=True):
     """Create a comparison plot between different SSL methods.
     
     Args:
@@ -1339,6 +1339,7 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
         use_participant_count: If True, show number of participants instead of percentages
         total_participants: Total number of training participants (default: 101)
         use_standard_error: If True, use standard error instead of standard deviation
+        include_features: If True, include feature-engineered methods in the plot (default: True)
     """
     
     # Set up the plotting style
@@ -1349,6 +1350,11 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
 
     # Group by method and calculate mean and std
     grouped = df.groupby(['method_label', 'label_fraction'])[metric].agg(['mean', 'std', 'count']).reset_index()
+    
+    # Filter out feature-engineered methods if include_features is False
+    if not include_features:
+        # Filter out methods that contain "Feature-engineered" in their name
+        grouped = grouped[~grouped['method_label'].str.contains('Feature-engineered', case=False, na=False)]
     
     # Calculate standard error if requested
     if use_standard_error:
@@ -1387,16 +1393,47 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
         'SimCLR+S3 (Logistic Regression, 10s/5s)': {'color': '#117733', 'marker': 'v', 'linestyle': '--', 'linewidth': 3},
         'SimCLR+S3 (MLP, 10s/5s)': {'color': '#117733', 'marker': 'D', 'linestyle': '--', 'linewidth': 3},
         'SimCLR+S3 (Linear, 10s/5s)': {'color': '#117733', 'marker': 'p', 'linestyle': '--', 'linewidth': 3},
+        
+        # TS2Vec (regular) - Light Purple/Magenta
+        'TS2Vec (Logistic Regression, 10s/5s)': {'color': '#CC79A7', 'marker': 'h', 'linestyle': '-', 'linewidth': 3},
+        'TS2Vec (MLP, 10s/5s)': {'color': '#CC79A7', 'marker': '8', 'linestyle': '-', 'linewidth': 3},
+        'TS2Vec (Linear, 10s/5s)': {'color': '#CC79A7', 'marker': '*', 'linestyle': '-', 'linewidth': 3},
+        
+        # TS2Vec_S3 (soft version) - Darker Purple/Magenta
+        'TS2Vec+S3 (Logistic Regression, 10s/5s)': {'color': '#882255', 'marker': 'h', 'linestyle': '--', 'linewidth': 3},
+        'TS2Vec+S3 (MLP, 10s/5s)': {'color': '#882255', 'marker': '8', 'linestyle': '--', 'linewidth': 3},
+        'TS2Vec+S3 (Linear, 10s/5s)': {'color': '#882255', 'marker': '*', 'linestyle': '--', 'linewidth': 3},
+        
+        # InfoTS (regular) - Light Orange/Gold
+        'InfoTS (Logistic Regression, 10s/5s)': {'color': '#DDCC77', 'marker': '>', 'linestyle': '-', 'linewidth': 3},
+        'InfoTS (MLP, 10s/5s)': {'color': '#DDCC77', 'marker': '<', 'linestyle': '-', 'linewidth': 3},
+        'InfoTS (Linear, 10s/5s)': {'color': '#DDCC77', 'marker': '1', 'linestyle': '-', 'linewidth': 3},
+        
+        # InfoTS_S3 (soft version) - Darker Orange/Gold
+        'InfoTS+S3 (Logistic Regression, 10s/5s)': {'color': '#AA6C39', 'marker': '>', 'linestyle': '--', 'linewidth': 3},
+        'InfoTS+S3 (MLP, 10s/5s)': {'color': '#AA6C39', 'marker': '<', 'linestyle': '--', 'linewidth': 3},
+        'InfoTS+S3 (Linear, 10s/5s)': {'color': '#AA6C39', 'marker': '1', 'linestyle': '--', 'linewidth': 3},
+        
+        # SimCLR with TSTCC Encoder (regular) - Teal (blend of SimCLR green and TSTCC blue)
+        'SimCLR_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#66B2B2', 'marker': 's', 'linestyle': '-', 'linewidth': 3},
+        'SimCLR_TSTCC_Encoder (MLP, 10s/5s)': {'color': '#66B2B2', 'marker': 'X', 'linestyle': '-', 'linewidth': 3},
+        'SimCLR_TSTCC_Encoder (Linear, 10s/5s)': {'color': '#66B2B2', 'marker': '+', 'linestyle': '-', 'linewidth': 3},
+        
+        # SimCLR_S3 with TSTCC Encoder (soft version) - Darker Teal
+        'SimCLR_S3_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#336666', 'marker': 's', 'linestyle': '--', 'linewidth': 3},
+        'SimCLR_S3_TSTCC_Encoder (MLP, 10s/5s)': {'color': '#336666', 'marker': 'X', 'linestyle': '--', 'linewidth': 3},
+        'SimCLR_S3_TSTCC_Encoder (Linear, 10s/5s)': {'color': '#336666', 'marker': '+', 'linestyle': '--', 'linewidth': 3},
     }
 
     # Plot each method
     for method in grouped['method_label'].unique():
         method_data = grouped[grouped['method_label'] == method].sort_values('label_fraction')
 
-        if "_S3" in method:
-            method = method.replace("_S3", "+S3")
-
-        style = method_styles.get(method, {'color': 'black', 'marker': 'o', 'linestyle': '-', 'linewidth': 2.5})
+        # Create display name for legend (replace _S3 with +S3 for display)
+        display_method = method.replace("_S3", "+S3") if "_S3" in method else method
+        
+        # Use display name for style lookup
+        style = method_styles.get(display_method, {'color': 'black', 'marker': 'o', 'linestyle': '-', 'linewidth': 2.5})
 
         # Choose x-axis values based on use_participant_count parameter
         if use_participant_count:
@@ -1531,7 +1568,11 @@ def main():
 
     # Create SSL comparison plots
     print("\nLoading SSL comparison results...")
-    ssl_methods_to_compare = ['TSTCC', 'TSTCC_S3', 'SimCLR', 'SimCLR_S3']
+    ssl_methods_to_compare = ['TSTCC', 'TSTCC_S3', 'TS2Vec_S3', 'TS2Vec', 'SimCLR', 'SimCLR_S3', "SimCLR_TSTCC_Encoder"]
+
+    # ssl_methods_to_compare = ['SimCLR', 'SimCLR_S3', "SimCLR_TSTCC_Encoder",
+    #                           'TS2Vec_S3', 'TS2Vec', 'TSTCC', 'TSTCC_S3']
+    # ssl_methods_to_compare = ["SimCLR_TSTCC_Encoder_S3", "SimCLR_TSTCC_Encoder", 'SimCLR']
     ssl_comparison_df = load_ssl_comparison_results(base_path, ssl_methods=ssl_methods_to_compare, include_features=True)
     
     if not ssl_comparison_df.empty:
