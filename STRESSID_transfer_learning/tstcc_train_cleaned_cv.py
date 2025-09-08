@@ -580,10 +580,10 @@ if __name__ == "__main__":
                                   help="If set, we use the S3 layer")
     tstcc_arch_group.add_argument("--initial_num_segments", type=int, default=2)
     tstcc_arch_group.add_argument("--num_s3_layers", type=int, default=2)
-    tstcc_arch_group.add_argument("--segment_multiplier", type=int, default=2)
+    tstcc_arch_group.add_argument("--segment_multiplier", type=int, default=1)
 
-    tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.0001, type=float)
-    tstcc_arch_group.add_argument("--jitter_ratio", default=0.01, type=float)
+    tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.001, type=float)
+    tstcc_arch_group.add_argument("--jitter_ratio", default=0.001, type=float)
     tstcc_arch_group.add_argument("--max_segment", default = 8, type=int)
 
     # ══════════════════════════════════════════════════════════════════════════════
