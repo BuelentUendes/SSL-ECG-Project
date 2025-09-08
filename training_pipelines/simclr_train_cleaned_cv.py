@@ -190,6 +190,7 @@ def main(
         num_s3_layers=num_s3_layers,
         initial_num_segments=initial_num_segments,
         segment_multiplier=segment_multiplier,
+        use_tstcc_encoder=use_tstcc_encoder,
     )
 
     # Check for local pretrained model
