@@ -9,8 +9,8 @@ seeds=(3 5 7 9 42)
 
 for seed in "${seeds[@]}"
 do
-  python3 tstcc_train_cleaned_cv.py --force_retraining --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.25
-  python3 tstcc_train_cleaned_cv.py --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.5
-  python3 tstcc_train_cleaned_cv.py --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 1.0
+  python3 tstcc_train_cleaned_cv.py --force_retraining --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.25 --fs 700
+  python3 tstcc_train_cleaned_cv.py --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.5 --fs 700
+  python3 tstcc_train_cleaned_cv.py --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 1.0 --fs 700
 done
 
