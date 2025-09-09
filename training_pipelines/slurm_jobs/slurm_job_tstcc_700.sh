@@ -64,6 +64,6 @@ python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0
 #             --error=ecg_700_tstcc_${SEED}_%j.err \
 #             --time=12:00:00 \
 #             --begin=20:00 \
-#             slurm_job_tstcc_700.sh $SEED
+#             ./slurm_jobs/slurm_job_tstcc_700.sh $SEED
 #  done
 ##
