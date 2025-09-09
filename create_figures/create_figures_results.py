@@ -1414,15 +1414,20 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
         'InfoTS+S3 (MLP, 10s/5s)': {'color': '#AA6C39', 'marker': '<', 'linestyle': '--', 'linewidth': 3},
         'InfoTS+S3 (Linear, 10s/5s)': {'color': '#AA6C39', 'marker': '1', 'linestyle': '--', 'linewidth': 3},
         
-        # SimCLR with TSTCC Encoder (regular) - Teal (blend of SimCLR green and TSTCC blue)
-        'SimCLR_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#66B2B2', 'marker': 's', 'linestyle': '-', 'linewidth': 3},
-        'SimCLR_TSTCC_Encoder (MLP, 10s/5s)': {'color': '#66B2B2', 'marker': 'X', 'linestyle': '-', 'linewidth': 3},
-        'SimCLR_TSTCC_Encoder (Linear, 10s/5s)': {'color': '#66B2B2', 'marker': '+', 'linestyle': '-', 'linewidth': 3},
+        # SimCLR with TSTCC Encoder (regular) - Light Orange/Coral
+        'SimCLR_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#FF9999', 'marker': 's', 'linestyle': '-', 'linewidth': 3},
+        'SimCLR_TSTCC_Encoder (MLP, 10s/5s)': {'color': '#FF9999', 'marker': 'X', 'linestyle': '-', 'linewidth': 3},
+        'SimCLR_TSTCC_Encoder (Linear, 10s/5s)': {'color': '#FF9999', 'marker': '+', 'linestyle': '-', 'linewidth': 3},
         
-        # SimCLR_S3 with TSTCC Encoder (soft version) - Darker Teal
-        'SimCLR_S3_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#336666', 'marker': 's', 'linestyle': '--', 'linewidth': 3},
-        'SimCLR_S3_TSTCC_Encoder (MLP, 10s/5s)': {'color': '#336666', 'marker': 'X', 'linestyle': '--', 'linewidth': 3},
-        'SimCLR_S3_TSTCC_Encoder (Linear, 10s/5s)': {'color': '#336666', 'marker': '+', 'linestyle': '--', 'linewidth': 3},
+        # SimCLR_S3 with TSTCC Encoder (soft version) - Darker Orange/Red
+        'SimCLR+S3_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#CC3333', 'marker': 's', 'linestyle': '--', 'linewidth': 3},
+        'SimCLR+S3_TSTCC_Encoder (MLP, 10s/5s)': {'color': '#CC3333', 'marker': 'X', 'linestyle': '--', 'linewidth': 3},
+        'SimCLR+S3_TSTCC_Encoder (Linear, 10s/5s)': {'color': '#CC3333', 'marker': '+', 'linestyle': '--', 'linewidth': 3},
+        
+        # SimCLR_TSTCC_Encoder_S3 (alternative naming) - Same as SimCLR+S3_TSTCC_Encoder
+        'SimCLR_TSTCC_Encoder+S3 (Logistic Regression, 10s/5s)': {'color': '#CC3333', 'marker': 's', 'linestyle': '--', 'linewidth': 3},
+        'SimCLR_TSTCC_Encoder+S3 (MLP, 10s/5s)': {'color': '#CC3333', 'marker': 'X', 'linestyle': '--', 'linewidth': 3},
+        'SimCLR_TSTCC_Encoder+S3 (Linear, 10s/5s)': {'color': '#CC3333', 'marker': '+', 'linestyle': '--', 'linewidth': 3},
     }
 
     # Plot each method
@@ -1568,12 +1573,15 @@ def main():
 
     # Create SSL comparison plots
     print("\nLoading SSL comparison results...")
-    ssl_methods_to_compare = ['TSTCC', 'TSTCC_S3', 'TS2Vec_S3', 'TS2Vec', 'SimCLR', 'SimCLR_S3', "SimCLR_TSTCC_Encoder"]
+    ssl_methods_to_compare = ['TSTCC_S3', 'TSTCC', 'TS2Vec', 'TS2Vec_S3',
+                              'SimCLR', 'SimCLR_S3', "SimCLR_TSTCC_Encoder",
+                              "SimCLR_TSTCC_Encoder_S3"]
 
     # ssl_methods_to_compare = ['SimCLR', 'SimCLR_S3', "SimCLR_TSTCC_Encoder",
     #                           'TS2Vec_S3', 'TS2Vec', 'TSTCC', 'TSTCC_S3']
     # ssl_methods_to_compare = ["SimCLR_TSTCC_Encoder_S3", "SimCLR_TSTCC_Encoder", 'SimCLR']
-    ssl_comparison_df = load_ssl_comparison_results(base_path, ssl_methods=ssl_methods_to_compare, include_features=True)
+    ssl_comparison_df = load_ssl_comparison_results(base_path, ssl_methods=ssl_methods_to_compare,
+                                                    include_features=False)
     
     if not ssl_comparison_df.empty:
         print(f"Successfully loaded {len(ssl_comparison_df)} SSL comparison results!")
