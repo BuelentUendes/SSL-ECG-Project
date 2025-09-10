@@ -107,35 +107,37 @@ def main(
 
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
+    model_name = "TSTCC_S3" if use_s3_layers else "TSTCC"
 
     if use_pretrained_encoder:
         if use_s3_layers:
             model_save_path = os.path.join(
-                SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC_S3", pretrain_data, f"{seed}",
+                SAVED_MODELS_PATH, "ECG", str(fs), model_name, pretrain_data, f"{seed}",
                 f"{window_size}", f"{step_size}", f"{train_ratio_encoder}",
             )
         else:
             model_save_path = os.path.join(
-                SAVED_MODELS_PATH, "ECG", str(fs), "TSTCC", pretrain_data, f"{seed}",
+                SAVED_MODELS_PATH, "ECG", str(fs), model_name, pretrain_data, f"{seed}",
                 f"{window_size}", f"{step_size}", f"{train_ratio_encoder}",
             )
 
     else:
         if use_s3_layers:
             model_save_path = os.path.join(
-                SAVED_MODELS_PATH, "StressID", "TSTCC_S3", f"{seed}", f"{window_size}", f"{step_size}"
+                SAVED_MODELS_PATH, "StressID", model_name, f"{seed}", f"{window_size}", f"{step_size}"
             )
 
         else:
             model_save_path = os.path.join(
-                SAVED_MODELS_PATH, "StressID", "TSTCC", f"{seed}", f"{window_size}", f"{step_size}"
+                SAVED_MODELS_PATH, "StressID", model_name, f"{seed}", f"{window_size}", f"{step_size}"
             )
 
     #Save the results based on either pretrained from our dataset or trained from scratch
     subfolder_name = "pretrained_encoder" if use_pretrained_encoder else "trained_from_scratch"
 
+    #
     results_save_path = os.path.join(
-        RESULTS_PATH, "Transfer_learning", "StressID", subfolder_name, "TSTCC", classifier_model,
+        RESULTS_PATH, "Transfer_learning", "StressID", subfolder_name, model_name, classifier_model,
         f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}",
     )
 
