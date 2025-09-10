@@ -106,7 +106,7 @@ def main(
         str(train_ratio_encoder)
     )
     results_save_path = os.path.join(
-        RESULTS_PATH, "ECG", model_name, classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
+        RESULTS_PATH, "ECG", str(fs), model_name, classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
         f"{step_size}", str(train_ratio_encoder)
     )
 
