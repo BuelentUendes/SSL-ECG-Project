@@ -123,12 +123,12 @@ def main(
     else:
         if use_s3_layers:
             model_save_path = os.path.join(
-                SAVED_MODELS_PATH, "WESAD", "TSTCC_S3", f"{seed}", f"{window_size}", f"{step_size}"
+                SAVED_MODELS_PATH, "StressID", "TSTCC_S3", f"{seed}", f"{window_size}", f"{step_size}"
             )
 
         else:
             model_save_path = os.path.join(
-                SAVED_MODELS_PATH, "WESAD", "TSTCC", f"{seed}", f"{window_size}", f"{step_size}"
+                SAVED_MODELS_PATH, "StressID", "TSTCC", f"{seed}", f"{window_size}", f"{step_size}"
             )
 
     #Save the results based on either pretrained from our dataset or trained from scratch
