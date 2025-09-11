@@ -225,7 +225,7 @@ def load_transfer_learning_results(base_path, dataset_name):
         return pd.DataFrame(results)
     
     # Define the transfer types
-    transfer_types = ["pretrained_encoder", "trained_from_scratch", "cnn"]
+    transfer_types = ["pretrained_encoder", "pretrained_encoder_fine_tuned_encoder", "trained_from_scratch", "cnn"]
 
     for transfer_type in transfer_types:
         transfer_path = transfer_base / transfer_type
@@ -412,7 +412,12 @@ def create_method_labels(df):
             if row['transfer_type'] == 'cnn':
                 return f"Supervised ({clean_model}, {window_info})"
             else:
-                transfer_label = "Pre-trained" if row['transfer_type'] == 'pretrained_encoder' else "From Scratch"
+                if row['transfer_type'] == 'pretrained_encoder':
+                    transfer_label = "Pre-trained"
+                elif row['transfer_type'] == 'pretrained_encoder_fine_tuned_encoder':
+                    transfer_label = "Pre-trained Fine-tuned"
+                else:
+                    transfer_label = "From Scratch"
                 return f"{transfer_label} ({clean_model}, {window_info})"
         elif row['method_type'] == 'Features_Baseline':
             return f"Feature Baseline ({clean_model}, {window_info})"
@@ -481,7 +486,7 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
         'Pre-trained (Logistic Regression, 10s/5s)': {'color': '#88CCEE', 'marker': 'v', 'linestyle': '-'},
         'Pre-trained (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 'p', 'linestyle': '-'},
         'Pre-trained (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
-        'Pre-trained (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '--'},
+        'Pre-trained (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '-'},
         'Pre-trained (Logistic Regression, 30s/15s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': ':'},
         'Pre-trained (MLP, 30s/5s)': {'color': '#88CCEE', 'marker': '8', 'linestyle': '-'},
         'Pre-trained (MLP, 30s/10s)': {'color': '#88CCEE', 'marker': 'D', 'linestyle': '--'},
@@ -491,7 +496,7 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
         'From Scratch (Logistic Regression, 10s/5s)': {'color': '#CC79A7', 'marker': 'v', 'linestyle': '-'},
         'From Scratch (MLP, 10s/5s)': {'color': '#CC79A7', 'marker': 'p', 'linestyle': '-'},
         'From Scratch (Logistic Regression, 30s/5s)': {'color': '#CC79A7', 'marker': 'o', 'linestyle': '-'},
-        'From Scratch (Logistic Regression, 30s/10s)': {'color': '#CC79A7', 'marker': 's', 'linestyle': '--'},
+        'From Scratch (Logistic Regression, 30s/10s)': {'color': '#CC79A7', 'marker': 's', 'linestyle': '-'},
         'From Scratch (Logistic Regression, 30s/15s)': {'color': '#CC79A7', 'marker': '^', 'linestyle': ':'},
         'From Scratch (MLP, 30s/5s)': {'color': '#CC79A7', 'marker': '8', 'linestyle': '-'},
         'From Scratch (MLP, 30s/10s)': {'color': '#CC79A7', 'marker': 'D', 'linestyle': '--'},
@@ -499,7 +504,7 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
         
         # Feature baseline methods - use orange colors like main plot feature-engineered methods
         'Feature Baseline (Logistic Regression, 30s/5s)': {'color': '#ff6361', 'marker': 'v', 'linestyle': '-'},
-        'Feature Baseline (Logistic Regression, 30s/10s)': {'color': '#E69F00', 'marker': 'o', 'linestyle': '--'},
+        'Feature Baseline (Logistic Regression, 30s/10s)': {'color': '#E69F00', 'marker': 'o', 'linestyle': '-'},
         'Feature Baseline (Logistic Regression, 30s/15s)': {'color': '#665191', 'marker': 's', 'linestyle': ':'},
         'Feature Baseline (Logistic Regression, 10s/5s)': {'color': '#F0746E', 'marker': 'x', 'linestyle': '-'},
         'Feature Baseline (MLP, 30s/5s)': {'color': '#E69F00', 'marker': '8', 'linestyle': '-'},
@@ -511,6 +516,16 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
         'Supervised (CNN, 30s/5s)': {'color': '#D55E00', 'marker': 'v', 'linestyle': '-'},
         'Supervised (CNN, 30s/10s)': {'color': '#D55E00', 'marker': 'o', 'linestyle': '--'},
         'Supervised (CNN, 30s/15s)': {'color': '#D55E00', 'marker': 's', 'linestyle': ':'},
+
+        # Pre-trained Fine-tuned encoder methods - use darker blue to distinguish from regular pre-trained
+        'Pre-trained Fine-tuned (Logistic Regression, 10s/5s)': {'color': '#4477AA', 'marker': 'v', 'linestyle': '--'},
+        'Pre-trained Fine-tuned (MLP, 10s/5s)': {'color': '#4477AA', 'marker': 'p', 'linestyle': '--'},
+        'Pre-trained Fine-tuned (Logistic Regression, 30s/5s)': {'color': '#4477AA', 'marker': 'o', 'linestyle': '--'},
+        'Pre-trained Fine-tuned (Logistic Regression, 30s/10s)': {'color': '#4477AA', 'marker': 's', 'linestyle': '--'},
+        'Pre-trained Fine-tuned (Logistic Regression, 30s/15s)': {'color': '#4477AA', 'marker': '^', 'linestyle': ':'},
+        'Pre-trained Fine-tuned (MLP, 30s/5s)': {'color': '#4477AA', 'marker': '8', 'linestyle': '--'},
+        'Pre-trained Fine-tuned (MLP, 30s/10s)': {'color': '#4477AA', 'marker': 'D', 'linestyle': ':'},
+        'Pre-trained Fine-tuned (MLP, 30s/15s)': {'color': '#4477AA', 'marker': 'h', 'linestyle': ':'},
     }
 
     # Plot each method
@@ -1328,6 +1343,187 @@ def create_ssl_method_labels(df):
     return df
 
 
+def plot_fine_tuned_vs_pretrained_comparison(df, dataset_name, metric="auroc", save_path=None, use_participant_count=False, total_participants=None, use_standard_error=False):
+    """Create a comparison plot specifically between fine-tuned vs pretrained encoders.
+    
+    Args:
+        df: DataFrame with transfer learning results
+        dataset_name: Name of the dataset (for title and participant count)
+        metric: Metric to plot ('auroc' or 'pr_auc')
+        save_path: Path to save the plot
+        use_participant_count: If True, show number of participants instead of percentages
+        total_participants: Total number of training participants for this dataset
+        use_standard_error: If True, use standard error instead of standard deviation
+    """
+    
+    # Set default participant counts if not provided
+    if total_participants is None:
+        if dataset_name == "WESAD":
+            total_participants = 12
+        elif dataset_name == "StressID":
+            total_participants = 52
+        else:
+            total_participants = 101
+    
+    # Set dataset-specific PR-AUC baseline (random chance for each dataset)
+    if dataset_name == "WESAD":
+        pr_auc_baseline = 0.3625
+    elif dataset_name == "StressID":
+        pr_auc_baseline = 0.3510
+    else:
+        pr_auc_baseline = 0.5736
+    
+    # Filter to only include pretrained_encoder and pretrained_encoder_fine_tuned_encoder
+    comparison_df = df[df['transfer_type'].isin(['pretrained_encoder', 'pretrained_encoder_fine_tuned_encoder'])].copy()
+    
+    if comparison_df.empty:
+        print(f"No fine-tuned vs pretrained comparison data found for {dataset_name}")
+        return None, None
+    
+    # Set up the plotting style
+    plt.style.use('default')
+    sns.set_palette("husl")
+
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    # Group by method and calculate mean and std
+    grouped = comparison_df.groupby(['method_label', 'label_fraction'])[metric].agg(['mean', 'std', 'count']).reset_index()
+    
+    # Calculate standard error if requested
+    if use_standard_error:
+        grouped['error'] = grouped['std'] / np.sqrt(grouped['count'])
+    else:
+        grouped['error'] = grouped['std']
+    
+    # Calculate number of labeled participants
+    def calculate_labeled_participants(label_fraction, total_participants):
+        if total_participants <= 20:
+            return max(3, int(total_participants * label_fraction))
+        return max(5, int(total_participants * label_fraction))
+    
+    grouped['n_labeled_participants'] = grouped['label_fraction'].apply(calculate_labeled_participants, total_participants=total_participants)
+
+    # Define colors and markers for comparison - distinguish fine-tuned from pretrained
+    method_styles = {
+        # Pre-trained encoder methods - light blue
+        'Pre-trained (Logistic Regression, 10s/5s)': {'color': '#88CCEE', 'marker': 'v', 'linestyle': '-', 'linewidth': 3},
+        'Pre-trained (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 'p', 'linestyle': '-', 'linewidth': 3},
+        'Pre-trained (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-', 'linewidth': 3},
+        'Pre-trained (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '-', 'linewidth': 3},
+        'Pre-trained (MLP, 30s/5s)': {'color': '#88CCEE', 'marker': '8', 'linestyle': '-', 'linewidth': 3},
+        'Pre-trained (MLP, 30s/10s)': {'color': '#88CCEE', 'marker': 'D', 'linestyle': '-', 'linewidth': 3},
+
+        # Pre-trained Fine-tuned encoder methods - darker blue with dashed lines
+        'Pre-trained Fine-tuned (Logistic Regression, 10s/5s)': {'color': '#4477AA', 'marker': 'v', 'linestyle': '--', 'linewidth': 3},
+        'Pre-trained Fine-tuned (MLP, 10s/5s)': {'color': '#4477AA', 'marker': 'p', 'linestyle': '--', 'linewidth': 3},
+        'Pre-trained Fine-tuned (Logistic Regression, 30s/5s)': {'color': '#4477AA', 'marker': 'o', 'linestyle': '--', 'linewidth': 3},
+        'Pre-trained Fine-tuned (Logistic Regression, 30s/10s)': {'color': '#4477AA', 'marker': 's', 'linestyle': '--', 'linewidth': 3},
+        'Pre-trained Fine-tuned (MLP, 30s/5s)': {'color': '#4477AA', 'marker': '8', 'linestyle': '--', 'linewidth': 3},
+        'Pre-trained Fine-tuned (MLP, 30s/10s)': {'color': '#4477AA', 'marker': 'D', 'linestyle': '--', 'linewidth': 3},
+    }
+
+    # Plot each method
+    for method in grouped['method_label'].unique():
+        method_data = grouped[grouped['method_label'] == method].sort_values('label_fraction')
+        style = method_styles.get(method, {'color': 'black', 'marker': 'o', 'linestyle': '-', 'linewidth': 2.5})
+
+        # Choose x-axis values based on use_participant_count parameter
+        if use_participant_count:
+            x_vals = method_data['n_labeled_participants']
+        else:
+            x_vals = method_data['label_fraction'] * 100
+        y_vals = method_data['mean']
+
+        # Plot main line
+        linewidth = style.get('linewidth', 2.5)
+        ax.plot(x_vals, y_vals,
+                color=style['color'],
+                marker=style['marker'],
+                linestyle=style['linestyle'],
+                linewidth=linewidth,
+                markersize=10,
+                label=method,
+                markerfacecolor='white',
+                markeredgewidth=2,
+                markeredgecolor=style['color'])
+
+        # Add error visualization with fill_between if we have multiple seeds
+        if method_data['count'].max() > 1:
+            error_vals = method_data['error'].fillna(0)
+            
+            # Use fill_between for better uncertainty visualization
+            ax.fill_between(x_vals, 
+                          y_vals - error_vals, 
+                          y_vals + error_vals,
+                          color=style['color'], 
+                          alpha=0.3, 
+                          interpolate=True)
+
+    # Customize the plot
+    if use_participant_count:
+        ax.set_xlabel('# Labeled Training Participants', fontsize=14, fontweight='bold')
+        # Set x-axis scale and limits for participant count
+        min_participants = calculate_labeled_participants(label_fraction=0., total_participants=total_participants)
+        ax.set_xlim(min_participants -0.2, total_participants +0.2)
+        # Customize x-axis ticks for participant counts
+        if total_participants <= 20:
+            x_ticks = [min_participants, int(min_participants*2), total_participants]
+        else:
+            x_ticks = [min_participants, 10, 25, total_participants]
+        ax.set_xticks(x_ticks)
+        ax.set_xticklabels([str(x) for x in x_ticks])
+    else:
+        ax.set_xlabel('Label Fraction (% of Training Participants Labeled)', fontsize=14, fontweight='bold')
+        # Set x-axis to log scale for better visualization of small fractions
+        ax.set_xscale('log')
+        ax.set_xlim(0.8, 120)
+        # Customize x-axis ticks for percentages
+        x_ticks = [1, 5, 10, 25, 50, 100]
+        ax.set_xticks(x_ticks)
+        ax.set_xticklabels([f'{x}%' for x in x_ticks])
+
+    y_name = 'AUROC' if metric == "auroc" else "PR-AUC"
+    ax.set_ylabel(y_name, fontsize=14, fontweight='bold')
+    ax.set_title(f'{dataset_name}: Fine-tuned vs Pre-trained Encoders - {y_name}', fontsize=16, fontweight='bold', pad=20)
+
+    # Set y-axis limits and ticks
+    ax.set_ylim(0.3, 1.0)
+    ax.set_yticks(np.arange(0.5, 1.05, 0.1))
+
+    # Add grid
+    ax.grid(False)
+    ax.set_axisbelow(True)
+
+    if metric == "auroc":
+        ax.axhline(y=0.5, color='black', linestyle='--', alpha=0.7, linewidth=2, label="Random Baseline")
+    elif metric == "pr_auc":
+        ax.axhline(y=pr_auc_baseline, color='black', linestyle='--', alpha=0.7, linewidth=2, label="Random Baseline")
+
+    # Customize legend
+    error_type = "Standard Error" if use_standard_error else "Standard Deviation"
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15),
+                       frameon=True, fancybox=True, shadow=False,
+                       fontsize=11, title=f'Fine-tuning Effect (±{error_type})', title_fontsize=12,
+                       ncol=2)
+
+    # Improve overall appearance
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_linewidth(1.5)
+    ax.spines['bottom'].set_linewidth(1.5)
+
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+        print(f"Fine-tuned vs pre-trained comparison plot saved to {save_path}")
+
+    plt.show()
+    plt.close()
+
+    return fig, ax
+
+
 def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_count=False, 
                        total_participants=101, use_standard_error=False, include_features=True):
     """Create a comparison plot between different SSL methods.
@@ -1573,10 +1769,11 @@ def main():
 
     # Create SSL comparison plots
     print("\nLoading SSL comparison results...")
-    ssl_methods_to_compare = ['TSTCC_S3', 'TSTCC', 'TS2Vec', 'TS2Vec_S3',
-                              'SimCLR', 'SimCLR_S3', "SimCLR_TSTCC_Encoder",
-                              "SimCLR_TSTCC_Encoder_S3"]
-
+    ssl_methods_to_compare = ['TSTCC_S3', 'TSTCC', 'TS2Vec', 'TS2Vec_S3', "InfoTS", "InfoTS_S3",
+                              "SimCLR_TSTCC_Encoder", "SimCLR_TSTCC_Encoder_S3",
+                              'SimCLR', 'SimCLR_S3']
+    # "SimCLR_TSTCC_Encoder",
+    # "SimCLR_TSTCC_Encoder_S3"
     # ssl_methods_to_compare = ['SimCLR', 'SimCLR_S3', "SimCLR_TSTCC_Encoder",
     #                           'TS2Vec_S3', 'TS2Vec', 'TSTCC', 'TSTCC_S3']
     # ssl_methods_to_compare = ["SimCLR_TSTCC_Encoder_S3", "SimCLR_TSTCC_Encoder", 'SimCLR']
@@ -1690,6 +1887,27 @@ def main():
             dataset_name=dataset_name,
             metric="pr_auc", 
             save_path=f'{dataset_name.lower()}_transfer_learning_pr_auc.png',
+            use_participant_count=use_participant_count,
+            total_participants=total_participants,
+            use_standard_error=True
+        )
+        
+        # Create fine-tuned vs pretrained comparison plots
+        print(f"Creating {dataset_name} fine-tuned vs pre-trained comparison plots...")
+        plot_fine_tuned_vs_pretrained_comparison(
+            transfer_df, 
+            dataset_name=dataset_name,
+            metric="auroc", 
+            save_path=f'{dataset_name.lower()}_fine_tuned_vs_pretrained_auroc.png',
+            use_participant_count=use_participant_count,
+            total_participants=total_participants,
+            use_standard_error=True
+        )
+        plot_fine_tuned_vs_pretrained_comparison(
+            transfer_df, 
+            dataset_name=dataset_name,
+            metric="pr_auc", 
+            save_path=f'{dataset_name.lower()}_fine_tuned_vs_pretrained_pr_auc.png',
             use_participant_count=use_participant_count,
             total_participants=total_participants,
             use_standard_error=True
