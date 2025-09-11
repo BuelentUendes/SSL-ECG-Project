@@ -1361,3 +1361,12 @@ def run_mlp_with_cv_and_test(
         },
         'model': final_model
     }
+
+def binary_accuracy(preds, y, logits=False):
+    if logits:
+        rounded_preds = torch.round(torch.sigmoid(preds))
+    else:
+        rounded_preds = torch.round(preds)
+    correct = (rounded_preds == y).float()
+    accuracy = correct.sum() / len(y)
+    return accuracy

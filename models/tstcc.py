@@ -1401,3 +1401,20 @@ def optimize_tstcc_hyperparameters(
         'all_trials': trial_results,
         'search_type': search_type
     }
+
+class FineTunedNet(nn.Module):
+    def __init__(self, encoder, tc_head, input_dim=32):
+        super(FineTunedNet, self).__init__()
+        self.encoder = encoder
+        self.tc_head = tc_head
+        self.fc = nn.Linear(input_dim, 1)
+
+    def forward(self, x):
+        # X is here the original
+        logits, x = self.encoder(x)
+        feats = F.normalize(x, dim=1)
+        # TC projection head
+        _, x = self.tc_head(feats, feats)
+        # Now one feed Forward layer
+        x = self.fc(x)
+        return x
