@@ -12,6 +12,7 @@ import torch
 import torch.optim as optim
 import mlflow
 import mlflow.pytorch
+from torch.utils.data import DataLoader, TensorDataset
 
 from utils.torch_utilities import (
     load_processed_data,
@@ -21,7 +22,8 @@ from utils.torch_utilities import (
     get_participant_cv_splitter,
     run_logistic_regression_with_gridsearch,
     run_logistic_regression_with_gridsearch_verbose,
-    run_mlp_with_cv_and_test
+    run_mlp_with_cv_and_test,
+    binary_accuracy,
 )
 
 from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
@@ -36,8 +38,8 @@ from models.tstcc import (
     build_tstcc_fingerprint,
     search_encoder_fp,
     optimize_tstcc_hyperparameters,
+    FineTunedNet
 )
-
 
 def main(
         mlflow_tracking_uri: str,
@@ -68,6 +70,7 @@ def main(
         classifier_lr: float,
         classifier_batch_size: int,
         use_pretrained_encoder: bool,
+        fine_tune_encoder: bool,
         label_fraction: float,
         k_folds: int = 5,
         min_participants_for_kfold: int = 5,
@@ -133,9 +136,17 @@ def main(
             )
 
     #Save the results based on either pretrained from our dataset or trained from scratch
-    subfolder_name = "pretrained_encoder" if use_pretrained_encoder else "trained_from_scratch"
+    if use_pretrained_encoder:
+        if fine_tune_encoder:
+            subfolder_name = "pretrained_encoder_fine_tuned_encoder"
+        else:
+            subfolder_name = "pretrained_encoder"
+    else:
+        if fine_tune_encoder:
+            subfolder_name = "trained_from_scratch_fine_tuned_encoder"
+        else:
+            subfolder_name = "trained_from_scratch"
 
-    #
     results_save_path = os.path.join(
         RESULTS_PATH, "Transfer_learning", "StressID", subfolder_name, model_name, classifier_model,
         f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}",
@@ -392,6 +403,57 @@ def main(
         )
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────
+
+    # Includes the fine-tuning step now as wel
+    if fine_tune_encoder:
+        print(f"FINE-TUNING Encoder")
+        fine_tune_model = FineTunedNet(encoder=model, tc_head=tc_head).to(device)
+        y_train = y[train_idx][downstream_mask["train"]]
+
+        loader = DataLoader(
+            TensorDataset(torch.from_numpy(X[train_idx][downstream_mask["train"]]).float(),
+                          torch.from_numpy(y_train).long()),
+            batch_size=tcc_batch_size, shuffle=False
+        )
+        optimizer = torch.optim.AdamW(fine_tune_model.parameters(), lr=1e-4)
+        loss_fn = torch.nn.BCEWithLogitsLoss()
+
+        # Train final model
+        for idx in (range(classifier_epochs)):
+            print(f"Fine-tuning training: Epoch {idx+1} / {classifier_epochs}", flush=True, end="\r")
+            fine_tune_model.train()
+            epoch_accuracy = []
+            epoch_loss = []
+
+            for X_batch, y_batch in loader:
+                if X_batch.shape.index(min(X_batch.shape)) != 1:
+                    X_batch = X_batch.permute(0, 2, 1)
+
+                X_batch = X_batch.to(device)
+                y_batch = y_batch.to(device).float()
+                optimizer.zero_grad()
+                logits = fine_tune_model(X_batch).squeeze(-1)
+                loss = loss_fn(logits, y_batch)
+                loss.backward()
+
+                accuracy_epoch = binary_accuracy(logits, y_batch, logits=True)
+                epoch_loss.append(loss.cpu().item())
+                epoch_accuracy.append(accuracy_epoch.cpu().item())
+                optimizer.step()
+
+            # Get the epoch accuracy and epoch loss
+            if (idx + 1) % 2 == 0:
+                print(f"The loss is {np.mean(epoch_loss)}")
+                print(f"The binary accuracy is {np.mean(epoch_accuracy)}")
+
+    if fine_tune_encoder:
+        model = fine_tune_model.encoder.eval()
+        tc_head = fine_tune_model.tc_head.eval()
+    else:
+        model.eval()
+        tc_head.eval()
+
+    # Proceed with evaluation now
     model.eval()
     tc_head.eval()
 
@@ -620,6 +682,8 @@ if __name__ == "__main__":
                                  help="Batch size for MLP classifier training")
     classifier_group.add_argument("--use_pretrained_encoder",action="store_true",
                                   help="If set, we use the pre-trained encoder from our dataset")
+    classifier_group.add_argument("--fine_tune_encoder", action="store_true",
+                                  help="If set, we fine-tune also the encoder and not only the logistic regression.")
 
     # ══════════════════════════════════════════════════════════════════════════════
     # Cross-Validation Configuration
