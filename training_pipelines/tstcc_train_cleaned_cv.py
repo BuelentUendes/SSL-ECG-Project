@@ -18,7 +18,8 @@ from utils.torch_utilities import (
     get_participant_cv_splitter,
     run_logistic_regression_with_gridsearch,
     run_logistic_regression_with_gridsearch_verbose,
-    run_mlp_with_cv_and_test
+    run_mlp_with_cv_and_test,
+    evaluate_zero_shot_model_performance
 )
 
 from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
@@ -74,6 +75,8 @@ def main(
         hp_n_trials: int = 20,
         hp_n_epochs: int = 10,
         hp_search_type: str = "random",
+        zero_shot_evaluation: bool = False,
+        zero_shot_dataset: str = "wesad",
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -110,6 +113,16 @@ def main(
         f"{step_size}", str(train_ratio_encoder)
     )
 
+    # Create zero-shot results path
+    if zero_shot_evaluation:
+        target_domain = "StressID" if zero_shot_dataset == "stressid" else "WESAD"
+        zero_shot_results_path = os.path.join(
+            RESULTS_PATH, "Transfer_learning", target_domain, "zero_shot_performance", model_name, classifier_model,
+            f"{seed}", f"{label_fraction}",
+    )
+
+        create_directory(zero_shot_results_path)
+
     create_directory(model_save_path)
     create_directory(results_save_path)
 
@@ -129,8 +142,32 @@ def main(
         DATA_PATH, "interim", "ECG", str(fs), str(window_size), str(step_size), 'windowed_data.h5'
     )
 
+    # If zero shot evaluation is set true, we load the StressID and WESAD dataset
+    if zero_shot_evaluation:
+        if zero_shot_dataset == "wesad":
+            if int(fs) == 700:
+                zero_shot_window_data_path = os.path.join(
+                    DATA_PATH, "interim", "WESAD", "ECG", str(fs), str(window_size), str(step_size), 'windowed_data.h5')
+            else:
+                raise ValueError("For zero-shot evaluation for wesad the frequency needs to be 700")
+
+        elif zero_shot_dataset == "stressid":
+            if int(fs) == 500:
+                zero_shot_window_data_path = os.path.join(
+                DATA_PATH, "interim", "STRESSID", "ECG", str(fs), str(window_size), str(step_size), 'windowed_data.h5')
+            else:
+                raise ValueError("For zero-shot evaluation for stressid the frequency needs to be 500")
+        else:
+            raise ValueError('Please use a proper dataset "wesad" or "stressid"')
+
     X, y, groups = load_processed_data(window_data_path, label_map=label_map)
     y = y.astype(np.float32)
+
+    if zero_shot_evaluation:
+        X_zero_shot, y_zero_shot, groups_shot = load_processed_data(
+            zero_shot_window_data_path, label_map={"baseline": 0, "mental_stress": 1}
+        )
+        y_zero_shot = y_zero_shot.astype(np.float32)
 
     # We first get all train idx for the SSL method (label fraction 1.0) as we do not use the labels
     # train_idx_all (represents all training samples as we do not use their labels)
@@ -401,6 +438,22 @@ def main(
               f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}")
         print(f"Best hyperparameters: {results['best_params']}")
 
+    if zero_shot_evaluation:
+        # Load the best-trained model
+        classifier_model = results["model"]
+        zero_shot_repr, _ = encode_representations(X_zero_shot, y_zero_shot,
+                                               model, tc_head, tcc_batch_size, device)
+        # Then test the performance
+        zero_shot_results = evaluate_zero_shot_model_performance(classifier_model, zero_shot_repr, y_zero_shot)
+
+        # Save results
+        with open(os.path.join(zero_shot_results_path, "zero_shot_results.json"), 'w') as f:
+            json.dump(zero_shot_results, f, indent=2, default=str)
+
+        # Then later do that for each of the dataset (wesad and stressid)
+
+        # Plot then the zero shot performance as a function of label availability (across different seeds)
+
     # ── Step 7: Save Results ────────────────────────────────────────────────────
     test_results_name = "test_results_spectral.json" if use_spectral_augmentation else "test_results.json"
 
@@ -540,6 +593,14 @@ if __name__ == "__main__":
                          choices=["random", "grid"],
                          help="Search strategy: 'random' for random search, 'grid' for grid search")
 
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Zero-shot classification
+    # ══════════════════════════════════════════════════════════════════════════════
+    zero_shot_group = parser.add_argument_group("Zero-shot evaluation")
+    zero_shot_group.add_argument("--zero_shot_evaluation", action="store_true",
+                                 help="If set, we do downstream zero-shot evaluation.")
+    zero_shot_group.add_argument("--zero_shot_dataset", type=str,
+                                 choices=("stressid", "wesad"), default="wesad")
     # Parse arguments and run main function
     args = parser.parse_args()
 
