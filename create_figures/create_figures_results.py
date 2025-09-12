@@ -1729,6 +1729,265 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
     return fig, ax
 
 
+def load_zero_shot_results(base_path, dataset_name):
+    """
+    Load zero-shot performance results from the hierarchical folder structure.
+    Expected structure: results/Transfer_learning/[dataset]/zero_shot_performance/[method]/[model_type]/[seed]/[label_fraction]/zero_shot_results.json
+                       results/Transfer_learning/[dataset]/zero_shot_performance/feature_engineered/[model_type]/[seed]/[label_fraction]/[window_size]/[window_shift]/zero_shot_results.json
+    
+    Args:
+        base_path: Base results path
+        dataset_name: 'WESAD' or 'StressID'
+    """
+    results = []
+    base_path = Path(base_path)
+    
+    # Path to zero-shot results for this dataset
+    zero_shot_base = base_path / "Transfer_learning" / dataset_name / "zero_shot_performance"
+    
+    if not zero_shot_base.exists():
+        print(f"Warning: Zero-shot path {zero_shot_base} does not exist")
+        return pd.DataFrame(results)
+    
+    # Define the expected method paths
+    method_paths = [
+        ("TSTCC", "logistic_regression", "TSTCC"),
+        ("feature_engineered", "logistic_regression", "Feature-engineered"),
+    ]
+    
+    for method_folder, model_type, learning_method in method_paths:
+        method_path = zero_shot_base / method_folder / model_type
+        
+        if not method_path.exists():
+            print(f"Warning: Method path {method_path} does not exist")
+            continue
+        
+        # Look for seed folders
+        for seed_folder in method_path.iterdir():
+            if seed_folder.is_dir() and seed_folder.name.isdigit():
+                seed = int(seed_folder.name)
+                
+                # Look for label fraction folders
+                for label_folder in seed_folder.iterdir():
+                    if label_folder.is_dir():
+                        try:
+                            label_fraction = float(label_folder.name)
+                            
+                            # Handle different file structures
+                            if learning_method == "Feature-engineered":
+                                # Feature-engineered has window_size/window_shift structure
+                                window_combinations = [
+                                    (30, 10),  # 30s windows, 10s shift
+                                ]
+                                
+                                for window_size, window_shift in window_combinations:
+                                    json_file = label_folder / str(window_size) / str(window_shift) / "zero_shot_results.json"
+                                    
+                                    if json_file.exists():
+                                        try:
+                                            with open(json_file, 'r') as f:
+                                                data = json.load(f)
+                                            results.append({
+                                                'learning_method': learning_method,
+                                                'model_type': model_type,
+                                                'seed': seed,
+                                                'label_fraction': label_fraction,
+                                                'window_size': window_size,
+                                                'window_shift': window_shift,
+                                                'auroc': data.get('zero_shot_roc_auc', np.nan),
+                                                'accuracy': data.get('zero_shot_accuracy', np.nan),
+                                                'pr_auc': data.get('zero_shot_pr_auc', np.nan),
+                                                'f1': data.get('zero_shot_f1_score', np.nan),
+                                                'balanced_accuracy': data.get('zero_shot_balanced_accuracy', np.nan),
+                                            })
+                                        except (json.JSONDecodeError, KeyError) as e:
+                                            print(f"Error reading {json_file}: {e}")
+                                            continue
+                            else:
+                                # SSL methods have direct structure
+                                json_file = label_folder / "zero_shot_results.json"
+                                
+                                if json_file.exists():
+                                    try:
+                                        with open(json_file, 'r') as f:
+                                            data = json.load(f)
+                                        results.append({
+                                            'learning_method': learning_method,
+                                            'model_type': model_type,
+                                            'seed': seed,
+                                            'label_fraction': label_fraction,
+                                            'window_size': 10,  # Default for SSL methods
+                                            'window_shift': 5,
+                                            'auroc': data.get('zero_shot_roc_auc', np.nan),
+                                            'accuracy': data.get('zero_shot_accuracy', np.nan),
+                                            'pr_auc': data.get('zero_shot_pr_auc', np.nan),
+                                            'f1': data.get('zero_shot_f1_score', np.nan),
+                                            'balanced_accuracy': data.get('zero_shot_balanced_accuracy', np.nan),
+                                        })
+                                    except (json.JSONDecodeError, KeyError) as e:
+                                        print(f"Error reading {json_file}: {e}")
+                                        continue
+                                        
+                        except ValueError:
+                            # Skip folders that aren't numeric label fractions
+                            continue
+    
+    return pd.DataFrame(results)
+
+
+def create_zero_shot_method_labels(df):
+    """Create readable method labels for zero-shot results"""
+    def create_label(row):
+        method = row['learning_method']
+        model = row['model_type'].replace('_', ' ').title()
+        window = f"{row['window_size']}s/{row['window_shift']}s"
+        
+        if method == "TSTCC":
+            return f"TSTCC ({model}, {window})"
+        elif method == "Feature-engineered":
+            return f"Feature-engineered ({model}, {window})"
+        else:
+            return f"{method} ({model}, {window})"
+    
+    df['method_label'] = df.apply(create_label, axis=1)
+    return df
+
+
+def plot_zero_shot_results(df, dataset_name, metric="auroc", save_path=None, use_participant_count=False, total_participants=None, use_standard_error=False):
+    """Create a plot showing zero-shot transfer performance for a specific dataset
+    
+    Args:
+        df: DataFrame with zero-shot results
+        dataset_name: Name of the dataset (for title)
+        metric: Metric to plot ('auroc' or 'pr_auc')
+        save_path: Path to save the plot
+        use_participant_count: If True, show number of participants instead of percentages
+        total_participants: Total number of training participants for this dataset
+        use_standard_error: If True, use standard error instead of standard deviation
+    """
+    
+    # Set default participant counts if not provided
+    if total_participants is None:
+        if dataset_name == "WESAD":
+            total_participants = 15  # Adjust based on actual WESAD participant count
+        elif dataset_name == "StressID":
+            total_participants = 35  # Adjust based on actual StressID participant count
+        else:
+            total_participants = 101  # Default fallback
+    
+    # Set dataset-specific PR-AUC baseline (random chance for each dataset)
+    if dataset_name == "WESAD":
+        pr_auc_baseline = 0.3625
+    elif dataset_name == "StressID":
+        pr_auc_baseline = 0.3510
+    else:
+        pr_auc_baseline = 0.5736  # Default fallback
+    
+    # Set up the plotting style
+    plt.style.use('default')
+    sns.set_palette("husl")
+
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    # Group by method and calculate mean and std
+    grouped = df.groupby(['method_label', 'label_fraction'])[metric].agg(['mean', 'std', 'count']).reset_index()
+    
+    # Calculate standard error if requested
+    if use_standard_error:
+        grouped['error'] = grouped['std'] / np.sqrt(grouped['count'])
+    else:
+        grouped['error'] = grouped['std']
+    
+    # Calculate number of labeled participants for training data (ECG dataset)
+    def calculate_labeled_participants(label_fraction, total_participants):
+        # Using ECG dataset size (127 participants)
+        if total_participants <= 20:
+            return max(3, int(total_participants * label_fraction))
+        return max(1, int(total_participants * label_fraction))
+    
+    grouped['n_labeled_participants'] = grouped['label_fraction'].apply(calculate_labeled_participants, total_participants=127)
+
+    # Define colors and markers for zero-shot methods
+    method_styles = {
+        'TSTCC (Logistic Regression, 10s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
+        'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#E69F00', 'marker': 's', 'linestyle': '-'},
+    }
+
+    # Plot each method
+    for method_label in grouped['method_label'].unique():
+        method_data = grouped[grouped['method_label'] == method_label].sort_values('label_fraction')
+        
+        if len(method_data) == 0:
+            continue
+            
+        # Get style for this method
+        style = method_styles.get(method_label, {'color': 'gray', 'marker': 'o', 'linestyle': '-'})
+        
+        if use_participant_count:
+            x_values = method_data['n_labeled_participants']
+        else:
+            x_values = method_data['label_fraction']
+        
+        # Plot line with error bars (handle NaN values)
+        error_values = method_data['error'].fillna(0)  # Replace NaN with 0 for error bars
+        ax.errorbar(x_values, method_data['mean'], yerr=error_values,
+                   label=method_label, marker=style['marker'], color=style['color'], 
+                   linestyle=style['linestyle'], capsize=5, capthick=2, 
+                   linewidth=2, markersize=8, alpha=0.8)
+
+    # Add baseline line for PR-AUC
+    if metric == "pr_auc":
+        ax.axhline(y=pr_auc_baseline, color='red', linestyle='--', alpha=0.7, 
+                  label=f'Random Baseline ({pr_auc_baseline:.3f})')
+
+    # Formatting
+    if use_participant_count:
+        ax.set_xlabel('Number of Labeled Training Participants (ECG Dataset)', fontsize=14, fontweight='bold')
+    else:
+        ax.set_xlabel('Label Fraction', fontsize=14, fontweight='bold')
+    
+    if metric == "auroc":
+        ax.set_ylabel('AUROC', fontsize=14, fontweight='bold')
+        title = f'{dataset_name} Zero-Shot Transfer - AUROC'
+    else:
+        ax.set_ylabel('PR-AUC', fontsize=14, fontweight='bold')
+        title = f'{dataset_name} Zero-Shot Transfer - PR-AUC'
+    
+    error_type = "Standard Error" if use_standard_error else "Standard Deviation"
+    ax.set_title(f'{title}\n(Error bars: {error_type})', fontsize=16, fontweight='bold', pad=20)
+
+    # Formatting
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc='best', fontsize=10, frameon=True, fancybox=True, shadow=True)
+    
+    # Set y-axis limits based on metric
+    if metric == "auroc":
+        ax.set_ylim(0.4, 1.0)
+    else:
+        ax.set_ylim(0.3, 0.7)
+    
+    # Set x-axis scale and ticks
+    if use_participant_count:
+        ax.set_xscale('log')
+        ax.set_xticks([1, 2, 5, 10, 20, 50, 127])
+        ax.set_xticklabels(['1', '2', '5', '10', '20', '50', '127'])
+    else:
+        ax.set_xscale('log')
+        ax.set_xticks([0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0])
+        ax.set_xticklabels(['1%', '2.5%', '5%', '10%', '25%', '50%', '100%'])
+
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+        print(f"Plot saved to {save_path}")
+
+    plt.show()
+    plt.close()
+
+    return fig, ax
+
+
 def main():
     """Main function to load data and create plots"""
 
@@ -1916,6 +2175,60 @@ def main():
         # Save transfer learning data to CSV
         transfer_df.to_csv(f'{dataset_name.lower()}_transfer_learning_results_summary.csv', index=False)
         print(f"{dataset_name} transfer learning results saved to '{dataset_name.lower()}_transfer_learning_results_summary.csv'")
+
+    # Load and plot zero-shot transfer results for both datasets
+    print("\nLoading zero-shot transfer results...")
+    
+    for dataset_name in datasets:
+        print(f"\nProcessing {dataset_name} zero-shot transfer results...")
+        
+        # Load zero-shot results for this dataset
+        zero_shot_df = load_zero_shot_results(base_path, dataset_name)
+        
+        if zero_shot_df.empty:
+            print(f"No zero-shot results found for {dataset_name}")
+            continue
+            
+        print(f"Successfully loaded {len(zero_shot_df)} zero-shot results for {dataset_name}")
+        
+        # Create method labels for zero-shot data
+        zero_shot_df = create_zero_shot_method_labels(zero_shot_df)
+        
+        # Set participant counts based on dataset (same as transfer learning)
+        if dataset_name == "WESAD":
+            total_participants = 12
+        elif dataset_name == "StressID":
+            total_participants = 52
+        else:
+            total_participants = 101
+        
+        # Create zero-shot plots for AUROC
+        print(f"Creating {dataset_name} zero-shot AUROC plot...")
+        plot_zero_shot_results(
+            zero_shot_df,
+            dataset_name=dataset_name,
+            metric="auroc",
+            save_path=f'{dataset_name.lower()}_zero_shot_transfer_auroc.png',
+            use_participant_count=use_participant_count,
+            total_participants=total_participants,
+            use_standard_error=True
+        )
+        
+        # Create zero-shot plots for PR-AUC
+        print(f"Creating {dataset_name} zero-shot PR-AUC plot...")
+        plot_zero_shot_results(
+            zero_shot_df,
+            dataset_name=dataset_name,
+            metric="pr_auc",
+            save_path=f'{dataset_name.lower()}_zero_shot_transfer_pr_auc.png',
+            use_participant_count=use_participant_count,
+            total_participants=total_participants,
+            use_standard_error=True
+        )
+        
+        # Save zero-shot data to CSV
+        zero_shot_df.to_csv(f'{dataset_name.lower()}_zero_shot_results_summary.csv', index=False)
+        print(f"{dataset_name} zero-shot results saved to '{dataset_name.lower()}_zero_shot_results_summary.csv'")
 
     return df
 
