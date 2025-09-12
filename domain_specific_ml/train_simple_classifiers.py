@@ -22,6 +22,7 @@ from utils.torch_utilities import (
     run_logistic_regression_with_gridsearch,
     run_logistic_regression_with_gridsearch_verbose,
     run_mlp_with_cv_and_test,
+    evaluate_zero_shot_model_performance,
 )
 
 from utils.helper_paths import DATA_PATH, RESULTS_PATH
@@ -41,11 +42,20 @@ def create_data_loaders(X, y, batch_size, device, shuffle=True):
 def handle_missing_data(data, drop_values=True, verbose=True):
     """Handle missing values and infinity values in the data."""
     if isinstance(data, np.ndarray):
-        df = pd.DataFrame(data)
+        # Reshape 3D arrays to 2D by flattening the last dimension
+        if data.ndim == 3:
+            original_shape = data.shape
+            data_reshaped = data.reshape(data.shape[0], -1)
+            df = pd.DataFrame(data_reshaped)
+            was_3d = True
+        else:
+            df = pd.DataFrame(data)
+            was_3d = False
         was_numpy = True
     else:
         df = data.copy()
         was_numpy = False
+        was_3d = False
 
     original_data_len = len(df)
 
@@ -104,6 +114,8 @@ def main(
         k_folds: int = 5,
         min_participants_for_kfold: int = 5,
         verbose: bool = False,
+        zero_shot_evaluation: bool=False,
+        zero_shot_dataset: str="wesad",
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -132,6 +144,15 @@ def main(
                                      f"{label_fraction}", str(window_size), str(step_size))
     create_directory(results_save_path)
 
+    if zero_shot_evaluation:
+        target_domain = "StressID" if zero_shot_dataset == "stressid" else "WESAD"
+        zero_shot_results_path = os.path.join(
+            RESULTS_PATH, "Transfer_learning", target_domain, "zero_shot_performance", "feature_engineered", classifier_model,
+            f"{seed}", f"{label_fraction}", str(window_size), str(step_size)
+    )
+
+        create_directory(zero_shot_results_path)
+
     # ── Step 1: Load and Preprocess Data ────────────────────────────────────────
     label_map = {"baseline": 0, "mental_stress": 1}
     window_data_path = os.path.join(
@@ -140,6 +161,45 @@ def main(
 
     X, y, groups, feature_names = load_processed_data(window_data_path, label_map=label_map, domain_features=True)
     y = y.astype(np.float32)
+
+    # Load the zero-shot window dataset
+    if zero_shot_evaluation:
+        if zero_shot_dataset == "wesad":
+            if int(fs) == 700:
+                zero_shot_window_data_path = os.path.join(
+                    DATA_PATH, "interim", "WESAD_features", "ECG", str(fs), str(window_size), str(step_size), 'windowed_data.h5')
+            else:
+                raise ValueError("For zero-shot evaluation for wesad the frequency needs to be 700")
+
+        elif zero_shot_dataset == "stressid":
+            if int(fs) == 500:
+                zero_shot_window_data_path = os.path.join(
+                DATA_PATH, "interim", "STRESSID_features", "ECG", str(fs), str(window_size), str(step_size), 'windowed_data.h5')
+            else:
+                raise ValueError("For zero-shot evaluation for stressid the frequency needs to be 500")
+        else:
+            raise ValueError('Please use a proper dataset "wesad" or "stressid"')
+
+        X_zero_shot, y_zero_shot, groups_shot = load_processed_data(
+            zero_shot_window_data_path, label_map={"baseline": 0, "mental_stress": 1}
+        )
+        y_zero_shot = y_zero_shot.astype(np.float32)
+
+        # Handle missing data
+        X_zero_shot_clean = handle_missing_data(X_zero_shot, drop_values=True, verbose=True)
+
+        if len(X_zero_shot_clean) != len(X_zero_shot):
+            print(f"Updating labels and groups after dropping {len(X_zero_shot) - len(X_zero_shot_clean)} samples")
+            # Handle 3D array case by reshaping for DataFrame operations
+            if X_zero_shot.ndim == 3:
+                X_zero_shot_reshaped = X_zero_shot.reshape(X_zero_shot.shape[0], -1)
+                X_zero_shot_df = pd.DataFrame(X_zero_shot_reshaped)
+            else:
+                X_zero_shot_df = pd.DataFrame(X_zero_shot)
+            valid_rows = ~(X_zero_shot_df.isin([np.inf, -np.inf]).any(axis=1) | X_zero_shot_df.isna().any(axis=1))
+            y_zero_shot = y_zero_shot[valid_rows]
+            groups_shot = groups_shot[valid_rows]
+            X_zero_shot = X_zero_shot_clean
 
     X_df = pd.DataFrame(X, columns=feature_names)
     missing_percentages = (X_df.isnull().sum() / len(X_df)) * 100
@@ -246,6 +306,16 @@ def main(
 
         mlflow.log_params(results['best_params'])
 
+    if zero_shot_evaluation:
+        # Load the best-trained model
+        classifier_model = results["model"]
+        # Then test the performance
+        zero_shot_results = evaluate_zero_shot_model_performance(classifier_model, X_zero_shot, y_zero_shot)
+
+        # Save results
+        with open(os.path.join(zero_shot_results_path, "zero_shot_results.json"), 'w') as f:
+            json.dump(zero_shot_results, f, indent=2, default=str)
+
     # ── Step 4: Save Results ────────────────────────────────────────────────────
     with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
         json.dump(results, f, indent=2, default=str)
@@ -279,7 +349,7 @@ if __name__ == "__main__":
     parser.add_argument("--classifier_model", type=str, default="logistic_regression",
                         choices=("logistic_regression", "mlp", "random_forest", "xgboost"))
     parser.add_argument("--window_size", help="Window size in seconds", default=30, type=int)
-    parser.add_argument("--step_size", type=int, default=15)
+    parser.add_argument("--step_size", type=int, default=10)
     parser.add_argument("--classifier_epochs", type=int, default=25)
     parser.add_argument("--label_fraction", type=float, default=0.01)
     parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
@@ -288,6 +358,12 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", action="store_true",
                         help="If set, we show a verbose output of CV. Only applicable for LR. "
                              "Important: This slows down the fitting!")
+    parser.add_argument("--zero_shot_evaluation", action="store_true",
+                        help="If set, we do downstream zero-shot evaluation")
+    parser.add_argument("--zero_shot_dataset", type=str,
+                                 choices=("stressid", "wesad"), default="wesad")
 
     args = parser.parse_args()
+
+
     main(**vars(args))
