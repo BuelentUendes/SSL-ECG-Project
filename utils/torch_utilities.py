@@ -21,6 +21,10 @@ from torcheval.metrics.functional import multiclass_f1_score
 #Scikit learn imports
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics import make_scorer
+
 import xgboost as xgb
 
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, roc_auc_score, average_precision_score
@@ -751,7 +755,8 @@ def get_participant_cv_splitter(groups, min_participants_for_kfold=5, k=5):
         print(f"Using Leave-One-Group-Out CV ({n_splits} splits)")
     else:
         actual_k = min(k, n_participants)
-        cv_splitter = GroupKFold(n_splits=actual_k)
+        # cv_splitter = GroupKFold(n_splits=actual_k)
+        cv_splitter = StratifiedGroupKFold(n_splits=actual_k)
         n_splits = actual_k
         print(f"Using {actual_k}-Fold Group CV ({n_splits} splits)")
 
@@ -821,8 +826,8 @@ def get_participant_cv_splitter(groups, min_participants_for_kfold=5, k=5):
         print(f"Using Leave-One-Group-Out CV ({n_splits} splits)")
     else:
         actual_k = min(k, n_participants)
-        # cv_splitter = StratifiedGroupKFold(n_splits=actual_k)
-        cv_splitter =GroupKFold(n_splits=actual_k)
+        cv_splitter = StratifiedGroupKFold(n_splits=actual_k)
+        # cv_splitter =GroupKFold(n_splits=actual_k)
         n_splits = actual_k
         print(f"Using {actual_k}-Fold Group CV ({n_splits} splits)")
 
@@ -831,6 +836,32 @@ def get_participant_cv_splitter(groups, min_participants_for_kfold=5, k=5):
             print("Some folds will have different numbers of participants")
 
     return cv_splitter, n_splits
+
+
+def safe_roc_auc(y_true, y_pred):
+    """Safe ROC AUC calculation that handles edge cases in CV."""
+    try:
+        # Check if all labels are the same (only one class present)
+        if len(np.unique(y_true)) < 2:
+            print("Warning: Only one class present in fold, using 0.5 (random performance)")
+            return 0.5
+        
+        # Check if predictions are all identical
+        if len(np.unique(y_pred)) < 2:
+            print("Warning: All predictions identical in fold, using 0.5 (random performance)")
+            return 0.5
+        
+        score = roc_auc_score(y_true, y_pred)
+        
+        # Final check for NaN
+        if np.isnan(score):
+            print("Warning: ROC AUC is NaN, using 0.5 (random performance)")
+            return 0.5
+        
+        return score
+    except Exception as e:
+        print(f"Warning: Error computing ROC AUC ({e}), using 0.5 (random performance)")
+        return 0.5
 
 
 def run_logistic_regression_with_gridsearch(
@@ -899,7 +930,6 @@ def run_logistic_regression_with_gridsearch(
 
     if cv_splitter is not None:
         # Create base model for search
-
         if classifier_model == "logistic_regression":
             base_model = LogisticRegression(random_state=seed, n_jobs=-1, solver="saga")
         elif classifier_model == "random_forest":
@@ -1370,3 +1400,27 @@ def binary_accuracy(preds, y, logits=False):
     correct = (rounded_preds == y).float()
     accuracy = correct.sum() / len(y)
     return accuracy
+
+
+def evaluate_zero_shot_model_performance(classifier_model, X_zero_shot, y_zero_shot):
+    # Evaluate on test set
+    y_test_proba = classifier_model.predict_proba(X_zero_shot)[:, 1]
+    y_test_pred = classifier_model.predict(X_zero_shot)
+
+    print(f"The mean test prediction is {np.mean(y_test_pred)}, {y_test_pred}")
+    zero_shot_results = {"zero_shot_accuracy": accuracy_score(y_zero_shot, y_test_pred),
+                         "zero_shot_balanced_accuracy": balanced_accuracy_score(y_zero_shot, y_test_pred),
+                         "zero_shot_roc_auc": roc_auc_score(y_zero_shot, y_test_proba),
+                         "zero_shot_pr_auc": average_precision_score(y_zero_shot, y_test_proba),
+                         "zero_shot_f1_score": average_precision_score(y_zero_shot, y_test_proba)}
+
+    print(f"\n=== Zero-shot Test Set Results ===")
+    print(zero_shot_results)
+
+    return zero_shot_results
+
+
+
+
+
+
