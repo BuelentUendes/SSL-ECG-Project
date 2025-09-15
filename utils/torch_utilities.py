@@ -1411,7 +1411,7 @@ def run_linear_classifier_with_cv_and_test(
     best_cv_score = 0
 
     default_best_params = {
-        'lr': 1e-5,
+        'lr_rate': 1e-5,
     }
 
     non_blocking_bool = torch.cuda.is_available()
