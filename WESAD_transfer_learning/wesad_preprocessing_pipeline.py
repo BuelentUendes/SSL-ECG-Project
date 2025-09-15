@@ -51,7 +51,75 @@ def capitalize_sensor(value):
 # .csv to raw HDF5 (rename it to csv to HDF5)
 # ────────────────────────────────────────────
 
-def csv_to_hdf5(root_dir, out_h5, physiological_sensor="ECG", placement="chest"):
+
+def downsample_ecg_file(
+        input_path: str,
+        output_path: str,
+        desired_sampling_rate: int,
+        method: str = "interpolation",
+) -> None:
+    """
+    Downsample an ECG signal from an EDF file and save it.
+
+    Args:
+        input_path: Path to input EDF file
+        output_path: Path where downsampled EDF file should be saved
+        desired_sampling_rate: Target sampling rate in Hz
+        method: downsampling method, default: FFT, could also be 'interpolated'.
+        Important, downsampling method with FFT does not really then get 64Hz, but effectively samples it to 62.5
+
+
+
+    Notes:
+        - Assumes ECG signal is the first channel in the EDF file
+        - Original sampling rate is assumed to be 1000 Hz
+        - NaN values are replaced with zeros
+    """
+    signals, signal_headers, header = highlevel.read_edf(input_path)
+
+    # Clean and downsample the ECG signal
+    # Now I need to design a lowpass filter to cut all frequencies above,
+    # so they do not creep into my downsampled signal (anti-aliasing!)
+
+    # The nyquist frequency is important
+    nyquist_frequency = float(desired_sampling_rate / 2)
+    cleaned_signal = nk.signal_filter(signals[0], sampling_rate=1000, highcut=nyquist_frequency, order=2)
+
+    downsampled_ecg = nk.signal_resample(
+        cleaned_signal,
+        sampling_rate=1000,
+        desired_sampling_rate=desired_sampling_rate,
+        method=method
+    )
+    downsampled_ecg = np.nan_to_num(downsampled_ecg).reshape(1, -1)
+
+    # Update header for the new sampling rate
+    new_header = signal_headers[0].copy()
+    # new_header['sample_rate'] = desired_sampling_rate
+    new_header["sample_frequency"] = desired_sampling_rate
+
+    # Write the downsampled EDF file
+    highlevel.write_edf(output_path, downsampled_ecg, [new_header], header)
+
+
+def downsample_ecg_signal(signals, sampling_rate:int=700, desired_sampling_rate: int=500):
+    # The nyquist frequency is important
+    nyquist_frequency = float(desired_sampling_rate / 2)
+    cleaned_signal = nk.signal_filter(signals, sampling_rate=sampling_rate, highcut=nyquist_frequency, order=2)
+
+    downsampled_ecg = nk.signal_resample(
+        cleaned_signal,
+        sampling_rate=sampling_rate,
+        desired_sampling_rate=desired_sampling_rate,
+        method="interpolation"
+    )
+    downsampled_ecg = np.nan_to_num(downsampled_ecg)
+
+    return downsampled_ecg
+
+
+def csv_to_hdf5(root_dir, out_h5, physiological_sensor="ECG", placement="chest",
+                downsample=False, sampling_rate:int=700, desired_sampling_rate: int = 500):
     """
     Convert CSV files to HDF5 format - matching the AVRO function structure.
 
@@ -114,11 +182,30 @@ def csv_to_hdf5(root_dir, out_h5, physiological_sensor="ECG", placement="chest")
                 # Get sampling frequency (equivalent to bvp["samplingFrequency"])
                 fs = frequency_dict.get(physiological_sensor, 700)
                 
+                # Downsample the entire DataFrame first if needed to maintain alignment
+                if downsample:
+                    print(f" Downsampling data from {fs} Hz to {desired_sampling_rate} Hz for {part}")
+                    
+                    # Calculate downsampling ratio
+                    downsample_ratio = fs / desired_sampling_rate
+                    
+                    # Downsample all relevant columns consistently
+                    downsampled_indices = np.arange(0, len(complete_data), downsample_ratio).astype(int)
+                    downsampled_indices = downsampled_indices[downsampled_indices < len(complete_data)]
+                    
+                    # Create downsampled DataFrame maintaining all columns
+                    complete_data = complete_data.iloc[downsampled_indices].reset_index(drop=True)
+                    
+                    # Update the effective sampling rate
+                    fs = desired_sampling_rate
+                    
+                    print(f" Downsampled data from {len(complete_data) * downsample_ratio:.0f} to {len(complete_data)} samples")
+                
                 # Clean and filter the ECG column and add quality information to the dataframe
                 if physiological_sensor == "ECG":
                     print(f" Cleaning and filtering ECG signal for {part} ({len(complete_data)} samples)")
                     ecg_signal = complete_data[physiological_sensor].values.astype(np.float32)
-                    
+
                     # Clean the signal and get quality indices
                     ecg_cleaned = nk.ecg_clean(ecg_signal, sampling_rate=fs)
                     
@@ -135,7 +222,7 @@ def csv_to_hdf5(root_dir, out_h5, physiological_sensor="ECG", placement="chest")
                         ecg_cleaned, rpeaks=info["ECG_R_Peaks"], sampling_rate=fs
                     )
                     
-                    # Add cleaned signal and quality to the dataframe
+                    # Add cleaned signal and quality to the dataframe (now properly aligned)
                     complete_data[f'{physiological_sensor}_cleaned'] = ecg_cleaned
                     complete_data['signal_quality'] = quality
                     
@@ -148,7 +235,6 @@ def csv_to_hdf5(root_dir, out_h5, physiological_sensor="ECG", placement="chest")
                     complete_data[f'{physiological_sensor}_cleaned'] = bvp_cleaned
                     # For BVP, we don't have quality assessment, so set all to 1.0
                     complete_data['signal_quality'] = 1.0
-                    
                     print(f" Added cleaned BVP signal to dataframe")
 
                 # Get the corresponding segments:
@@ -197,7 +283,8 @@ def csv_to_hdf5(root_dir, out_h5, physiological_sensor="ECG", placement="chest")
                     )
 
                     print(
-                        f"[{idx}] {part}: stored {len(segment)} samples @ {fs} Hz for label: {label_encoding} (cleaned: {f'{physiological_sensor}_cleaned' in complete_data.columns})"
+                        f"[{idx}] {part}: stored {len(segment)} samples @ {fs} Hz for label: "
+                        f"{label_encoding} (cleaned: {f'{physiological_sensor}_cleaned' in complete_data.columns})"
                     )
 
             except Exception as e:
@@ -206,14 +293,23 @@ def csv_to_hdf5(root_dir, out_h5, physiological_sensor="ECG", placement="chest")
 
     print(f"[OK] CSV HDF5 → {out_h5}")
 
+
 def main(args):
     # Setup the pipeline
-    WESAD_SAVE_PATH = os.path.join(DATA_PATH, "interim","WESAD", args.physiological_sensor, f"{args.fs}", f"{args.window_size}", f"{args.step_size}")
+    if args.downsample:
+        WESAD_SAVE_PATH = os.path.join(
+            DATA_PATH, "interim","WESAD", args.physiological_sensor, f"{args.desired_sampling_rate}",
+            f"{args.window_size}", f"{args.step_size}"
+        )
+    else:
+        WESAD_SAVE_PATH = os.path.join(
+            DATA_PATH, "interim","WESAD", args.physiological_sensor,
+            f"{args.fs}", f"{args.window_size}", f"{args.step_size}"
+        )
+
     create_directory(WESAD_SAVE_PATH)
 
     ROOT_DIR = os.path.join(DATA_PATH, "raw", "WESAD")
-
-    RAW_H5          = os.path.join(WESAD_SAVE_PATH, "wesad_raw.h5")
     CLEAN_H5        = os.path.join(WESAD_SAVE_PATH, "wesad_clean.h5")
     NORM_H5         = os.path.join(WESAD_SAVE_PATH, "wesad_norm.h5")
 
@@ -222,13 +318,19 @@ def main(args):
     else:
         WIN_H5 = os.path.join(WESAD_SAVE_PATH, "windowed_data_unnormalized.h5")
 
-    csv_to_hdf5(ROOT_DIR, CLEAN_H5, args.physiological_sensor, args.placement)
+    csv_to_hdf5(ROOT_DIR, CLEAN_H5, args.physiological_sensor, args.placement,
+                downsample=args.downsample, sampling_rate=args.fs, desired_sampling_rate=args.desired_sampling_rate)
 
+    sampling_rate = args.desired_sampling_rate if args.downsample else args.fs
     if args.normalize_ecg_signal:
         normalize_cleaned_data(CLEAN_H5, NORM_H5)
-        segment_data_into_windows(NORM_H5, WIN_H5, fs=args.fs, window_size=args.window_size, step_size=args.step_size)
+        segment_data_into_windows(
+            NORM_H5, WIN_H5, fs=sampling_rate, window_size=args.window_size, step_size=args.step_size
+        )
     else:
-        segment_data_into_windows(CLEAN_H5, WIN_H5, fs=args.fs, window_size=args.window_size, step_size=args.step_size)
+        segment_data_into_windows(
+            CLEAN_H5, WIN_H5, fs=sampling_rate, window_size=args.window_size, step_size=args.step_size
+        )
 
 # ────────────────────────────────────────────────────────────────
 # main script for preprocessing of the WESAD dataset
@@ -278,7 +380,20 @@ if __name__ == "__main__":
         type=int
     )
 
+    parser.add_argument(
+        "--downsample",
+        help="If set, we downsample the signal",
+        action="store_true",
+    )
+
+    parser.add_argument(
+        "--desired_sampling_rate",
+        help="Desired sampling rate",
+        default=500,
+        type=int
+    )
+
     args = parser.parse_args()
-    args.use_normalized_signal = True
+    args.normalize_ecg_signal = True
 
     main(args)
