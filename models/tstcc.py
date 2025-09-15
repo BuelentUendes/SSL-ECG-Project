@@ -1418,3 +1418,14 @@ class FineTunedNet(nn.Module):
         # Now one feed Forward layer
         x = self.fc(x)
         return x
+
+    def clone(self):
+        """Create a deep copy of the FineTunedNet model"""
+        import copy
+        # Create new instances with deep copied components
+        cloned_encoder = copy.deepcopy(self.encoder)
+        cloned_tc_head = copy.deepcopy(self.tc_head)
+        cloned_model = FineTunedNet(cloned_encoder, cloned_tc_head, self.fc.in_features)
+        # Copy the fc layer weights
+        cloned_model.fc.load_state_dict(self.fc.state_dict())
+        return cloned_model
