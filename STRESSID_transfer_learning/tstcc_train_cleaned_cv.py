@@ -54,6 +54,7 @@ def main(
         tcc_batch_size: int,
         pretrain_all_conditions: bool,
         train_ratio_encoder: float,
+        save_embeddings: bool,
         tc_timesteps: int,
         tc_hidden_dim: int,
         cc_temperature: float,
@@ -152,8 +153,14 @@ def main(
         f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}",
     )
 
+    # We will save the embeddings so we can later do some analysis on them
+    embedding_save_path = os.path.join(
+        DATA_PATH, "embeddings", "StressID", f"{fs}", model_name, f"{seed}", f"{window_size}", f"{step_size}"
+    )
+
     create_directory(model_save_path)
     create_directory(results_save_path)
+    create_directory(embedding_save_path)
 
     # ── Step 1: Preprocess ───────────────────────────────────────────────────────
     if pretrain_all_conditions:
@@ -413,7 +420,7 @@ def main(
         loader = DataLoader(
             TensorDataset(torch.from_numpy(X[train_idx][downstream_mask["train"]]).float(),
                           torch.from_numpy(y_train).long()),
-            batch_size=tcc_batch_size, shuffle=False
+            batch_size=tcc_batch_size, shuffle=True,
         )
         optimizer = torch.optim.AdamW(fine_tune_model.parameters(), lr=1e-4)
         loss_fn = torch.nn.BCEWithLogitsLoss()
@@ -462,6 +469,11 @@ def main(
                                                model, tc_head, tcc_batch_size, device)
         test_repr, _ = encode_representations(X[test_idx], y[test_idx],
                                               model, tc_head, tcc_batch_size, device)
+
+        if save_embeddings:
+            x_repr_all, _ = encode_representations(X, y, model, tc_head, tcc_batch_size, device)
+            np.savez(os.path.join(embedding_save_path, "x_y_embedding.npz"), array1=x_repr_all, array_2=y)
+            print(f"We saved the embeddings and y")
 
     # filter to binary downstream samples
     train_repr = train_repr[downstream_mask["train"]]
@@ -629,13 +641,15 @@ if __name__ == "__main__":
                            help="Window size in seconds")
     data_group.add_argument("--step_size", type=int, default=5,
                            help="Step size in seconds for sliding window")
-    data_group.add_argument("--label_fraction", type=float, default=0.25,
+    data_group.add_argument("--label_fraction", type=float, default=0.1,
                            help="Fraction of labeled participants to use (0.0-1.0)")
     data_group.add_argument("--pretrain_all_conditions", action="store_true",
                            help="Pretrain on all conditions (not just baseline/mental_stress)")
     data_group.add_argument("--train_ratio_encoder", default=1.0, type=float,
                             help="If set to 0.75, it will result in 60/20/20 split and have a validation set for TSTCC,"
                                  "Alternatively, set to 1.0 to train on all unlabelled training instances.")
+    data_group.add_argument("--save_embeddings", action="store_true",
+                            help="If we want to save the embeddings. Note this is computationally expensive.")
     # ══════════════════════════════════════════════════════════════════════════════
     # TS-TCC Encoder Training
     # ══════════════════════════════════════════════════════════════════════════════
