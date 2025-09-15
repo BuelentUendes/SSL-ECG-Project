@@ -26,6 +26,7 @@ from utils.torch_utilities import (
     run_logistic_regression_with_gridsearch,
     run_logistic_regression_with_gridsearch_verbose,
     run_mlp_with_cv_and_test,
+    run_linear_classifier_with_cv_and_test,
     binary_accuracy,
 )
 
@@ -415,154 +416,187 @@ def main(
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────
     if fine_tune_encoder:
-        fine_tune_model = FineTunedNet(encoder=model, tc_head=tc_head).to(device)
+        # If we fine-tune the encoder we learn a representation right away and save the results
+        X_train = X[train_idx][downstream_mask["train"]]
         y_train = y[train_idx][downstream_mask["train"]]
+        groups_train = groups[train_idx][downstream_mask["train"]]
 
-        loader = DataLoader(
-            TensorDataset(torch.from_numpy(X[train_idx][downstream_mask["train"]]).float(),
-                          torch.from_numpy(y_train).long()),
-            batch_size=tcc_batch_size, shuffle=False
+        X_test = X[test_idx][downstream_mask["test"]]
+        y_test = y[test_idx][downstream_mask["test"]]
+
+        cv_splitter, n_splits = get_participant_cv_splitter(
+            groups_train,
+            min_participants_for_kfold=min_participants_for_kfold,
+            k=k_folds
         )
-        optimizer = torch.optim.AdamW(fine_tune_model.parameters(), lr=1e-4)
-        loss_fn = torch.nn.BCEWithLogitsLoss()
+        feature_names = [f"repr_{i}" for i in range(X_train.shape[1])]
 
-        # Train final model
-        for idx in (range(classifier_epochs)):
-            print(f"Final model training: Epoch {idx+1} / {classifier_epochs}", flush=True, end="\r")
-            fine_tune_model.train()
-            epoch_accuracy = []
-            epoch_loss = []
+        fine_tune_model = FineTunedNet(encoder=model, tc_head=tc_head).to(device)
 
-            for X_batch, y_batch in loader:
-                if X_batch.shape.index(min(X_batch.shape)) != 1:
-                    X_batch = X_batch.permute(0, 2, 1)
+        # This fine-tunes the encoder and test them right away
+        fine_tuned_results = run_linear_classifier_with_cv_and_test(
+            X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
+            feature_names, cv_splitter, device, classifier_epochs=25, classifier_batch_size=32,
+            standardize=False, seed=42
+        )
 
-                X_batch = X_batch.to(device)
-                y_batch = y_batch.to(device).float()
-                optimizer.zero_grad()
-                logits = fine_tune_model(X_batch).squeeze(-1)
-                loss = loss_fn(logits, y_batch)
-                loss.backward()
+        print(f"We finished the fine-tuning stage")
+        print(fine_tuned_results)
 
-                accuracy_epoch = binary_accuracy(logits, y_batch, logits=True)
-                epoch_loss.append(loss.cpu().item())
-                epoch_accuracy.append(accuracy_epoch.cpu().item())
-                optimizer.step()
+        with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+            json.dump(fine_tuned_results, f, indent=2, default=str)
 
-            # Get the epoch accuracy and epoch loss
-            if (idx + 1) % 2 == 0:
-                print(f"The loss is {np.mean(epoch_loss)}")
-                print(f"The binary accuracy is {np.mean(epoch_accuracy)}")
+        # Old code
+        # fine_tune_model = FineTunedNet(encoder=model, tc_head=tc_head).to(device)
+        # y_train = y[train_idx][downstream_mask["train"]]
+        #
+        # loader = DataLoader(
+        #     TensorDataset(torch.from_numpy(X[train_idx][downstream_mask["train"]]).float(),
+        #                   torch.from_numpy(y_train).long()),
+        #     batch_size=tcc_batch_size, shuffle=False
+        # )
+        # optimizer = torch.optim.AdamW(fine_tune_model.parameters(), lr=1e-4)
+        # loss_fn = torch.nn.BCEWithLogitsLoss()
+        #
+        # # Train final model
+        # for idx in (range(classifier_epochs)):
+        #     print(f"Final model training: Epoch {idx+1} / {classifier_epochs}", flush=True, end="\r")
+        #     fine_tune_model.train()
+        #     epoch_accuracy = []
+        #     epoch_loss = []
+        #
+        #     for X_batch, y_batch in loader:
+        #         if X_batch.shape.index(min(X_batch.shape)) != 1:
+        #             X_batch = X_batch.permute(0, 2, 1)
+        #
+        #         X_batch = X_batch.to(device)
+        #         y_batch = y_batch.to(device).float()
+        #         optimizer.zero_grad()
+        #         logits = fine_tune_model(X_batch).squeeze(-1)
+        #         loss = loss_fn(logits, y_batch)
+        #         loss.backward()
+        #
+        #         accuracy_epoch = binary_accuracy(logits, y_batch, logits=True)
+        #         epoch_loss.append(loss.cpu().item())
+        #         epoch_accuracy.append(accuracy_epoch.cpu().item())
+        #         optimizer.step()
+        #
+        #     # Get the epoch accuracy and epoch loss
+        #     if (idx + 1) % 2 == 0:
+        #         print(f"The loss is {np.mean(epoch_loss)}")
+        #         print(f"The binary accuracy is {np.mean(epoch_accuracy)}")
+        #
+        # #ToDo: Now evaluate without retraining on CV
 
-    if fine_tune_encoder:
-        model = fine_tune_model.encoder.eval()
-        tc_head = fine_tune_model.tc_head.eval()
+    # if fine_tune_encoder:
+    #     model = fine_tune_model.encoder.eval()
+    #     tc_head = fine_tune_model.tc_head.eval()
     else:
         model.eval()
         tc_head.eval()
 
-    with torch.no_grad():
-        train_repr, _ = encode_representations(X[train_idx], y[train_idx],
-                                               model, tc_head, tcc_batch_size, device)
-        test_repr, _ = encode_representations(X[test_idx], y[test_idx],
-                                              model, tc_head, tcc_batch_size, device)
+        with torch.no_grad():
+            train_repr, _ = encode_representations(X[train_idx], y[train_idx],
+                                                   model, tc_head, tcc_batch_size, device)
+            test_repr, _ = encode_representations(X[test_idx], y[test_idx],
+                                                  model, tc_head, tcc_batch_size, device)
 
-        if save_embeddings:
-           x_repr_all, _ = encode_representations(X, y, model, tc_head, tcc_batch_size, device)
-           np.savez(os.path.join(embedding_save_path, "x_y_embedding.npz"), array1=x_repr_all, array_2=y)
-           print(f"We saved the embeddings and y")
+            if save_embeddings:
+               x_repr_all, _ = encode_representations(X, y, model, tc_head, tcc_batch_size, device)
+               np.savez(os.path.join(embedding_save_path, "x_y_embedding.npz"), array1=x_repr_all, array_2=y)
+               print(f"We saved the embeddings and y")
 
-    # filter to binary downstream samples
-    train_repr = train_repr[downstream_mask["train"]]
-    y_train = y[train_idx][downstream_mask["train"]]
-    groups_train = groups[train_idx][downstream_mask["train"]]
+        # filter to binary downstream samples
+        train_repr = train_repr[downstream_mask["train"]]
+        y_train = y[train_idx][downstream_mask["train"]]
+        groups_train = groups[train_idx][downstream_mask["train"]]
 
-    test_repr = test_repr[downstream_mask["test"]]
-    y_test = y[test_idx][downstream_mask["test"]]
+        test_repr = test_repr[downstream_mask["test"]]
+        y_test = y[test_idx][downstream_mask["test"]]
 
-    print(f"train_repr shape = {train_repr.shape}")
+        print(f"train_repr shape = {train_repr.shape}")
 
-    # ── Step 4: Set up Cross-Validation Splitter ───────────────────────────────
-    cv_splitter, n_splits = get_participant_cv_splitter(
-        groups_train,
-        min_participants_for_kfold=min_participants_for_kfold,
-        k=k_folds
-    )
-
-    # ── Step 5: Run CV with Logistic Regression or MLP ─────────────────────────────────
-    set_seed(seed)
-
-    # Create feature names for representations (just numbered features)
-    feature_names = [f"repr_{i}" for i in range(train_repr.shape[1])]
-
-    if classifier_model == "logistic_regression":
-        # IMPORTANT: The encoder already normalizes the features, so no need to standardize again
-        # Verbose option:
-        if verbose:
-            results = run_logistic_regression_with_gridsearch_verbose(
-                train_repr, y_train, groups_train, test_repr, y_test,
-                feature_names, cv_splitter, False, seed
-            )
-        else:
-            results = run_logistic_regression_with_gridsearch(
-                train_repr, y_train, groups_train,
-                test_repr, y_test, feature_names, cv_splitter, False, seed, scoring_metric=scoring_metric
-            )
-
-        # Log metrics
-        mlflow.log_metrics({
-            "best_cv_auroc": results['best_cv_score'] if cv_splitter is not None else 0,
-            "test_accuracy": results['test_metrics']['accuracy'],
-            "test_auroc": results['test_metrics']['auroc'],
-            "test_f1": results['test_metrics']['f1'],
-            "test_pr_auc": results['test_metrics']['pr_auc'],
-        })
-
-        mlflow.log_params(results['best_params'])
-
-    else:
-        results = run_mlp_with_cv_and_test(
-            train_repr, y_train, groups_train,
-            test_repr, y_test, feature_names, cv_splitter,
-            device, classifier_epochs, classifier_batch_size,classifier_lr, False, seed
+        # ── Step 4: Set up Cross-Validation Splitter ───────────────────────────────
+        cv_splitter, n_splits = get_participant_cv_splitter(
+            groups_train,
+            min_participants_for_kfold=min_participants_for_kfold,
+            k=k_folds
         )
 
-        # Log metrics
-        mlflow.log_metrics({
-            "best_cv_auroc": results['best_cv_score'],
-            "test_accuracy": results['test_metrics']['accuracy'],
-            "test_auroc": results['test_metrics']['auroc'],
-            "test_f1": results['test_metrics']['f1'],
-            "test_pr_auc": results['test_metrics']['pr_auc'],
+        # ── Step 5: Run CV with Logistic Regression or MLP ─────────────────────────────────
+        set_seed(seed)
+
+        # Create feature names for representations (just numbered features)
+        feature_names = [f"repr_{i}" for i in range(train_repr.shape[1])]
+
+        if classifier_model == "logistic_regression":
+            # IMPORTANT: The encoder already normalizes the features, so no need to standardize again
+            # Verbose option:
+            if verbose:
+                results = run_logistic_regression_with_gridsearch_verbose(
+                    train_repr, y_train, groups_train, test_repr, y_test,
+                    feature_names, cv_splitter, False, seed
+                )
+            else:
+                results = run_logistic_regression_with_gridsearch(
+                    train_repr, y_train, groups_train,
+                    test_repr, y_test, feature_names, cv_splitter, False, seed, scoring_metric=scoring_metric
+                )
+
+            # Log metrics
+            mlflow.log_metrics({
+                "best_cv_auroc": results['best_cv_score'] if cv_splitter is not None else 0,
+                "test_accuracy": results['test_metrics']['accuracy'],
+                "test_auroc": results['test_metrics']['auroc'],
+                "test_f1": results['test_metrics']['f1'],
+                "test_pr_auc": results['test_metrics']['pr_auc'],
+            })
+
+            mlflow.log_params(results['best_params'])
+
+        else:
+            results = run_mlp_with_cv_and_test(
+                train_repr, y_train, groups_train,
+                test_repr, y_test, feature_names, cv_splitter,
+                device, classifier_epochs, classifier_batch_size,classifier_lr, False, seed
+            )
+
+            # Log metrics
+            mlflow.log_metrics({
+                "best_cv_auroc": results['best_cv_score'],
+                "test_accuracy": results['test_metrics']['accuracy'],
+                "test_auroc": results['test_metrics']['auroc'],
+                "test_f1": results['test_metrics']['f1'],
+                "test_pr_auc": results['test_metrics']['pr_auc'],
+            })
+
+            mlflow.log_params(results['best_params'])
+
+        # ── Step 7: Save Results ────────────────────────────────────────────────────
+        with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+            json.dump(results, f, indent=2, default=str)
+
+        # Log additional parameters
+        mlflow.log_params({
+            "classifier_model": classifier_model,
+            "label_fraction": label_fraction,
+            "seed": seed,
+            "k_folds": k_folds,
+            "n_cv_splits": n_splits,
+            "pretrain_all_conditions": pretrain_all_conditions,
         })
 
-        mlflow.log_params(results['best_params'])
+        # ── Cleanup ────────────────────────────────────────────────────────────────
+        for _ in range(3):
+            gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
-    # ── Step 7: Save Results ────────────────────────────────────────────────────
-    with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
-        json.dump(results, f, indent=2, default=str)
-
-    # Log additional parameters
-    mlflow.log_params({
-        "classifier_model": classifier_model,
-        "label_fraction": label_fraction,
-        "seed": seed,
-        "k_folds": k_folds,
-        "n_cv_splits": n_splits,
-        "pretrain_all_conditions": pretrain_all_conditions,
-    })
-
-    # ── Cleanup ────────────────────────────────────────────────────────────────
-    for _ in range(3):
-        gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-
-    print(f"=== Done! Test Acc: {results['test_metrics']['accuracy']:.4f}, "
-          f"AUROC: {results['test_metrics']['auroc']:.4f}, "
-          f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}, "
-          f"F1: {results['test_metrics']['f1']:.4f} ===")
-    mlflow.end_run()
+        print(f"=== Done! Test Acc: {results['test_metrics']['accuracy']:.4f}, "
+              f"AUROC: {results['test_metrics']['auroc']:.4f}, "
+              f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}, "
+              f"F1: {results['test_metrics']['f1']:.4f} ===")
+        mlflow.end_run()
 
 
 if __name__ == "__main__":
