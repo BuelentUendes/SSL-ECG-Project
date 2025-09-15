@@ -1310,7 +1310,12 @@ def run_mlp_with_cv_and_test(
 
     # Train final model with best parameters on full training set
     print("Training final model on full training set...")
-    final_model = pretrained_model.clone().to(device)
+    input_dim = X_train.shape[-1]
+    final_model = MLPClassifier(
+        input_dim,
+        hidden_dim=best_params['hidden_dim'],
+        dropout=best_params['dropout']
+    ).to(device)
 
     # Create final datasets that don't pre-load to GPU
     tr_ds = PhysiologicalDataset(X_train, y_train)
@@ -1400,7 +1405,7 @@ def run_linear_classifier_with_cv_and_test(
         X_train, _, X_test = standardize_features(X_train, None, X_test, feature_names)
 
     # Simple hyperparameter options for the learning rate
-    lr_rates = [1e-4, 1e-5, 1e-6]
+    lr_rates = [1e-3, 1e-4, 1e-5]
 
     best_params = None
     best_cv_score = 0
