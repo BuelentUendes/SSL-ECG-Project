@@ -1310,12 +1310,7 @@ def run_mlp_with_cv_and_test(
 
     # Train final model with best parameters on full training set
     print("Training final model on full training set...")
-    input_dim = X_train.shape[-1]
-    final_model = MLPClassifier(
-        input_dim,
-        hidden_dim=best_params['hidden_dim'],
-        dropout=best_params['dropout']
-    ).to(device)
+    final_model = pretrained_model.clone().to(device)
 
     # Create final datasets that don't pre-load to GPU
     tr_ds = PhysiologicalDataset(X_train, y_train)
@@ -1391,6 +1386,192 @@ def run_mlp_with_cv_and_test(
         },
         'model': final_model
     }
+
+
+def run_linear_classifier_with_cv_and_test(
+        X_train, y_train, groups_train, X_test, y_test, pretrained_model,
+        feature_names, cv_splitter, device, classifier_epochs=25, classifier_batch_size=32,
+        standardize=False, seed=42
+):
+    """Run CV for MLP hyperparameter selection, then train final model and test."""
+
+    # Standardize features
+    if standardize:
+        X_train, _, X_test = standardize_features(X_train, None, X_test, feature_names)
+
+    # Simple hyperparameter options for the learning rate
+    lr_rates = [1e-4, 1e-5, 1e-6]
+
+    best_params = None
+    best_cv_score = 0
+
+    default_best_params = {
+        'lr': 1e-5,
+    }
+
+    non_blocking_bool = torch.cuda.is_available()
+    pin_memory = torch.cuda.is_available()
+    # Use 0 workers to avoid CUDA multiprocessing issues with SSL representations
+    num_workers = 0
+
+    print("Running manual CV for fine-tuning the encoder + linear classifier head...")
+
+    if cv_splitter is None:
+        print("cv_splitter is None (single participant). Using default best parameters...")
+        print(f"Default parameters: {default_best_params}")
+
+        best_params = default_best_params
+        best_cv_score = 0.0
+
+    else:
+        for lr_rate in lr_rates:
+            print(f"Learning rate to be tested: {lr_rate}")
+            fold_scores = []
+
+            # Run CV for this parameter combination
+            for fold, (train_idx, val_idx) in enumerate(cv_splitter.split(X_train, y_train, groups_train)):
+                X_fold_train, X_fold_val = X_train[train_idx], X_train[val_idx]
+                y_fold_train, y_fold_val = y_train[train_idx], y_train[val_idx]
+
+                # Create and train model
+                training_model = pretrained_model.clone().to(device)
+
+                # Create datasets that don't pre-load to GPU (avoids multiprocessing CUDA issues)
+                tr_ds = PhysiologicalDataset(X_fold_train, y_fold_train)
+                val_ds = PhysiologicalDataset(X_fold_val, y_fold_val)
+                tr_loader = DataLoader(
+                    tr_ds, batch_size=classifier_batch_size, shuffle=True,
+                    pin_memory=pin_memory, num_workers=num_workers
+                )
+                val_loader = DataLoader(
+                    val_ds, batch_size=classifier_batch_size, shuffle=False,
+                    pin_memory=pin_memory, num_workers=num_workers
+                )
+
+                optimizer = torch.optim.AdamW(training_model.parameters(), lr=lr_rate)
+                loss_fn = torch.nn.BCEWithLogitsLoss()
+
+                # Training loop
+                for idx, epoch in enumerate(range(classifier_epochs), 1):
+                    print(f"Processing fold {fold}: Epoch: {idx} / {classifier_epochs}", flush=True, end="\r")
+                    training_model.train()
+                    for X_batch, y_batch in tr_loader:
+                        X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)
+                        y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
+                        optimizer.zero_grad()
+                        logits = training_model(X_batch).squeeze(-1)
+                        loss = loss_fn(logits, y_batch)
+                        loss.backward()
+                        optimizer.step()
+
+                # Validation evaluation
+                training_model.eval()
+                val_probs = []
+                val_labels = []
+
+                with torch.no_grad():
+                    for X_batch, y_batch in val_loader:
+                        X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)
+                        y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
+                        logits = training_model(X_batch).squeeze(-1)
+                        probs = torch.sigmoid(logits)
+                        val_probs.extend(probs.cpu().numpy())
+                        val_labels.extend(y_batch.cpu().numpy())
+
+                fold_auroc = roc_auc_score(val_labels, val_probs)
+                fold_scores.append(fold_auroc)
+
+            # Average CV score for this parameter combination
+            mean_cv_score = np.mean(fold_scores)
+            print()
+            print(f"  Mean CV AUROC: {mean_cv_score:.4f}")
+
+            if mean_cv_score > best_cv_score:
+                best_cv_score = mean_cv_score
+                best_params = {'lr_rate': lr_rate}
+
+    print(f"\nBest parameters: {best_params}")
+    print(f"Best CV score: {best_cv_score:.4f}")
+
+    # Train final model with best parameters on full training set
+    print("Training final model on full training set...")
+    final_model = pretrained_model.clone().to(device)
+
+    # Create final datasets that don't pre-load to GPU
+    tr_ds = PhysiologicalDataset(X_train, y_train)
+    te_ds = PhysiologicalDataset(X_test, y_test)
+    tr_loader = DataLoader(
+        tr_ds, batch_size=32, shuffle=True,
+        pin_memory=pin_memory, num_workers=num_workers
+    )
+    te_loader = DataLoader(
+        te_ds, batch_size=32, shuffle=False,
+        pin_memory=pin_memory, num_workers=num_workers
+    )
+
+    optimizer = torch.optim.AdamW(final_model.parameters(), lr=best_params["lr_rate"])
+    loss_fn = torch.nn.BCEWithLogitsLoss()
+
+    # Train final model
+    for idx, epoch in enumerate(range(classifier_epochs), start=1):
+        print(f"Final model training: Epoch {idx} / {classifier_epochs}", flush=True, end="\r")
+        final_model.train()
+        for X_batch, y_batch in tr_loader:
+            X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)
+            y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
+            optimizer.zero_grad()
+            logits = final_model(X_batch).squeeze(-1)
+            loss = loss_fn(logits, y_batch)
+            loss.backward()
+            if epoch % 5 == 0:
+                print(f"The loss is {loss}")
+            optimizer.step()
+
+    # Test evaluation
+    final_model.eval()
+    test_probs = []
+    test_preds = []
+    test_labels = []
+
+    with torch.no_grad():
+        for X_batch, y_batch in te_loader:
+            X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)
+            y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
+            logits = final_model(X_batch).squeeze(-1)
+            probs = torch.sigmoid(logits)
+            preds = (probs > 0.5).float()
+
+            test_probs.extend(probs.cpu().numpy())
+            test_preds.extend(preds.cpu().numpy())
+            test_labels.extend(y_batch.cpu().numpy())
+
+    test_probs = np.array(test_probs)
+    test_preds = np.array(test_preds)
+    test_labels = np.array(test_labels)
+
+    test_acc = accuracy_score(test_labels, test_preds)
+    test_auroc = roc_auc_score(test_labels, test_probs)
+    test_f1 = f1_score(test_labels, test_preds)
+    test_pr_auc = average_precision_score(test_labels, test_probs)
+
+    print(f"\n=== Test Set Results ===")
+    print(f"Test Accuracy: {test_acc:.4f}")
+    print(f"Test AUROC: {test_auroc:.4f}")
+    print(f"Test F1: {test_f1:.4f}")
+    print(f"Test PR-AUC: {test_pr_auc:.4f}")
+
+    return {
+        'best_params': best_params,
+        'best_cv_score': best_cv_score,
+        'test_metrics': {
+            'accuracy': test_acc,
+            'auroc': test_auroc,
+            'f1': test_f1,
+            'pr_auc': test_pr_auc
+        },
+        'model': final_model
+    }
+
 
 def binary_accuracy(preds, y, logits=False):
     if logits:
