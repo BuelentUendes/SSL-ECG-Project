@@ -1407,8 +1407,11 @@ def run_linear_classifier_with_cv_and_test(
     # Simple hyperparameter options for the learning rate
     lr_rates = [1e-3, 1e-4, 1e-5]
 
-    best_params = None
-    best_cv_score = 0
+    # Set a default best params otherwise it might get issues with the evaluation
+    best_params = {
+        "lr_rate": 1e-3,
+    }
+    best_cv_score = 0.5
 
     default_best_params = {
         'lr_rate': 1e-5,
@@ -1487,7 +1490,7 @@ def run_linear_classifier_with_cv_and_test(
                 fold_scores.append(fold_auroc)
 
             # Average CV score for this parameter combination
-            mean_cv_score = np.mean(fold_scores)
+            mean_cv_score = np.nanmean(fold_scores)
             print()
             print(f"  Mean CV AUROC: {mean_cv_score:.4f}")
 
