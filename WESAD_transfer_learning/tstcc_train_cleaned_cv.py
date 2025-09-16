@@ -436,7 +436,8 @@ def main(
         # This fine-tunes the encoder and test them right away
         fine_tuned_results = run_linear_classifier_with_cv_and_test(
             X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
-            feature_names, cv_splitter, device, classifier_epochs=25, classifier_batch_size=32,
+            feature_names, cv_splitter, device, classifier_epochs=classifier_epochs,
+            classifier_batch_size=classifier_batch_size,
             standardize=False, seed=42
         )
 
