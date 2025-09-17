@@ -1508,9 +1508,10 @@ def run_linear_classifier_with_cv_and_test(
     # Create final datasets that don't pre-load to GPU
     tr_ds = PhysiologicalDataset(X_train, y_train)
     te_ds = PhysiologicalDataset(X_test, y_test)
+    # During WESAD training, training the model leads to issues as the batchnorm needs more than 1 sample in the bathc
     tr_loader = DataLoader(
         tr_ds, batch_size=32, shuffle=True,
-        pin_memory=pin_memory, num_workers=num_workers
+        pin_memory=pin_memory, num_workers=num_workers, drop_last=True
     )
     te_loader = DataLoader(
         te_ds, batch_size=32, shuffle=False,
@@ -1519,11 +1520,11 @@ def run_linear_classifier_with_cv_and_test(
 
     optimizer = torch.optim.AdamW(final_model.parameters(), lr=best_params["lr_rate"])
     loss_fn = torch.nn.BCEWithLogitsLoss()
+    final_model.train()
 
     # Train final model
     for idx, epoch in enumerate(range(classifier_epochs), start=1):
         print(f"Final model training: Epoch {idx} / {classifier_epochs}", flush=True, end="\r")
-        final_model.train()
         for X_batch, y_batch in tr_loader:
             X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)
             y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
