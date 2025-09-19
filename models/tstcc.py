@@ -1,4 +1,5 @@
 import json
+import time
 
 import torch
 import torch.nn as nn
@@ -718,17 +719,26 @@ def Trainer(
         torch.cuda.reset_peak_memory_stats()
 
     epoch_peak_memory = {}
+    epoch_runtimes = {}
+
     for epoch in range(1, config.num_epoch + 1):
+        epoch_start_time = time.time()
+
         # Train and validate
         train_loss, train_acc = model_train(model, temporal_contr_model, model_optimizer, temp_cont_optimizer,
                                             criterion, train_dl, config, device, training_mode)
+
+        if valid_dl is not None:
+            val_loss, valid_acc, _, _ = model_evaluate(model, temporal_contr_model, valid_dl, device, training_mode, config)
+
+        # Calculate epoch runtime
+        epoch_runtime = time.time() - epoch_start_time
+        epoch_runtimes[epoch] = epoch_runtime
 
         # Log memory usage for CUDA
         if torch.cuda.is_available():
             epoch_peak_memory[f"{epoch}"] = torch.cuda.max_memory_allocated() / (1024 ** 3)
             print(f"Peak memory allocated during epoch {epoch}: {torch.cuda.max_memory_allocated() / (1024 ** 3):.2f} GB")
-        if valid_dl is not None:
-            val_loss, valid_acc, _, _ = model_evaluate(model, temporal_contr_model, valid_dl, device, training_mode, config)
 
         if training_mode == "self_supervised":
             if valid_dl is not None:
@@ -743,6 +753,10 @@ def Trainer(
 
     # Dump memory snapshot history to a file and stop recording
     # Start recording memory snapshot history
+
+    with open(os.path.join(save_path_result, "runtime_per_epoch.json")) as f:
+        json.dump(epoch_runtime, f, indent=2)
+
     if torch.cuda.is_available():
         with open(os.path.join(save_path_result, "peak_memory_consumption_epochs.json")) as f:
             json.dump(epoch_peak_memory, f, indent=2)
