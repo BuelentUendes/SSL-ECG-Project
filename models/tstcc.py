@@ -708,24 +708,21 @@ def Trainer(
     criterion = nn.CrossEntropyLoss()
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(model_optimizer, 'min')
 
-    if torch.cuda.is_available():
-        device = torch.device(f"cuda:0")
-    elif torch.backends.mps.is_available():
-        device = torch.device("mps")
-        # Important note:
-        # For TSTCC the MPS is not supported due to some binary operation that does not work on MPS.
-    else:
-        device = torch.device("cpu")
-
     # Start recording memory snapshot history
-    torch.cuda.memory._record_memory_history(max_entries=100000)
+    if torch.cuda.is_available():
+        torch.cuda.memory._record_memory_history(max_entries=100000)
+
+        # Add this to your training loop for systematic reporting
+        torch.cuda.reset_peak_memory_stats()
 
     for epoch in range(1, config.num_epoch + 1):
         # Train and validate
         train_loss, train_acc = model_train(model, temporal_contr_model, model_optimizer, temp_cont_optimizer,
                                             criterion, train_dl, config, device, training_mode)
 
-        print(f"Peak memory allocated during operation epoch:, {torch.cuda.max_memory_allocated(device) / (1024 ** 3):.2f} GB")
+        # Start recording memory snapshot history
+        if torch.cuda.is_available():
+            print(f"Peak memory allocated during operation epoch:, {torch.cuda.max_memory_allocated() / (1024 ** 3):.2f} GB")
         if valid_dl is not None:
             val_loss, valid_acc, _, _ = model_evaluate(model, temporal_contr_model, valid_dl, device, training_mode, config)
 
@@ -741,8 +738,11 @@ def Trainer(
             }, step=epoch)
 
     # Dump memory snapshot history to a file and stop recording
-    save_path = os.path.join(RESULTS_PATH, "profile.pkl")
-    torch.cuda.memory._dump_snapshot(save_path)
+    # Start recording memory snapshot history
+    if torch.cuda.is_available():
+        save_path = os.path.join(RESULTS_PATH, "profile.pkl")
+        torch.cuda.memory._dump_snapshot(save_path)
+
     # Save models (either best from early stopping or final)
     os.makedirs(os.path.join(experiment_log_dir, "saved_models"), exist_ok=True)
 
