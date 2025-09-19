@@ -1,8 +1,12 @@
 import os
+import time
+import json
+
 import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
+from utils.helper_paths import RESULTS_PATH
 from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 from torcheval.metrics.functional import multiclass_f1_score
 from typing import Tuple, Dict, Any, List
@@ -502,7 +506,7 @@ class TS2Vec:
         self.n_epochs = 0
         self.n_iters = 0
     
-    def fit(self, train_data, n_epochs=None, n_iters=None, verbose=True):
+    def fit(self, train_data, n_epochs=None, n_iters=None, verbose=True, results_save_path=RESULTS_PATH):
         ''' Training the TS2Vec model.
         
         Args:
@@ -537,10 +541,20 @@ class TS2Vec:
         train_loader = DataLoader(train_dataset, batch_size=min(self.batch_size, len(train_dataset)), shuffle=True, drop_last=True)
         
         optimizer = torch.optim.AdamW(self._net.parameters(), lr=self.lr)
-        
+
+        # Start recording memory snapshot history
+        if torch.cuda.is_available():
+            # Add this to your training loop for systematic reporting
+            torch.cuda.reset_peak_memory_stats()
+
         loss_log = []
+
+        epoch_peak_memory = {}
+        epoch_runtimes = {}
         
         while True:
+            epoch_start_time = time.time()
+
             if n_epochs is not None and self.n_epochs >= n_epochs:
                 break
             
@@ -597,7 +611,17 @@ class TS2Vec:
                     self.after_iter_callback(self, loss.item())
 
                 pbar.update(1)
-            
+
+            # Calculate epoch runtime
+            epoch_runtime = time.time() - epoch_start_time
+            epoch_runtimes[f"{self.n_epochs}"] = epoch_runtime
+
+            # Log memory usage for CUDA
+            if torch.cuda.is_available():
+                epoch_peak_memory[f"{self.n_epochs}"] = torch.cuda.max_memory_allocated() / (1024 ** 3)
+                print(
+                    f"Peak memory allocated during epoch {self.n_epochs}: {torch.cuda.max_memory_allocated() / (1024 ** 3):.2f} GB")
+
             if interrupted:
                 break
             
@@ -612,6 +636,13 @@ class TS2Vec:
                 self.after_epoch_callback(self, cum_loss)
 
             pbar.close()
+
+        with open(os.path.join(results_save_path, "runtime_per_epoch.json"), "w") as f:
+            json.dump(epoch_runtimes, f, indent=2)
+
+        if torch.cuda.is_available():
+            with open(os.path.join(results_save_path, "peak_memory_consumption_epochs.json"), "w") as f:
+                json.dump(epoch_peak_memory, f, indent=2)
             
         return loss_log
     

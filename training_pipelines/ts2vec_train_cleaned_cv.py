@@ -208,7 +208,8 @@ def main(
         loss_log = ts2vec.fit(
             X_train_encoder,
             n_epochs=ts2vec_epochs,
-            verbose=True
+            verbose=True,
+            results_save_path=results_save_path
         )
 
         # Save model
