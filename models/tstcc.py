@@ -27,6 +27,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import cross_val_score
 
+from utils.helper_paths import RESULTS_PATH
 from utils.torch_utilities import (
     set_seed,
     get_participant_cv_splitter,
@@ -707,11 +708,15 @@ def Trainer(
     criterion = nn.CrossEntropyLoss()
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(model_optimizer, 'min')
 
+    # Start recording memory snapshot history
+    torch.cuda.memory._record_memory_history(max_entries=100000)
+
     for epoch in range(1, config.num_epoch + 1):
         # Train and validate
         train_loss, train_acc = model_train(model, temporal_contr_model, model_optimizer, temp_cont_optimizer,
                                             criterion, train_dl, config, device, training_mode)
 
+        print(f"Peak memory allocated during operation epoch:, {torch.cuda.max_memory_allocated() / (10 ** 9):.2f} GB")
         if valid_dl is not None:
             val_loss, valid_acc, _, _ = model_evaluate(model, temporal_contr_model, valid_dl, device, training_mode, config)
 
@@ -726,6 +731,9 @@ def Trainer(
                 "ssl_val_loss": val_loss if valid_dl is not None else np.nan,
             }, step=epoch)
 
+    # Dump memory snapshot history to a file and stop recording
+    save_path = os.path.join(RESULTS_PATH, "profile.pkl")
+    torch.cuda.memory._dump_snapshot(save_path)
     # Save models (either best from early stopping or final)
     os.makedirs(os.path.join(experiment_log_dir, "saved_models"), exist_ok=True)
 
@@ -774,14 +782,8 @@ def model_train(model, temporal_contr_model,
 
         # SSL vs supervised branch
         if training_mode == "self_supervised":
-            # Check memory before creating tensors
-            print("Initial memory allocated:", torch.cuda.memory_allocated())
-            print("Initial memory reserved:", torch.cuda.memory_reserved())
-
             _, feat1 = model(aug1)
             _, feat2 = model(aug2)
-
-            print(f"Peak memory allocated during operation:, {torch.cuda.max_memory_allocated()/(10**9):.2f} GB")
 
             loss = compute_ssl_loss(feat1, feat2, temporal_contr_model, nt_xent)
         else:                          
