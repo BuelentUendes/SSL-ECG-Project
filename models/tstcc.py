@@ -764,7 +764,6 @@ def model_train(model, temporal_contr_model,
         pbar.set_postfix(batch=f"{batch_idx + 1}/{len(train_loader)}")
         if batch_idx == 0:
             show_shape("train-loop INPUT   aug1/aug2", (aug1, aug2))
-            
 
         # move to device
         aug1, aug2 = aug1.float().to(device), aug2.float().to(device)
@@ -775,8 +774,15 @@ def model_train(model, temporal_contr_model,
 
         # SSL vs supervised branch
         if training_mode == "self_supervised":
+            # Check memory before creating tensors
+            print("Initial memory allocated:", torch.cuda.memory_allocated())
+            print("Initial memory reserved:", torch.cuda.memory_reserved())
+
             _, feat1 = model(aug1)
             _, feat2 = model(aug2)
+
+            print("Peak memory allocated during operation:", torch.cuda.max_memory_allocated())
+
             loss = compute_ssl_loss(feat1, feat2, temporal_contr_model, nt_xent)
         else:                          
             preds, _ = model(data)
