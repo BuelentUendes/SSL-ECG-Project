@@ -752,7 +752,7 @@ def Trainer(
     # Dump memory snapshot history to a file and stop recording
     # Start recording memory snapshot history
     with open(os.path.join(results_save_path, "runtime_per_epoch.json"), "w") as f:
-        json.dump(epoch_runtime, f, indent=2)
+        json.dump(epoch_runtimes, f, indent=2)
 
     if torch.cuda.is_available():
         with open(os.path.join(results_save_path, "peak_memory_consumption_epochs.json"), "w") as f:
