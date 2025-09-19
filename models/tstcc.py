@@ -708,6 +708,15 @@ def Trainer(
     criterion = nn.CrossEntropyLoss()
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(model_optimizer, 'min')
 
+    if torch.cuda.is_available():
+        device = torch.device(f"cuda:0")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+        # Important note:
+        # For TSTCC the MPS is not supported due to some binary operation that does not work on MPS.
+    else:
+        device = torch.device("cpu")
+
     # Start recording memory snapshot history
     torch.cuda.memory._record_memory_history(max_entries=100000)
 
@@ -716,7 +725,7 @@ def Trainer(
         train_loss, train_acc = model_train(model, temporal_contr_model, model_optimizer, temp_cont_optimizer,
                                             criterion, train_dl, config, device, training_mode)
 
-        print(f"Peak memory allocated during operation epoch:, {torch.cuda.max_memory_allocated() / (10 ** 9):.2f} GB")
+        print(f"Peak memory allocated during operation epoch:, {torch.cuda.max_memory_allocated(device) / (1024 ** 3):.2f} GB")
         if valid_dl is not None:
             val_loss, valid_acc, _, _ = model_evaluate(model, temporal_contr_model, valid_dl, device, training_mode, config)
 
