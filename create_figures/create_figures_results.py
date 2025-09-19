@@ -19,8 +19,8 @@ def load_results_from_structure(base_path):
     # Define the expected structure paths
     paths_to_check = [
         "ECG/Supervised/cnn",
-        "ECG/Supervised/tcn",
-        "ECG/Supervised/transformer",
+        # "ECG/Supervised/tcn",
+        # "ECG/Supervised/transformer",
         # "ECG/Supervised/deep_ecg_net",
         "ECG/TSTCC/logistic_regression",
         # "ECG/TSTCC/mlp",
@@ -424,6 +424,8 @@ def create_method_labels(df):
                 return f"{transfer_label} ({clean_model}, {window_info})"
         elif row['method_type'] == 'Features_Baseline':
             return f"Feature Baseline ({clean_model}, {window_info})"
+        elif  row["learning_method"] == "Supervised":
+            return f"{clean_model} ({window_info})"
         else:
             return f"{row['learning_method']} ({clean_model}, {window_info})"
 
@@ -431,7 +433,8 @@ def create_method_labels(df):
     return df
 
 
-def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=None, use_participant_count=False, total_participants=None, use_standard_error=False):
+def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=None,
+                                   use_participant_count=False, total_participants=None, use_standard_error=False):
     """Create a plot comparing transfer learning approaches for a specific dataset
     
     Args:
@@ -660,7 +663,7 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
     plt.style.use('default')
     sns.set_palette("husl")
 
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(10, 8))
     ax.grid(axis='y', linestyle='--', linewidth=0.7, alpha=0.7)
 
     # Group by method and calculate mean and std
@@ -740,32 +743,87 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
     #     'Supervised (DeepECGNet, 30s/15s)': {'color': '#117733', 'marker': '<', 'linestyle': ':'},
     # }
 
-    method_styles = {
-        # Feature-engineered (different window configurations)
-        'Feature-engineered (Logistic Regression, 30s/5s)': {'color': '#ff6361', 'marker': 'v', 'linestyle': '-'},
-        'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#bc5090', 'marker': 'o', 'linestyle': '--',
-                                                              'linewidth': 2., 'alpha': 0.2},
-        'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '#ef5675', 'marker': 'x', 'linestyle': '-',
-                                                             'linewidth': 2., 'alpha': 0.2},
+    # Divergent pattern
+    # method_styles = {
+    #     # Feature-engineered (different window configurations)
+    #     'Feature-engineered (Logistic Regression, 30s/5s)': {'color': '#ff6361', 'marker': 'v', 'linestyle': '-'},
+    #     'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#bc5090', 'marker': 'o', 'linestyle': '--',
+    #                                                           'linewidth': 2., 'alpha': 0.2},
+    #     'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '#ef5675', 'marker': 'x', 'linestyle': '-',
+    #                                                          'linewidth': 2., 'alpha': 0.2},
+    #
+    #     'Feature-engineered (Logistic Regression, 30s/15s)': {'color': '#665191', 'marker': 's', 'linestyle': ':'},
+    #     'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '#ef5675', 'marker': 'x', 'linestyle': '-',
+    #                                                          'linewidth': 2., 'alpha': 0.2},
+    #     'Feature-engineered (MLP, 30s/5s)': {'color': '#E69F00', 'marker': '8', 'linestyle': '-'},
+    #     'Feature-engineered (MLP, 30s/10s)': {'color': '#E69F00', 'marker': 'D', 'linestyle': '--'},
+    #     'Feature-engineered (MLP, 30s/15s)': {'color': '#E69F00', 'marker': 'h', 'linestyle': ':'},
+    #
+    #     # Supervised methods (10s)
+    #     'Supervised (CNN, 10s/5s)': {'color': '#003f5c', 'marker': '^', 'linestyle': 'dotted', 'linewidth': 2.,
+    #                                  'alpha': 0.2},
+    #     'Supervised (TCN, 10s/5s)': {'color': "#374c80", 'marker': '>', 'linestyle': '-', 'linewidth': 1.5,
+    #                                  'alpha': 0.1},
+    #     'Supervised (Transformer, 10s/5s)': {'color': '#7a5195', 'marker': '<', 'linestyle': '-', 'linewidth': 1.5,
+    #                                          'alpha': 0.1},
+    #     'Supervised (DeepECGNet, 10s/5s)': {'color': '#117733', 'marker': 'o', 'linestyle': '-'},
+    #
+    #     # TSTCC (10s and 30s) - ALL LIGHT BLUE '#88CCEE'
+    #     'TSTCC (Logistic Regression, 10s/5s)': {'color': '#ffa600', 'marker': 'v', 'linestyle': '-'},
+    #     'TSTCC (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
+    #     'TSTCC (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '--'},
+    #     'TSTCC (Logistic Regression, 30s/15s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': ':'},
+    #     'TSTCC (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 'p', 'linestyle': '-'},
+    #     'TSTCC (MLP, 30s/5s)': {'color': '#88CCEE', 'marker': '8', 'linestyle': '-'},
+    #     'TSTCC (MLP, 30s/10s)': {'color': '#88CCEE', 'marker': 'D', 'linestyle': '--'},
+    #     'TSTCC (MLP, 30s/15s)': {'color': '#88CCEE', 'marker': 'h', 'linestyle': ':'},
+    #     'TSTCC (Linear, 10s/5s)': {'color': '#88CCEE', 'marker': '*', 'linestyle': '-'},
+    #     'TSTCC (Linear, 30s/5s)': {'color': '#88CCEE', 'marker': '1', 'linestyle': '-'},
+    #     'TSTCC (Linear, 30s/10s)': {'color': '#88CCEE', 'marker': '+', 'linestyle': '--'},
+    #     'TSTCC (Linear, 30s/15s)': {'color': '#88CCEE', 'marker': 'x', 'linestyle': ':'},
+    #
+    #     'TSTCC+S3 (Logistic Regression, 10s/5s)': {'color': '#ff764a', 'marker': 'p', 'linestyle': '-'},
+    #
+    #     # Supervised methods (30s) - in case they exist
+    #     'Supervised (CNN, 30s/5s)': {'color': '#D55E00', 'marker': 'v', 'linestyle': '-', 'linewidth': 2.},
+    #     'Supervised (CNN, 30s/10s)': {'color': '#D55E00', 'marker': 'o', 'linestyle': '--'},
+    #     'Supervised (CNN, 30s/15s)': {'color': '#D55E00', 'marker': 's', 'linestyle': ':'},
+    #     'Supervised (TCN, 30s/5s)': {'color': '#44AA99', 'marker': 'p', 'linestyle': '-'},
+    #     'Supervised (TCN, 30s/10s)': {'color': '#44AA99', 'marker': 's', 'linestyle': '--'},
+    #     'Supervised (TCN, 30s/15s)': {'color': '#44AA99', 'marker': 'D', 'linestyle': ':'},
+    #     'Supervised (Transformer, 30s/5s)': {'color': '#58508d', 'marker': '8', 'linestyle': '-'},
+    #     'Supervised (Transformer, 30s/10s)': {'color': '#58508d', 'marker': 'D', 'linestyle': '--'},
+    #     'Supervised (Transformer, 30s/15s)': {'color': '#58508d', 'marker': 'h', 'linestyle': ':'},
+    #     'Supervised (DeepECGNet, 30s/5s)': {'color': '#117733', 'marker': '1', 'linestyle': '-'},
+    #     'Supervised (DeepECGNet, 30s/10s)': {'color': '#117733', 'marker': '>', 'linestyle': '--'},
+    #     'Supervised (DeepECGNet, 30s/15s)': {'color': '#117733', 'marker': '<', 'linestyle': ':'},
+    # }
 
-        'Feature-engineered (Logistic Regression, 30s/15s)': {'color': '#665191', 'marker': 's', 'linestyle': ':'},
-        'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '#ef5675', 'marker': 'x', 'linestyle': '-',
-                                                             'linewidth': 2., 'alpha': 0.2},
+    method_styles = {
+        # Feature-engineered (different window configurations) #4a2377  #56B4E9 #d31f11
+        'Feature-engineered (Logistic Regression, 30s/5s)': {'color': '#ff6361', 'marker': 'v', 'linestyle': '--'},
+        'Feature-engineered (Logistic Regression, 30s/10s)': {'color': "#d31f11", 'marker': 'o', 'linestyle': '--',
+                                                              'linewidth': 1.5, 'alpha': 0.15},
+        # D4A842 #D4A842  #E69F00
+        'Feature-engineered (Logistic Regression, 10s/5s)': {'color': "#E69F00", 'marker': 'x', 'linestyle': '--',
+                                                             'linewidth': 1.5, 'alpha': 0.15},
+
         'Feature-engineered (MLP, 30s/5s)': {'color': '#E69F00', 'marker': '8', 'linestyle': '-'},
         'Feature-engineered (MLP, 30s/10s)': {'color': '#E69F00', 'marker': 'D', 'linestyle': '--'},
         'Feature-engineered (MLP, 30s/15s)': {'color': '#E69F00', 'marker': 'h', 'linestyle': ':'},
 
-        # Supervised methods (10s)
-        'Supervised (CNN, 10s/5s)': {'color': '#003f5c', 'marker': '^', 'linestyle': 'dotted', 'linewidth': 2.,
-                                     'alpha': 0.2},
-        'Supervised (TCN, 10s/5s)': {'color': "#374c80", 'marker': '>', 'linestyle': '-', 'linewidth': 1.5,
+        # Supervised methods (10s) #0d7d87
+        'CNN (10s/5s)': {'color': "#7FAB79", 'marker': '^', 'linestyle': 'dotted', 'linewidth': 1.5,
+                                     'alpha': 0.15},
+        'TCN (10s/5s)': {'color': "#D55E00", 'marker': '>', 'linestyle': '-', 'linewidth': 1.5,
                                      'alpha': 0.1},
-        'Supervised (Transformer, 10s/5s)': {'color': '#7a5195', 'marker': '<', 'linestyle': '-', 'linewidth': 1.5,
+        'Transformer (10s/5s)': {'color': '#845ec2', 'marker': '<', 'linestyle': '-', 'linewidth': 1.5,
                                              'alpha': 0.1},
         'Supervised (DeepECGNet, 10s/5s)': {'color': '#117733', 'marker': 'o', 'linestyle': '-'},
 
-        # TSTCC (10s and 30s) - ALL LIGHT BLUE '#88CCEE'
-        'TSTCC (Logistic Regression, 10s/5s)': {'color': '#ffa600', 'marker': 'v', 'linestyle': '-'},
+        # TSTCC (10s and 30s) - ALL LIGHT BLUE '#88CCEE' #56B4E9 #53AED9" #1C9FEB
+        # 0072B2
+        'TSTCC (Logistic Regression, 10s/5s)': {'color': "#0E9FEB", 'marker': 'v', 'linestyle': '-', 'alpha': 0.15},
         'TSTCC (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
         'TSTCC (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '--'},
         'TSTCC (Logistic Regression, 30s/15s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': ':'},
@@ -778,10 +836,11 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
         'TSTCC (Linear, 30s/10s)': {'color': '#88CCEE', 'marker': '+', 'linestyle': '--'},
         'TSTCC (Linear, 30s/15s)': {'color': '#88CCEE', 'marker': 'x', 'linestyle': ':'},
 
-        'TSTCC+S3 (Logistic Regression, 10s/5s)': {'color': '#ff764a', 'marker': 'p', 'linestyle': '-'},
+        # #009E73 #f47a00    4a2377 #0B7395   #004886
+        'TSTCC+S3 (Logistic Regression, 10s/5s)': {'color': "#005377", 'marker': 's', 'linestyle': '-', 'alpha': 0.15},
 
         # Supervised methods (30s) - in case they exist
-        'Supervised (CNN, 30s/5s)': {'color': '#D55E00', 'marker': 'v', 'linestyle': '-', 'linewidth': 2.},
+        'Supervised (CNN, 30s/5s)': {'color': '#D55E00', 'marker': 'v', 'linestyle': '-', 'linewidth': 1.5, 'alpha': 0.15},
         'Supervised (CNN, 30s/10s)': {'color': '#D55E00', 'marker': 'o', 'linestyle': '--'},
         'Supervised (CNN, 30s/15s)': {'color': '#D55E00', 'marker': 's', 'linestyle': ':'},
         'Supervised (TCN, 30s/5s)': {'color': '#44AA99', 'marker': 'p', 'linestyle': '-'},
@@ -814,7 +873,7 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
         y_vals = method_data['mean']
 
         # Plot main line
-        linewidth = style.get('linewidth', 2.)
+        linewidth = style.get('linewidth', 1.5)
         ax.plot(x_vals, y_vals,
                 color=style['color'],
                 marker=style['marker'],
@@ -840,7 +899,7 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
 
     # Customize the plot
     if use_participant_count:
-        ax.set_xlabel('# Labeled Training Participants', fontsize=14)
+        ax.set_xlabel('# Labeled Training Participants', fontsize=18)
         # Set x-axis scale and limits for participant count
         ax.set_xscale('log')
         ax.set_xlim(0.8, 110)
@@ -849,7 +908,7 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
         ax.set_xticks(x_ticks)
         ax.set_xticklabels([str(x) for x in x_ticks])
     else:
-        ax.set_xlabel('Label Fraction (% of Training Participants Labeled)', fontsize=14)
+        ax.set_xlabel('Label Fraction (% of Training Participants Labeled)', fontsize=18)
         # Set x-axis to log scale for better visualization of small fractions
         ax.set_xscale('log')
         ax.set_xlim(0.8, 120)
@@ -859,28 +918,28 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
         ax.set_xticklabels([f'{x}%' for x in x_ticks])
 
     y_name = 'AUROC' if metric == "auroc" else "PR-AUC"
-    ax.set_ylabel(y_name, fontsize=14)
+    ax.set_ylabel(y_name, fontsize=18)
     # ax.set_title('ECG Classification Performance vs Label Fraction', fontsize=16, fontweight='bold', pad=20)
 
     # Set y-axis limits and ticks
-    ax.set_ylim(0.3, 1.0)
+    ax.set_ylim(0.45, 1.0) if y_name == "AUROC" else ax.set_ylim(0.5, 1.0)
     ax.set_yticks(np.arange(0.5, 1.05, 0.1))
-    ax.axvline(50, linestyle='--', linewidth=1.0, color='0.45', zorder=1)
+    # ax.axvline(50, linestyle='--', linewidth=1.0, color='0.45', zorder=1)
     # Add grid
     # ax.grid(False)
     ax.set_axisbelow(True)
 
     # Add horizontal line at AUROC = 0.5 (random chance)
-    if metric == "auroc":
-        ax.axhline(y=0.5, color='0.45', linestyle='solid', alpha=1.0, linewidth=1.5, label="Random Baseline")
-
-    elif metric == "pr_auc":
-        ax.axhline(y=0.5736, color='0.45', linestyle='solid', alpha=1.0, linewidth=1.5, label="Random Baseline")
+    # if metric == "auroc":
+    #     ax.axhline(y=0.5, color='0.35', linestyle='--', alpha=0.8, linewidth=1.5, label="Random Baseline")
+    #
+    # elif metric == "pr_auc":
+    #     ax.axhline(y=0.5736, color='0.35', linestyle='--', alpha=0.8, linewidth=1.5, label="Random Baseline")
 
     # Customize legend
     # error_type = "Standard Error" if use_standard_error else "Standard Deviation"
     ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
-                       fontsize=11)
+                       fontsize=18)
 
     # ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
     #                    fontsize=11, title=f'Methods (±{error_type})', title_fontsize=12)
@@ -892,11 +951,12 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_linewidth(1.5)
     ax.spines['bottom'].set_linewidth(1.5)
-
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.tight_layout()
 
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+        plt.savefig(save_path, dpi=500, bbox_inches='tight', facecolor='white')
         print(f"Plot saved to {save_path}")
 
     plt.show()
@@ -947,7 +1007,7 @@ def plot_metric_vs_label_fraction_v3(df, metric="auroc", save_path=None, use_par
     method_styles = {
         # Feature-engineered (different window configurations)
         'Feature-engineered (Logistic Regression, 30s/5s)': {'color': '#ff6361', 'marker': 'v', 'linestyle': '-'},
-        'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#bc5090', 'marker': 'o', 'linestyle': '--',
+        'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#ff764a', 'marker': 'o', 'linestyle': '--',
                                                               'linewidth': 2., 'alpha': 0.2},
         'Feature-engineered (Logistic Regression, 30s/15s)': {'color': '#665191', 'marker': 's', 'linestyle': ':'},
         'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '#ef5675', 'marker': 'x', 'linestyle': '-',
@@ -1127,7 +1187,7 @@ def plot_metric_vs_label_fraction_v3(df, metric="auroc", save_path=None, use_par
     # Set y-axis limits and ticks
     ax.set_ylim(0.3, 1.0)
     ax.set_yticks(np.arange(0.5, 1.05, 0.1))
-    ax.axvline(50, linestyle='--', linewidth=1.0, color='0.45', zorder=1)
+    # ax.axvline(50, linestyle='--', linewidth=1.0, color='0.45', zorder=1)
     ax.set_axisbelow(True)
 
     # Add horizontal line at random baseline
@@ -1443,6 +1503,8 @@ def plot_feature_vs_ssl_comparison(df, metric="auroc", save_path=None, use_parti
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_linewidth(1.5)
     ax.spines['bottom'].set_linewidth(1.5)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
 
     plt.tight_layout()
 
@@ -1873,7 +1935,7 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
 
     # fig, ax = plt.subplots(figsize=(12, 8))
 
-    fig, ax = plt.subplots(figsize=(12, 8))  # Wider to accommodate right labels
+    fig, ax = plt.subplots(figsize=(10, 8))  # Wider to accommodate right labels
     ax.grid(axis='y', linestyle='--', linewidth=0.7, alpha=0.7)
 
     # Group by method and calculate mean and std
@@ -1902,62 +1964,67 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
         'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '0.35', 'marker': 'x', 'linestyle': 'dotted', 'linewidth': 1.5},
         'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#E69F00', 'marker': 'o', 'linestyle': '--', 'linewidth': 2},
 
+        # "#0E9FEB"
+        # "#005377"
+
         # TSTCC (regular) - Light Blue
-        'TSTCC (Logistic Regression, 10s/5s)': {'color': '#ffa600', 'marker': 'v', 'linestyle': '-', 'linewidth': 2},
+        'TSTCC (Logistic Regression, 10s/5s)': {'color': "#0E9FEB", 'marker': 'v', 'linestyle': '-', 'linewidth': 2},
         'TSTCC (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '-', 'linewidth': 2},
         'TSTCC (Linear, 10s/5s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': '-', 'linewidth': 2},
         
         # TSTCC_S3 (soft version) - Darker Blue
-        'TSTCC+S3 (Logistic Regression, 10s/5s)': {'color': '#ff764a', 'marker': 'v', 'linestyle': '--', 'linewidth': 2},
+        'TSTCC+S3 (Logistic Regression, 10s/5s)': {'color': "#005377", 'marker': 'v', 'linestyle': '--', 'linewidth': 1.5},
         'TSTCC+S3 (MLP, 10s/5s)': {'color': '#4477AA', 'marker': 's', 'linestyle': '--', 'linewidth': 2},
         'TSTCC+S3 (Linear, 10s/5s)': {'color': '#4477AA', 'marker': '^', 'linestyle': '--', 'linewidth': 2},
         
         # SimCLR (regular) - Light Green
-        'SimCLR (Logistic Regression, 10s/5s)': {'color': '#44AA99', 'marker': '*', 'linestyle': '-', 'linewidth': 2},
+        'SimCLR (Logistic Regression, 10s/5s)': {'color': '#DBABE0', 'marker': 's', 'linestyle': '-', 'linewidth': 1.5},
         'SimCLR (MLP, 10s/5s)': {'color': '#44AA99', 'marker': 'D', 'linestyle': '-', 'linewidth': 2},
         'SimCLR (Linear, 10s/5s)': {'color': '#44AA99', 'marker': 'p', 'linestyle': '-', 'linewidth': 2},
         
-        # SimCLR_S3 (soft version) - Darker Green
-        'SimCLR+S3 (Logistic Regression, 10s/5s)': {'color': '#117733', 'marker': '*', 'linestyle': '--', 'linewidth': 2},
+        # SimCLR_S3 (soft version) - Darker Green #D65048
+        'SimCLR+S3 (Logistic Regression, 10s/5s)': {'color': '#78248E', 'marker': 's', 'linestyle': '--', 'linewidth': 1.5},
         'SimCLR+S3 (MLP, 10s/5s)': {'color': '#117733', 'marker': 'D', 'linestyle': '--', 'linewidth': 2},
         'SimCLR+S3 (Linear, 10s/5s)': {'color': '#117733', 'marker': 'p', 'linestyle': '--', 'linewidth': 2},
 
-
         # TS2Vec (regular) - Light Purple/Magenta
-        'TS2Vec (Logistic Regression, 10s/5s)': {'color': '#CC79A7', 'marker': 'h', 'linestyle': '-', 'linewidth': 2},
+        'TS2Vec (Logistic Regression, 10s/5s)': {'color': '#D2B48C', 'marker': 'D', 'linestyle': '-', 'linewidth': 1.5},
         'TS2Vec (MLP, 10s/5s)': {'color': '#CC79A7', 'marker': '8', 'linestyle': '-', 'linewidth': 2},
         'TS2Vec (Linear, 10s/5s)': {'color': '#CC79A7', 'marker': '*', 'linestyle': '-', 'linewidth': 2},
         
         # TS2Vec_S3 (soft version) - Darker Purple/Magenta
-        'TS2Vec+S3 (Logistic Regression, 10s/5s)': {'color': '#882255', 'marker': 'h', 'linestyle': '--', 'linewidth': 2},
+        'TS2Vec+S3 (Logistic Regression, 10s/5s)': {'color': '#944D0F', 'marker': 'D', 'linestyle': '--', 'linewidth': 1.5},
         'TS2Vec+S3 (MLP, 10s/5s)': {'color': '#882255', 'marker': '8', 'linestyle': '--', 'linewidth': 2},
         'TS2Vec+S3 (Linear, 10s/5s)': {'color': '#882255', 'marker': '*', 'linestyle': '--', 'linewidth': 2},
         
         # InfoTS (regular) - Light Orange/Gold
-        'InfoTS (Logistic Regression, 10s/5s)': {'color': '#D2B48C', 'marker': '>', 'linestyle': '-', 'linewidth': 2},
+        'InfoTS (Logistic Regression, 10s/5s)': {'color': '#EBB952', 'marker': '>', 'linestyle': '-', 'linewidth': 1.5},
         'InfoTS (MLP, 10s/5s)': {'color': '#DDCC77', 'marker': '<', 'linestyle': '-', 'linewidth': 2},
         'InfoTS (Linear, 10s/5s)': {'color': '#DDCC77', 'marker': '1', 'linestyle': '-', 'linewidth': 2},
         
         # InfoTS_S3 (soft version) - Darker Orange/Gold
-        'InfoTS+S3 (Logistic Regression, 10s/5s)': {'color': '#AA6C39', 'marker': '>', 'linestyle': '--', 'linewidth': 2},
+        'InfoTS+S3 (Logistic Regression, 10s/5s)': {'color': '#F08D00', 'marker': '>', 'linestyle': '--', 'linewidth': 1.5},
         'InfoTS+S3 (MLP, 10s/5s)': {'color': '#AA6C39', 'marker': '<', 'linestyle': '--', 'linewidth': 2},
         'InfoTS+S3 (Linear, 10s/5s)': {'color': '#AA6C39', 'marker': '1', 'linestyle': '--', 'linewidth': 2},
         
         # SimCLR with TSTCC Encoder (regular) - Light Orange/Coral
-        'SimCLR_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#FF9999', 'marker': 's', 'linestyle': '-', 'linewidth': 2},
+        'SimCLR_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#FF9999', 'marker': 's', 'linestyle': '-', 'linewidth': 1.5},
         'SimCLR_TSTCC_Encoder (MLP, 10s/5s)': {'color': '#FF9999', 'marker': 'X', 'linestyle': '-', 'linewidth': 2},
         'SimCLR_TSTCC_Encoder (Linear, 10s/5s)': {'color': '#FF9999', 'marker': '+', 'linestyle': '-', 'linewidth': 2},
         
         # SimCLR_S3 with TSTCC Encoder (soft version) - Darker Orange/Red
-        'SimCLR+S3_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#CC3333', 'marker': 's', 'linestyle': '--', 'linewidth': 2},
+        'SimCLR+S3_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#CC3333', 'marker': 's', 'linestyle': '--', 'linewidth': 1.5},
         'SimCLR+S3_TSTCC_Encoder (MLP, 10s/5s)': {'color': '#CC3333', 'marker': 'X', 'linestyle': '--', 'linewidth': 2},
         'SimCLR+S3_TSTCC_Encoder (Linear, 10s/5s)': {'color': '#CC3333', 'marker': '+', 'linestyle': '--', 'linewidth': 2},
         
         # SimCLR_TSTCC_Encoder_S3 (alternative naming) - Same as SimCLR+S3_TSTCC_Encoder
-        'SimCLR_TSTCC_Encoder+S3 (Logistic Regression, 10s/5s)': {'color': '#CC3333', 'marker': 's', 'linestyle': '--', 'linewidth': 2},
+        'SimCLR_TSTCC_Encoder+S3 (Logistic Regression, 10s/5s)': {'color': '#CC3333', 'marker': 's', 'linestyle': '--', 'linewidth': 1.5},
         'SimCLR_TSTCC_Encoder+S3 (MLP, 10s/5s)': {'color': '#CC3333', 'marker': 'X', 'linestyle': '--', 'linewidth': 2},
         'SimCLR_TSTCC_Encoder+S3 (Linear, 10s/5s)': {'color': '#CC3333', 'marker': '+', 'linestyle': '--', 'linewidth': 2},
     }
+
+    # #56B4E9
+    # S3 #009E73"
 
     # Plot each method
     for method in grouped['method_label'].unique():
@@ -2005,7 +2072,7 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
 
     # Customize the plot
     if use_participant_count:
-        ax.set_xlabel('# Labeled Training Participants', fontsize=14)
+        ax.set_xlabel('# Labeled Training Participants', fontsize=18)
         # Set x-axis scale and limits for participant count
         ax.set_xscale('log')
         ax.set_xlim(0.8, 110)
@@ -2014,7 +2081,7 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
         ax.set_xticks(x_ticks)
         ax.set_xticklabels([str(x) for x in x_ticks])
     else:
-        ax.set_xlabel('Label Fraction (% of Training Participants Labeled)', fontsize=14)
+        ax.set_xlabel('Label Fraction (% of Training Participants Labeled)', fontsize=18)
         # Set x-axis to log scale for better visualization of small fractions
         ax.set_xscale('log')
         ax.set_xlim(0.8, 120)
@@ -2024,11 +2091,11 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
         ax.set_xticklabels([f'{x}%' for x in x_ticks])
 
     y_name = 'AUROC' if metric == "auroc" else "PR-AUC"
-    ax.set_ylabel(y_name, fontsize=14)
+    ax.set_ylabel(y_name, fontsize=18)
     # ax.set_title(f'SSL Methods Comparison: {y_name} vs Label Fraction', fontsize=16, fontweight='bold', pad=20)
 
     # Set y-axis limits and ticks
-    ax.set_ylim(0.3, 1.0)
+    ax.set_ylim(0.5, 1.0) if y_name == "PR-AUC" else ax.set_ylim(0.45, 1.0)
     ax.set_yticks(np.arange(0.5, 1.05, 0.1))
 
     # Add grid
@@ -2036,17 +2103,20 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
     ax.set_axisbelow(True)
 
     # Add horizontal line at random baseline
-    if metric == "auroc":
-        ax.axhline(y=0.5, color='0.45', linestyle='solid', alpha=0.7, linewidth=2, label="Random Baseline")
-    elif metric == "pr_auc":
-        ax.axhline(y=0.5736, color='0.45', linestyle='solid', alpha=0.7, linewidth=2, label="Random Baseline")
+    # if metric == "auroc":
+    #     ax.axhline(y=0.5, color='0.45', linestyle='solid', alpha=0.7, linewidth=2, label="Random Baseline")
+    # if metric == "pr_auc":
+    #     ax.axhline(y=0.5736, color='0.45', linestyle='solid', alpha=0.7, linewidth=2, label="Random Baseline")
 
     # Customize legend
     error_type = "Standard Error" if use_standard_error else "Standard Deviation"
     # ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
     #                    fontsize=10, title=f'SSL Methods (±{error_type})', title_fontsize=11)
     ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
-                       fontsize=10)
+                       fontsize=18, ncols=2)
+
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
 
     # Improve overall appearance
     ax.spines['top'].set_visible(False)
@@ -2057,7 +2127,7 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
     plt.tight_layout()
 
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+        plt.savefig(save_path, dpi=500, bbox_inches='tight', facecolor='white')
         print(f"Plot saved to {save_path}")
 
     plt.show()
@@ -2406,7 +2476,7 @@ def main():
             save_path='ssl_methods_auroc_comparison.png',
             use_participant_count=use_participant_count,
             use_standard_error=True,
-            include_features=True,
+            include_features=False,
         )
 
         plot_ssl_comparison(
@@ -2415,7 +2485,7 @@ def main():
             save_path='ssl_methods_pr_auc_comparison.png',
             use_participant_count=use_participant_count,
             use_standard_error=True,
-            include_features=True,
+            include_features=False,
         )
 
         # Save SSL comparison data to CSV
@@ -2456,135 +2526,135 @@ def main():
     #     print("No feature vs SSL comparison results found!")
     #
     # # Load and plot transfer learning results for both datasets
-    print("\nLoading transfer learning results...")
-    datasets = ["WESAD", "StressID"]
-
-    for dataset_name in datasets:
-        print(f"\nProcessing {dataset_name} transfer learning results...")
-
-        # Load combined transfer learning and feature baseline results for this dataset
-        transfer_df = load_combined_transfer_learning_results(base_path, dataset_name)
-
-        if transfer_df.empty:
-
-            print(f"No transfer learning results found for {dataset_name}")
-            continue
-
-        print(f"Successfully loaded {len(transfer_df)} transfer learning results for {dataset_name}")
-
-        # Create method labels for transfer learning data
-        transfer_df = create_method_labels(transfer_df)
-
-        # Set participant counts based on dataset
-        if dataset_name == "WESAD":
-            total_participants = 12  #
-        elif dataset_name == "StressID":
-            total_participants = 52  #
-        else:
-            total_participants = 101  # Default fallback
-
-        # Create transfer learning plots for AUROC
-        print(f"Creating {dataset_name} transfer learning AUROC plot...")
-        plot_transfer_learning_results(
-            transfer_df,
-            dataset_name=dataset_name,
-            metric="auroc",
-            save_path=f'{dataset_name.lower()}_transfer_learning_auroc.png',
-            use_participant_count=use_participant_count,
-            total_participants=total_participants,
-            use_standard_error=True
-        )
-
-        # Create transfer learning plots for PR-AUC
-        print(f"Creating {dataset_name} transfer learning PR-AUC plot...")
-        plot_transfer_learning_results(
-            transfer_df,
-            dataset_name=dataset_name,
-            metric="pr_auc",
-            save_path=f'{dataset_name.lower()}_transfer_learning_pr_auc.png',
-            use_participant_count=use_participant_count,
-            total_participants=total_participants,
-            use_standard_error=True
-        )
-
-        # Create fine-tuned vs pretrained comparison plots
-        print(f"Creating {dataset_name} fine-tuned vs pre-trained comparison plots...")
-        plot_fine_tuned_vs_pretrained_comparison(
-            transfer_df,
-            dataset_name=dataset_name,
-            metric="auroc",
-            save_path=f'{dataset_name.lower()}_fine_tuned_vs_pretrained_auroc.png',
-            use_participant_count=use_participant_count,
-            total_participants=total_participants,
-            use_standard_error=True
-        )
-        plot_fine_tuned_vs_pretrained_comparison(
-            transfer_df,
-            dataset_name=dataset_name,
-            metric="pr_auc",
-            save_path=f'{dataset_name.lower()}_fine_tuned_vs_pretrained_pr_auc.png',
-            use_participant_count=use_participant_count,
-            total_participants=total_participants,
-            use_standard_error=True
-        )
-
-        # Save transfer learning data to CSV
-        transfer_df.to_csv(f'{dataset_name.lower()}_transfer_learning_results_summary.csv', index=False)
-        print(f"{dataset_name} transfer learning results saved to '{dataset_name.lower()}_transfer_learning_results_summary.csv'")
-
-    # Load and plot zero-shot transfer results for both datasets
-    print("\nLoading zero-shot transfer results...")
-
-    for dataset_name in datasets:
-        print(f"\nProcessing {dataset_name} zero-shot transfer results...")
-
-        # Load zero-shot results for this dataset
-        zero_shot_df = load_zero_shot_results(base_path, dataset_name)
-
-        if zero_shot_df.empty:
-            print(f"No zero-shot results found for {dataset_name}")
-            continue
-
-        print(f"Successfully loaded {len(zero_shot_df)} zero-shot results for {dataset_name}")
-
-        # Create method labels for zero-shot data
-        zero_shot_df = create_zero_shot_method_labels(zero_shot_df)
-
-        # Set participant counts based on dataset (same as transfer learning)
-        if dataset_name == "WESAD":
-            total_participants = 12
-        elif dataset_name == "StressID":
-            total_participants = 52
-        else:
-            total_participants = 101
-
-        # Create zero-shot plots for AUROC
-        print(f"Creating {dataset_name} zero-shot AUROC plot...")
-        plot_zero_shot_results(
-            zero_shot_df,
-            dataset_name=dataset_name,
-            metric="auroc",
-            save_path=f'{dataset_name.lower()}_zero_shot_transfer_auroc.png',
-            use_participant_count=use_participant_count,
-            total_participants=total_participants,
-            use_standard_error=True
-        )
-
-        # Create zero-shot plots for PR-AUC
-        print(f"Creating {dataset_name} zero-shot PR-AUC plot...")
-        plot_zero_shot_results(
-            zero_shot_df,
-            dataset_name=dataset_name,
-            metric="pr_auc",
-            save_path=f'{dataset_name.lower()}_zero_shot_transfer_pr_auc.png',
-            use_participant_count=use_participant_count,
-            total_participants=total_participants,
-            use_standard_error=True
-        )
-
-        # Save zero-shot data to CSV
-        zero_shot_df.to_csv(f'{dataset_name.lower()}_zero_shot_results_summary.csv', index=False)
-        print(f"{dataset_name} zero-shot results saved to '{dataset_name.lower()}_zero_shot_results_summary.csv'")
+    # print("\nLoading transfer learning results...")
+    # datasets = ["WESAD", "StressID"]
+    #
+    # for dataset_name in datasets:
+    #     print(f"\nProcessing {dataset_name} transfer learning results...")
+    #
+    #     # Load combined transfer learning and feature baseline results for this dataset
+    #     transfer_df = load_combined_transfer_learning_results(base_path, dataset_name)
+    #
+    #     if transfer_df.empty:
+    #
+    #         print(f"No transfer learning results found for {dataset_name}")
+    #         continue
+    #
+    #     print(f"Successfully loaded {len(transfer_df)} transfer learning results for {dataset_name}")
+    #
+    #     # Create method labels for transfer learning data
+    #     transfer_df = create_method_labels(transfer_df)
+    #
+    #     # Set participant counts based on dataset
+    #     if dataset_name == "WESAD":
+    #         total_participants = 12  #
+    #     elif dataset_name == "StressID":
+    #         total_participants = 52  #
+    #     else:
+    #         total_participants = 101  # Default fallback
+    #
+    #     # Create transfer learning plots for AUROC
+    #     print(f"Creating {dataset_name} transfer learning AUROC plot...")
+    #     plot_transfer_learning_results(
+    #         transfer_df,
+    #         dataset_name=dataset_name,
+    #         metric="auroc",
+    #         save_path=f'{dataset_name.lower()}_transfer_learning_auroc.png',
+    #         use_participant_count=use_participant_count,
+    #         total_participants=total_participants,
+    #         use_standard_error=True
+    #     )
+    #
+    #     # Create transfer learning plots for PR-AUC
+    #     print(f"Creating {dataset_name} transfer learning PR-AUC plot...")
+    #     plot_transfer_learning_results(
+    #         transfer_df,
+    #         dataset_name=dataset_name,
+    #         metric="pr_auc",
+    #         save_path=f'{dataset_name.lower()}_transfer_learning_pr_auc.png',
+    #         use_participant_count=use_participant_count,
+    #         total_participants=total_participants,
+    #         use_standard_error=True
+    #     )
+    #
+    #     # Create fine-tuned vs pretrained comparison plots
+    #     print(f"Creating {dataset_name} fine-tuned vs pre-trained comparison plots...")
+    #     plot_fine_tuned_vs_pretrained_comparison(
+    #         transfer_df,
+    #         dataset_name=dataset_name,
+    #         metric="auroc",
+    #         save_path=f'{dataset_name.lower()}_fine_tuned_vs_pretrained_auroc.png',
+    #         use_participant_count=use_participant_count,
+    #         total_participants=total_participants,
+    #         use_standard_error=True
+    #     )
+    #     plot_fine_tuned_vs_pretrained_comparison(
+    #         transfer_df,
+    #         dataset_name=dataset_name,
+    #         metric="pr_auc",
+    #         save_path=f'{dataset_name.lower()}_fine_tuned_vs_pretrained_pr_auc.png',
+    #         use_participant_count=use_participant_count,
+    #         total_participants=total_participants,
+    #         use_standard_error=True
+    #     )
+    #
+    #     # Save transfer learning data to CSV
+    #     transfer_df.to_csv(f'{dataset_name.lower()}_transfer_learning_results_summary.csv', index=False)
+    #     print(f"{dataset_name} transfer learning results saved to '{dataset_name.lower()}_transfer_learning_results_summary.csv'")
+    #
+    # # Load and plot zero-shot transfer results for both datasets
+    # print("\nLoading zero-shot transfer results...")
+    #
+    # for dataset_name in datasets:
+    #     print(f"\nProcessing {dataset_name} zero-shot transfer results...")
+    #
+    #     # Load zero-shot results for this dataset
+    #     zero_shot_df = load_zero_shot_results(base_path, dataset_name)
+    #
+    #     if zero_shot_df.empty:
+    #         print(f"No zero-shot results found for {dataset_name}")
+    #         continue
+    #
+    #     print(f"Successfully loaded {len(zero_shot_df)} zero-shot results for {dataset_name}")
+    #
+    #     # Create method labels for zero-shot data
+    #     zero_shot_df = create_zero_shot_method_labels(zero_shot_df)
+    #
+    #     # Set participant counts based on dataset (same as transfer learning)
+    #     if dataset_name == "WESAD":
+    #         total_participants = 12
+    #     elif dataset_name == "StressID":
+    #         total_participants = 52
+    #     else:
+    #         total_participants = 101
+    #
+    #     # Create zero-shot plots for AUROC
+    #     print(f"Creating {dataset_name} zero-shot AUROC plot...")
+    #     plot_zero_shot_results(
+    #         zero_shot_df,
+    #         dataset_name=dataset_name,
+    #         metric="auroc",
+    #         save_path=f'{dataset_name.lower()}_zero_shot_transfer_auroc.png',
+    #         use_participant_count=use_participant_count,
+    #         total_participants=total_participants,
+    #         use_standard_error=True
+    #     )
+    #
+    #     # Create zero-shot plots for PR-AUC
+    #     print(f"Creating {dataset_name} zero-shot PR-AUC plot...")
+    #     plot_zero_shot_results(
+    #         zero_shot_df,
+    #         dataset_name=dataset_name,
+    #         metric="pr_auc",
+    #         save_path=f'{dataset_name.lower()}_zero_shot_transfer_pr_auc.png',
+    #         use_participant_count=use_participant_count,
+    #         total_participants=total_participants,
+    #         use_standard_error=True
+    #     )
+    #
+    #     # Save zero-shot data to CSV
+    #     zero_shot_df.to_csv(f'{dataset_name.lower()}_zero_shot_results_summary.csv', index=False)
+    #     print(f"{dataset_name} zero-shot results saved to '{dataset_name.lower()}_zero_shot_results_summary.csv'")
 
     # return df
 
