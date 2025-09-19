@@ -703,7 +703,7 @@ def search_encoder_fp(
 # ----------------------------------------------------------------------
 def Trainer(
         model, temporal_contr_model, model_optimizer, temp_cont_optimizer, train_dl, valid_dl,
-        test_dl, device, config, experiment_log_dir, training_mode, save_path_result=RESULTS_PATH,
+        test_dl, device, config, experiment_log_dir, training_mode, results_save_path=RESULTS_PATH,
 ):
     # Start training
     print("Training started ....")
@@ -713,8 +713,6 @@ def Trainer(
 
     # Start recording memory snapshot history
     if torch.cuda.is_available():
-        torch.cuda.memory._record_memory_history(max_entries=100000)
-
         # Add this to your training loop for systematic reporting
         torch.cuda.reset_peak_memory_stats()
 
@@ -753,16 +751,12 @@ def Trainer(
 
     # Dump memory snapshot history to a file and stop recording
     # Start recording memory snapshot history
-    with open(os.path.join(save_path_result, "runtime_per_epoch.json"), "w") as f:
+    with open(os.path.join(results_save_path, "runtime_per_epoch.json"), "w") as f:
         json.dump(epoch_runtime, f, indent=2)
 
     if torch.cuda.is_available():
-        with open(os.path.join(save_path_result, "peak_memory_consumption_epochs.json"), "w") as f:
+        with open(os.path.join(results_save_path, "peak_memory_consumption_epochs.json"), "w") as f:
             json.dump(epoch_peak_memory, f, indent=2)
-
-        torch.cuda.memory._record_memory_history(enabled=None)  # Stop recording
-        save_path = os.path.join(save_path_result, "profile.pkl")
-        torch.cuda.memory._dump_snapshot(save_path)
 
     # Save models (either best from early stopping or final)
     os.makedirs(os.path.join(experiment_log_dir, "saved_models"), exist_ok=True)
