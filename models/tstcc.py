@@ -733,7 +733,7 @@ def Trainer(
 
         # Calculate epoch runtime
         epoch_runtime = time.time() - epoch_start_time
-        epoch_runtimes[epoch] = epoch_runtime
+        epoch_runtimes[f"{epoch}"] = epoch_runtime
 
         # Log memory usage for CUDA
         if torch.cuda.is_available():
