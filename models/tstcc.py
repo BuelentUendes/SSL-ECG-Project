@@ -1,3 +1,5 @@
+import json
+
 import torch
 import torch.nn as nn
 import numpy as np
@@ -700,7 +702,7 @@ def search_encoder_fp(
 # ----------------------------------------------------------------------
 def Trainer(
         model, temporal_contr_model, model_optimizer, temp_cont_optimizer, train_dl, valid_dl,
-        test_dl, device, config, experiment_log_dir, training_mode,
+        test_dl, device, config, experiment_log_dir, training_mode, save_path_result=RESULTS_PATH,
 ):
     # Start training
     print("Training started ....")
@@ -715,6 +717,7 @@ def Trainer(
         # Add this to your training loop for systematic reporting
         torch.cuda.reset_peak_memory_stats()
 
+    epoch_peak_memory = {}
     for epoch in range(1, config.num_epoch + 1):
         # Train and validate
         train_loss, train_acc = model_train(model, temporal_contr_model, model_optimizer, temp_cont_optimizer,
@@ -722,6 +725,7 @@ def Trainer(
 
         # Log memory usage for CUDA
         if torch.cuda.is_available():
+            epoch_peak_memory[f"{epoch}"] = torch.cuda.max_memory_allocated() / (1024 ** 3)
             print(f"Peak memory allocated during epoch {epoch}: {torch.cuda.max_memory_allocated() / (1024 ** 3):.2f} GB")
         if valid_dl is not None:
             val_loss, valid_acc, _, _ = model_evaluate(model, temporal_contr_model, valid_dl, device, training_mode, config)
@@ -740,8 +744,11 @@ def Trainer(
     # Dump memory snapshot history to a file and stop recording
     # Start recording memory snapshot history
     if torch.cuda.is_available():
+        with open(os.path.join(save_path_result, "peak_memory_consumption_epochs.json")) as f:
+            json.dump(epoch_peak_memory, f, indent=2)
+
         torch.cuda.memory._record_memory_history(enabled=None)  # Stop recording
-        save_path = os.path.join(RESULTS_PATH, "profile.pkl")
+        save_path = os.path.join(save_path_result, "profile.pkl")
         torch.cuda.memory._dump_snapshot(save_path)
 
     # Save models (either best from early stopping or final)
