@@ -781,7 +781,7 @@ def model_train(model, temporal_contr_model,
             _, feat1 = model(aug1)
             _, feat2 = model(aug2)
 
-            print("Peak memory allocated during operation:", torch.cuda.max_memory_allocated())
+            print(f"Peak memory allocated during operation:, {torch.cuda.max_memory_allocated()/(10**9):.2f} GB")
 
             loss = compute_ssl_loss(feat1, feat2, temporal_contr_model, nt_xent)
         else:                          
