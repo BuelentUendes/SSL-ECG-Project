@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import time
 import json
 import argparse
 import logging
@@ -214,12 +215,37 @@ def main(
 
         logging.info(f"Training parameters: {fp}")
 
+        epoch_peak_memory = {}
+        epoch_runtimes = {}
+
+        # Start recording memory snapshot history
+        if torch.cuda.is_available():
+            # Add this to your training loop for systematic reporting
+            torch.cuda.reset_peak_memory_stats()
+
         # Train SimCLR
         for ep in range(1, epochs + 1):
+            epoch_start_time = time.time()
             print(f"Please wait: Run epoch: {ep}")
             tr_loss = pretrain_one_epoch(model, tr_dl, loss_fn, opt, device)
+            # Calculate epoch runtime
+            epoch_runtime = time.time() - epoch_start_time
+            epoch_runtimes[f"{ep}"] = epoch_runtime
+
+            # Log memory usage for CUDA
+            if torch.cuda.is_available():
+                epoch_peak_memory[f"{ep}"] = torch.cuda.max_memory_allocated() / (1024 ** 3)
+                print(f"Peak memory allocated during epoch {ep}: {torch.cuda.max_memory_allocated() / (1024 ** 3):.2f} GB")
+
             logging.info(f"SSL train loss: {tr_loss}")
             print(f"Epoch {ep}/{epochs}: loss={tr_loss:.4f}")
+
+        with open(os.path.join(results_save_path, "runtime_per_epoch.json"), "w") as f:
+            json.dump(epoch_runtimes, f, indent=2)
+
+        if torch.cuda.is_available():
+            with open(os.path.join(results_save_path, "peak_memory_consumption_epochs.json"), "w") as f:
+                json.dump(epoch_peak_memory, f, indent=2)
 
         # Save model locally
         saved_results = os.path.join(model_save_path, "simclr_encoder.pt")
