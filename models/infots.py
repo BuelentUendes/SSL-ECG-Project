@@ -1,3 +1,6 @@
+import time
+import json
+
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -22,6 +25,9 @@ from tqdm import tqdm
 
 # Mixed precision training
 from torch.cuda.amp import autocast, GradScaler
+
+from utils.helper_paths import RESULTS_PATH
+
 
 # --------------------------------------------------------
 # utils.py functions needed by InfoTS
@@ -646,7 +652,7 @@ class InfoTS:
 
     def fit(self, train_data, n_epochs=None, n_iters=None, verbose=True,
             supervised_meta=True, beta=1.0, valid_dataset=None, miverbose=None, 
-            split_number=8, meta_epoch=2, meta_beta=1.0, train_labels=None):
+            split_number=8, meta_epoch=2, meta_beta=1.0, train_labels=None, results_save_path=RESULTS_PATH):
         
         assert train_data.ndim == 3
         
@@ -678,9 +684,19 @@ class InfoTS:
         meta_optimizer = torch.optim.AdamW(meta_p, lr=self.meta_lr)
         optimizer = torch.optim.AdamW(self._net.parameters(), lr=self.lr)
 
+        # Start recording memory snapshot history
+        if torch.cuda.is_available():
+            # Add this to your training loop for systematic reporting
+            torch.cuda.reset_peak_memory_stats()
+
         loss_log = []
 
+        epoch_peak_memory = {}
+        epoch_runtimes = {}
+
         while True:
+            epoch_start_time = time.time()
+
             if n_epochs is not None and self.n_epochs >= n_epochs:
                 break
             
@@ -738,14 +754,31 @@ class InfoTS:
             pbar.close()
             self.n_epochs += 1
 
+            # Log memory usage for CUDA
+            if torch.cuda.is_available():
+                epoch_peak_memory[f"{self.n_epochs}"] = torch.cuda.max_memory_allocated() / (1024 ** 3)
+                print(
+                    f"Peak memory allocated during epoch {self.n_epochs}: {torch.cuda.max_memory_allocated() / (1024 ** 3):.2f} GB")
+
             if interrupted:
                 break
-            
+
+            # Calculate epoch runtime
+            epoch_runtime = time.time() - epoch_start_time
+            epoch_runtimes[f"{self.n_epochs}"] = epoch_runtime
+
             cum_loss /= n_epoch_iters
             loss_log.append(cum_loss)
             if verbose:
                 print(f"Epoch #{self.n_epochs}: loss={cum_loss}")
                 mlflow.log_metric("train_loss", cum_loss, step=self.n_epochs)
+
+        with open(os.path.join(results_save_path, "runtime_per_epoch.json"), "w") as f:
+            json.dump(epoch_runtimes, f, indent=2)
+
+        if torch.cuda.is_available():
+            with open(os.path.join(results_save_path, "peak_memory_consumption_epochs.json"), "w") as f:
+                json.dump(epoch_peak_memory, f, indent=2)
 
         return loss_log
 

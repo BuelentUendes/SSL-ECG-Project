@@ -235,7 +235,8 @@ def main(
             X_train_encoder,
             n_epochs=infots_epochs,
             verbose=True,
-            supervised_meta=False  # InfoTS uses unsupervised meta-learning by default
+            supervised_meta=False,
+            results_save_path=results_save_path, # InfoTS uses unsupervised meta-learning by default
         )
 
         # Save model
