@@ -720,9 +720,9 @@ def Trainer(
         train_loss, train_acc = model_train(model, temporal_contr_model, model_optimizer, temp_cont_optimizer,
                                             criterion, train_dl, config, device, training_mode)
 
-        # Start recording memory snapshot history
+        # Log memory usage for CUDA
         if torch.cuda.is_available():
-            print(f"Peak memory allocated during operation epoch:, {torch.cuda.max_memory_allocated() / (1024 ** 3):.2f} GB")
+            print(f"Peak memory allocated during epoch {epoch}: {torch.cuda.max_memory_allocated() / (1024 ** 3):.2f} GB")
         if valid_dl is not None:
             val_loss, valid_acc, _, _ = model_evaluate(model, temporal_contr_model, valid_dl, device, training_mode, config)
 
@@ -740,6 +740,7 @@ def Trainer(
     # Dump memory snapshot history to a file and stop recording
     # Start recording memory snapshot history
     if torch.cuda.is_available():
+        torch.cuda.memory._record_memory_history(enabled=None)  # Stop recording
         save_path = os.path.join(RESULTS_PATH, "profile.pkl")
         torch.cuda.memory._dump_snapshot(save_path)
 
