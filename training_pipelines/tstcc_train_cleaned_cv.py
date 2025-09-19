@@ -359,6 +359,7 @@ def main(
             device=device, config=cfg,
             experiment_log_dir=workdir,
             training_mode="self_supervised",
+            results_save_path=results_save_path,
         )
         model_file_name = "tstcc_spectral.pt" if use_spectral_augmentation else "tstcc.pt"
         ckpt = os.path.join(workdir, model_file_name)
