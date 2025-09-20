@@ -24,7 +24,6 @@ def load_results_from_structure(base_path):
         # "ECG/Supervised/deep_ecg_net",
         "ECG/TSTCC/logistic_regression",
         # "ECG/TSTCC/mlp",
-        "ECG/TSTCC/linear",
         "ECG/TSTCC_S3/logistic_regression",
         # "ECG/TSTCC/xgboost",
         "ECG_features/logistic_regression",
@@ -50,14 +49,11 @@ def load_results_from_structure(base_path):
                 learning_method = "TSTCC+S3"
             model_type = path_parts[2]
 
-        # Look for seed folders (including "42_s3" for TSTCC)
         for seed_folder in method_path.iterdir():
             if seed_folder.is_dir():
                 # Handle both numeric seeds (3, 5, 7, 9, 42) and special seeds like "42_s3"
                 if seed_folder.name.isdigit():
                     seed = int(seed_folder.name)
-                elif seed_folder.name == "42_s3":
-                    seed = 43  # Use 43 to distinguish from regular seed 42
                 else:
                     continue
 
@@ -77,15 +73,13 @@ def load_results_from_structure(base_path):
                             for window_size, window_shift in window_combinations:
                                 if learning_method == "TSTCC" and window_size == 30:
                                     continue
-                                json_file = label_folder / str(window_size) / str(window_shift) / "test_results.json"
-                                
-                                # Special handling for different file structures
-                                if not json_file.exists():
-                                    # Try with additional subfolder for some models
-                                    if model_type == "xgboost":
-                                        json_file = label_folder / str(window_size) / str(window_shift) / "0.75" / "test_results.json"
-                                    elif model_type in ["logistic_regression", "mlp"] and learning_method in ["TSTCC", "TSTCC+S3"]:
-                                        json_file = label_folder / str(window_size) / str(window_shift) / "1.0" / "test_results.json"
+                                # Use consistent path structure: always use nested 1.0 folder for TSTCC methods
+                                if model_type in ["logistic_regression", "mlp"] and learning_method in ["TSTCC", "TSTCC+S3"]:
+                                    json_file = label_folder / str(window_size) / str(window_shift) / "1.0" / "test_results.json"
+                                elif model_type == "xgboost":
+                                    json_file = label_folder / str(window_size) / str(window_shift) / "0.75" / "test_results.json"
+                                else:
+                                    json_file = label_folder / str(window_size) / str(window_shift) / "test_results.json"
                                 
                                 if json_file.exists():
                                     try:
@@ -660,307 +654,311 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
     """
 
     # Set up the plotting style
-    plt.style.use('default')
-    sns.set_palette("husl")
+    # plt.style.use('default')
+    # plt.style.use(['science', 'no-latex'])
 
-    fig, ax = plt.subplots(figsize=(10, 8))
-    ax.grid(axis='y', linestyle='--', linewidth=0.7, alpha=0.7)
+    with plt.style.context(['ieee']):
 
-    # Group by method and calculate mean and std
-    grouped = df.groupby(['method_label', 'label_fraction'])[metric].agg(['mean', 'std', 'count']).reset_index()
-    
-    # Calculate standard error if requested
-    if use_standard_error:
-        grouped['error'] = grouped['std'] / np.sqrt(grouped['count'])
-    else:
-        grouped['error'] = grouped['std']
-    
-    # Calculate number of labeled participants
-    def calculate_labeled_participants(label_fraction):
-        return max(1, int(total_participants * label_fraction))
-    
-    grouped['n_labeled_participants'] = grouped['label_fraction'].apply(calculate_labeled_participants)
+        # sns.set_palette("husl")
 
-    # Define colors and markers for different methods
-    # method_styles = {
-    #     # Feature-engineered (different window configurations)
-    #     # Orange #E69F00
-    #     'Feature-engineered (Logistic Regression, 30s/5s)': {'color': '#ff6361', 'marker': 'v', 'linestyle': '-'},
-    #     'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#E69F00', 'marker': 'o', 'linestyle': '--'},
-    #     'Feature-engineered (Logistic Regression, 30s/15s)': {'color': '#665191', 'marker': 's', 'linestyle': ':'},
-    #     'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '#F0746E', 'marker': 'x', 'linestyle': '-'},
-    #     'Feature-engineered (MLP, 30s/5s)': {'color': '#E69F00', 'marker': '8', 'linestyle': '-'},
-    #     'Feature-engineered (MLP, 30s/10s)': {'color': '#E69F00', 'marker': 'D', 'linestyle': '--'},
-    #     'Feature-engineered (MLP, 30s/15s)': {'color': '#E69F00', 'marker': 'h', 'linestyle': ':'},
-    #
-    #     # Supervised methods (10s)
-    #     # '#7CCBA2' Green
-    #     # lIGHT BLUE
-    #     # '#7C1D6F' Purple
-    #     # Dark blueL '#045275'
-    #     'Supervised (CNN, 10s/5s)': {'color': '#226E9C', 'marker': '^', 'linestyle': '-'},
-    #     # 3D796F
-    #     # 9ECDC1
-    #     # e6c994
-    #     # Pruple: #7CCBA2
-    #     # Nice one: #AB1866
-    #
-    #     # "#991f17" This is a good one :)
-    #     # '#E32977' old redish
-    #     # "#b04238"
-    #     'Supervised (TCN, 10s/5s)': {'color': "#b04238", 'marker': '>', 'linestyle': '-'},
-    #     'Supervised (Transformer, 10s/5s)': {'color': '#7CCBA2', 'marker': '<', 'linestyle': '-'},
-    #     'Supervised (DeepECGNet, 10s/5s)': {'color': '#117733', 'marker': 'o', 'linestyle': '-'},
-    #
-    #     # TSTCC (10s and 30s) - ALL LIGHT BLUE '#88CCEE'
-    #     'TSTCC (Logistic Regression, 10s/5s)': {'color': '#88CCEE', 'marker': 'v', 'linestyle': '-'},
-    #     'TSTCC (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
-    #     'TSTCC (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '--'},
-    #     'TSTCC (Logistic Regression, 30s/15s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': ':'},
-    #     'TSTCC (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 'p', 'linestyle': '-'},
-    #     'TSTCC (MLP, 30s/5s)': {'color': '#88CCEE', 'marker': '8', 'linestyle': '-'},
-    #     'TSTCC (MLP, 30s/10s)': {'color': '#88CCEE', 'marker': 'D', 'linestyle': '--'},
-    #     'TSTCC (MLP, 30s/15s)': {'color': '#88CCEE', 'marker': 'h', 'linestyle': ':'},
-    #     'TSTCC (Linear, 10s/5s)': {'color': '#88CCEE', 'marker': '*', 'linestyle': '-'},
-    #     'TSTCC (Linear, 30s/5s)': {'color': '#88CCEE', 'marker': '1', 'linestyle': '-'},
-    #     'TSTCC (Linear, 30s/10s)': {'color': '#88CCEE', 'marker': '+', 'linestyle': '--'},
-    #     'TSTCC (Linear, 30s/15s)': {'color': '#88CCEE', 'marker': 'x', 'linestyle': ':'},
-    #
-    #     'TSTCC_S3 (Logistic Regression, 10s/5s)': {'color': '#799EFF', 'marker': 'p', 'linestyle': '-'},
-    #
-    #     # Supervised methods (30s) - in case they exist
-    #     'Supervised (CNN, 30s/5s)': {'color': '#D55E00', 'marker': 'v', 'linestyle': '-'},
-    #     'Supervised (CNN, 30s/10s)': {'color': '#D55E00', 'marker': 'o', 'linestyle': '--'},
-    #     'Supervised (CNN, 30s/15s)': {'color': '#D55E00', 'marker': 's', 'linestyle': ':'},
-    #     'Supervised (TCN, 30s/5s)': {'color': '#44AA99', 'marker': 'p', 'linestyle': '-'},
-    #     'Supervised (TCN, 30s/10s)': {'color': '#44AA99', 'marker': 's', 'linestyle': '--'},
-    #     'Supervised (TCN, 30s/15s)': {'color': '#44AA99', 'marker': 'D', 'linestyle': ':'},
-    #     'Supervised (Transformer, 30s/5s)': {'color': '#58508d', 'marker': '8', 'linestyle': '-'},
-    #     'Supervised (Transformer, 30s/10s)': {'color': '#58508d', 'marker': 'D', 'linestyle': '--'},
-    #     'Supervised (Transformer, 30s/15s)': {'color': '#58508d', 'marker': 'h', 'linestyle': ':'},
-    #     'Supervised (DeepECGNet, 30s/5s)': {'color': '#117733', 'marker': '1', 'linestyle': '-'},
-    #     'Supervised (DeepECGNet, 30s/10s)': {'color': '#117733', 'marker': '>', 'linestyle': '--'},
-    #     'Supervised (DeepECGNet, 30s/15s)': {'color': '#117733', 'marker': '<', 'linestyle': ':'},
-    # }
+        fig, ax = plt.subplots(figsize=(10, 8))
+        ax.grid(axis='y', linestyle='--', color='0.35', linewidth=0.7, alpha=0.7)
 
-    # Divergent pattern
-    # method_styles = {
-    #     # Feature-engineered (different window configurations)
-    #     'Feature-engineered (Logistic Regression, 30s/5s)': {'color': '#ff6361', 'marker': 'v', 'linestyle': '-'},
-    #     'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#bc5090', 'marker': 'o', 'linestyle': '--',
-    #                                                           'linewidth': 2., 'alpha': 0.2},
-    #     'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '#ef5675', 'marker': 'x', 'linestyle': '-',
-    #                                                          'linewidth': 2., 'alpha': 0.2},
-    #
-    #     'Feature-engineered (Logistic Regression, 30s/15s)': {'color': '#665191', 'marker': 's', 'linestyle': ':'},
-    #     'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '#ef5675', 'marker': 'x', 'linestyle': '-',
-    #                                                          'linewidth': 2., 'alpha': 0.2},
-    #     'Feature-engineered (MLP, 30s/5s)': {'color': '#E69F00', 'marker': '8', 'linestyle': '-'},
-    #     'Feature-engineered (MLP, 30s/10s)': {'color': '#E69F00', 'marker': 'D', 'linestyle': '--'},
-    #     'Feature-engineered (MLP, 30s/15s)': {'color': '#E69F00', 'marker': 'h', 'linestyle': ':'},
-    #
-    #     # Supervised methods (10s)
-    #     'Supervised (CNN, 10s/5s)': {'color': '#003f5c', 'marker': '^', 'linestyle': 'dotted', 'linewidth': 2.,
-    #                                  'alpha': 0.2},
-    #     'Supervised (TCN, 10s/5s)': {'color': "#374c80", 'marker': '>', 'linestyle': '-', 'linewidth': 1.5,
-    #                                  'alpha': 0.1},
-    #     'Supervised (Transformer, 10s/5s)': {'color': '#7a5195', 'marker': '<', 'linestyle': '-', 'linewidth': 1.5,
-    #                                          'alpha': 0.1},
-    #     'Supervised (DeepECGNet, 10s/5s)': {'color': '#117733', 'marker': 'o', 'linestyle': '-'},
-    #
-    #     # TSTCC (10s and 30s) - ALL LIGHT BLUE '#88CCEE'
-    #     'TSTCC (Logistic Regression, 10s/5s)': {'color': '#ffa600', 'marker': 'v', 'linestyle': '-'},
-    #     'TSTCC (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
-    #     'TSTCC (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '--'},
-    #     'TSTCC (Logistic Regression, 30s/15s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': ':'},
-    #     'TSTCC (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 'p', 'linestyle': '-'},
-    #     'TSTCC (MLP, 30s/5s)': {'color': '#88CCEE', 'marker': '8', 'linestyle': '-'},
-    #     'TSTCC (MLP, 30s/10s)': {'color': '#88CCEE', 'marker': 'D', 'linestyle': '--'},
-    #     'TSTCC (MLP, 30s/15s)': {'color': '#88CCEE', 'marker': 'h', 'linestyle': ':'},
-    #     'TSTCC (Linear, 10s/5s)': {'color': '#88CCEE', 'marker': '*', 'linestyle': '-'},
-    #     'TSTCC (Linear, 30s/5s)': {'color': '#88CCEE', 'marker': '1', 'linestyle': '-'},
-    #     'TSTCC (Linear, 30s/10s)': {'color': '#88CCEE', 'marker': '+', 'linestyle': '--'},
-    #     'TSTCC (Linear, 30s/15s)': {'color': '#88CCEE', 'marker': 'x', 'linestyle': ':'},
-    #
-    #     'TSTCC+S3 (Logistic Regression, 10s/5s)': {'color': '#ff764a', 'marker': 'p', 'linestyle': '-'},
-    #
-    #     # Supervised methods (30s) - in case they exist
-    #     'Supervised (CNN, 30s/5s)': {'color': '#D55E00', 'marker': 'v', 'linestyle': '-', 'linewidth': 2.},
-    #     'Supervised (CNN, 30s/10s)': {'color': '#D55E00', 'marker': 'o', 'linestyle': '--'},
-    #     'Supervised (CNN, 30s/15s)': {'color': '#D55E00', 'marker': 's', 'linestyle': ':'},
-    #     'Supervised (TCN, 30s/5s)': {'color': '#44AA99', 'marker': 'p', 'linestyle': '-'},
-    #     'Supervised (TCN, 30s/10s)': {'color': '#44AA99', 'marker': 's', 'linestyle': '--'},
-    #     'Supervised (TCN, 30s/15s)': {'color': '#44AA99', 'marker': 'D', 'linestyle': ':'},
-    #     'Supervised (Transformer, 30s/5s)': {'color': '#58508d', 'marker': '8', 'linestyle': '-'},
-    #     'Supervised (Transformer, 30s/10s)': {'color': '#58508d', 'marker': 'D', 'linestyle': '--'},
-    #     'Supervised (Transformer, 30s/15s)': {'color': '#58508d', 'marker': 'h', 'linestyle': ':'},
-    #     'Supervised (DeepECGNet, 30s/5s)': {'color': '#117733', 'marker': '1', 'linestyle': '-'},
-    #     'Supervised (DeepECGNet, 30s/10s)': {'color': '#117733', 'marker': '>', 'linestyle': '--'},
-    #     'Supervised (DeepECGNet, 30s/15s)': {'color': '#117733', 'marker': '<', 'linestyle': ':'},
-    # }
+        # Group by method and calculate mean and std
+        grouped = df.groupby(['method_label', 'label_fraction'])[metric].agg(['mean', 'std', 'count']).reset_index()
 
-    method_styles = {
-        # Feature-engineered (different window configurations) #4a2377  #56B4E9 #d31f11
-        'Feature-engineered (Logistic Regression, 30s/5s)': {'color': '#ff6361', 'marker': 'v', 'linestyle': '--'},
-        'Feature-engineered (Logistic Regression, 30s/10s)': {'color': "#d31f11", 'marker': 'o', 'linestyle': '--',
-                                                              'linewidth': 1.5, 'alpha': 0.15},
-        # D4A842 #D4A842  #E69F00
-        'Feature-engineered (Logistic Regression, 10s/5s)': {'color': "#E69F00", 'marker': 'x', 'linestyle': '--',
-                                                             'linewidth': 1.5, 'alpha': 0.15},
-
-        'Feature-engineered (MLP, 30s/5s)': {'color': '#E69F00', 'marker': '8', 'linestyle': '-'},
-        'Feature-engineered (MLP, 30s/10s)': {'color': '#E69F00', 'marker': 'D', 'linestyle': '--'},
-        'Feature-engineered (MLP, 30s/15s)': {'color': '#E69F00', 'marker': 'h', 'linestyle': ':'},
-
-        # Supervised methods (10s) #0d7d87
-        'CNN (10s/5s)': {'color': "#7FAB79", 'marker': '^', 'linestyle': 'dotted', 'linewidth': 1.5,
-                                     'alpha': 0.15},
-        'TCN (10s/5s)': {'color': "#D55E00", 'marker': '>', 'linestyle': '-', 'linewidth': 1.5,
-                                     'alpha': 0.1},
-        'Transformer (10s/5s)': {'color': '#845ec2', 'marker': '<', 'linestyle': '-', 'linewidth': 1.5,
-                                             'alpha': 0.1},
-        'Supervised (DeepECGNet, 10s/5s)': {'color': '#117733', 'marker': 'o', 'linestyle': '-'},
-
-        # TSTCC (10s and 30s) - ALL LIGHT BLUE '#88CCEE' #56B4E9 #53AED9" #1C9FEB
-        # 0072B2
-        'TSTCC (Logistic Regression, 10s/5s)': {'color': "#0E9FEB", 'marker': 'v', 'linestyle': '-', 'alpha': 0.15},
-        'TSTCC (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
-        'TSTCC (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '--'},
-        'TSTCC (Logistic Regression, 30s/15s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': ':'},
-        'TSTCC (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 'p', 'linestyle': '-'},
-        'TSTCC (MLP, 30s/5s)': {'color': '#88CCEE', 'marker': '8', 'linestyle': '-'},
-        'TSTCC (MLP, 30s/10s)': {'color': '#88CCEE', 'marker': 'D', 'linestyle': '--'},
-        'TSTCC (MLP, 30s/15s)': {'color': '#88CCEE', 'marker': 'h', 'linestyle': ':'},
-        'TSTCC (Linear, 10s/5s)': {'color': '#88CCEE', 'marker': '*', 'linestyle': '-'},
-        'TSTCC (Linear, 30s/5s)': {'color': '#88CCEE', 'marker': '1', 'linestyle': '-'},
-        'TSTCC (Linear, 30s/10s)': {'color': '#88CCEE', 'marker': '+', 'linestyle': '--'},
-        'TSTCC (Linear, 30s/15s)': {'color': '#88CCEE', 'marker': 'x', 'linestyle': ':'},
-
-        # #009E73 #f47a00    4a2377 #0B7395   #004886
-        'TSTCC+S3 (Logistic Regression, 10s/5s)': {'color': "#005377", 'marker': 's', 'linestyle': '-', 'alpha': 0.15},
-
-        # Supervised methods (30s) - in case they exist
-        'Supervised (CNN, 30s/5s)': {'color': '#D55E00', 'marker': 'v', 'linestyle': '-', 'linewidth': 1.5, 'alpha': 0.15},
-        'Supervised (CNN, 30s/10s)': {'color': '#D55E00', 'marker': 'o', 'linestyle': '--'},
-        'Supervised (CNN, 30s/15s)': {'color': '#D55E00', 'marker': 's', 'linestyle': ':'},
-        'Supervised (TCN, 30s/5s)': {'color': '#44AA99', 'marker': 'p', 'linestyle': '-'},
-        'Supervised (TCN, 30s/10s)': {'color': '#44AA99', 'marker': 's', 'linestyle': '--'},
-        'Supervised (TCN, 30s/15s)': {'color': '#44AA99', 'marker': 'D', 'linestyle': ':'},
-        'Supervised (Transformer, 30s/5s)': {'color': '#58508d', 'marker': '8', 'linestyle': '-'},
-        'Supervised (Transformer, 30s/10s)': {'color': '#58508d', 'marker': 'D', 'linestyle': '--'},
-        'Supervised (Transformer, 30s/15s)': {'color': '#58508d', 'marker': 'h', 'linestyle': ':'},
-        'Supervised (DeepECGNet, 30s/5s)': {'color': '#117733', 'marker': '1', 'linestyle': '-'},
-        'Supervised (DeepECGNet, 30s/10s)': {'color': '#117733', 'marker': '>', 'linestyle': '--'},
-        'Supervised (DeepECGNet, 30s/15s)': {'color': '#117733', 'marker': '<', 'linestyle': ':'},
-    }
-
-    #58508d
-    # Old #DDCC77
-    # 003f5c
-    # Plot each method
-    for method in grouped['method_label'].unique():
-        method_data = grouped[grouped['method_label'] == method].sort_values('label_fraction')
-        if "S3" in method:
-            method.replace("_S3","+S3")
-
-        style = method_styles.get(method, {'color': 'black', 'marker': 'o', 'linestyle': '-'})
-
-        # Choose x-axis values based on use_participant_count parameter
-        if use_participant_count:
-            x_vals = method_data['n_labeled_participants']
+        # Calculate standard error if requested
+        if use_standard_error:
+            grouped['error'] = grouped['std'] / np.sqrt(grouped['count'])
         else:
-            x_vals = method_data['label_fraction'] * 100
-        y_vals = method_data['mean']
+            grouped['error'] = grouped['std']
 
-        # Plot main line
-        linewidth = style.get('linewidth', 1.5)
-        ax.plot(x_vals, y_vals,
-                color=style['color'],
-                marker=style['marker'],
-                linestyle=style['linestyle'],
-                linewidth=linewidth,
-                markersize=8,
-                label=method,
-                markerfacecolor='white',
-                markeredgewidth=2,
-                markeredgecolor=style['color'])
+        # Calculate number of labeled participants
+        def calculate_labeled_participants(label_fraction):
+            return max(1, int(total_participants * label_fraction))
 
-        # Add error visualization with fill_between if we have multiple seeds
-        if method_data['count'].max() > 1:
-            error_vals = method_data['error'].fillna(0)
-            
-            # Use fill_between for better uncertainty visualization
-            ax.fill_between(x_vals, 
-                          y_vals - error_vals, 
-                          y_vals + error_vals,
-                          color=style['color'],
-                          alpha=style.get('alpha', 0.1),
-                          interpolate=True)
+        grouped['n_labeled_participants'] = grouped['label_fraction'].apply(calculate_labeled_participants)
 
-    # Customize the plot
-    if use_participant_count:
-        ax.set_xlabel('# Labeled Training Participants', fontsize=18)
-        # Set x-axis scale and limits for participant count
-        ax.set_xscale('log')
-        ax.set_xlim(0.8, 110)
-        # Customize x-axis ticks for participant counts
-        x_ticks = [1, 2, 5, 10, 25, 50, 101]
-        ax.set_xticks(x_ticks)
-        ax.set_xticklabels([str(x) for x in x_ticks])
-    else:
-        ax.set_xlabel('Label Fraction (% of Training Participants Labeled)', fontsize=18)
-        # Set x-axis to log scale for better visualization of small fractions
-        ax.set_xscale('log')
-        ax.set_xlim(0.8, 120)
-        # Customize x-axis ticks for percentages
-        x_ticks = [1, 5, 10, 25, 50, 100]
-        ax.set_xticks(x_ticks)
-        ax.set_xticklabels([f'{x}%' for x in x_ticks])
+        # Define colors and markers for different methods
+        # method_styles = {
+        #     # Feature-engineered (different window configurations)
+        #     # Orange #E69F00
+        #     'Feature-engineered (Logistic Regression, 30s/5s)': {'color': '#ff6361', 'marker': 'v', 'linestyle': '-'},
+        #     'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#E69F00', 'marker': 'o', 'linestyle': '--'},
+        #     'Feature-engineered (Logistic Regression, 30s/15s)': {'color': '#665191', 'marker': 's', 'linestyle': ':'},
+        #     'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '#F0746E', 'marker': 'x', 'linestyle': '-'},
+        #     'Feature-engineered (MLP, 30s/5s)': {'color': '#E69F00', 'marker': '8', 'linestyle': '-'},
+        #     'Feature-engineered (MLP, 30s/10s)': {'color': '#E69F00', 'marker': 'D', 'linestyle': '--'},
+        #     'Feature-engineered (MLP, 30s/15s)': {'color': '#E69F00', 'marker': 'h', 'linestyle': ':'},
+        #
+        #     # Supervised methods (10s)
+        #     # '#7CCBA2' Green
+        #     # lIGHT BLUE
+        #     # '#7C1D6F' Purple
+        #     # Dark blueL '#045275'
+        #     'Supervised (CNN, 10s/5s)': {'color': '#226E9C', 'marker': '^', 'linestyle': '-'},
+        #     # 3D796F
+        #     # 9ECDC1
+        #     # e6c994
+        #     # Pruple: #7CCBA2
+        #     # Nice one: #AB1866
+        #
+        #     # "#991f17" This is a good one :)
+        #     # '#E32977' old redish
+        #     # "#b04238"
+        #     'Supervised (TCN, 10s/5s)': {'color': "#b04238", 'marker': '>', 'linestyle': '-'},
+        #     'Supervised (Transformer, 10s/5s)': {'color': '#7CCBA2', 'marker': '<', 'linestyle': '-'},
+        #     'Supervised (DeepECGNet, 10s/5s)': {'color': '#117733', 'marker': 'o', 'linestyle': '-'},
+        #
+        #     # TSTCC (10s and 30s) - ALL LIGHT BLUE '#88CCEE'
+        #     'TSTCC (Logistic Regression, 10s/5s)': {'color': '#88CCEE', 'marker': 'v', 'linestyle': '-'},
+        #     'TSTCC (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
+        #     'TSTCC (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '--'},
+        #     'TSTCC (Logistic Regression, 30s/15s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': ':'},
+        #     'TSTCC (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 'p', 'linestyle': '-'},
+        #     'TSTCC (MLP, 30s/5s)': {'color': '#88CCEE', 'marker': '8', 'linestyle': '-'},
+        #     'TSTCC (MLP, 30s/10s)': {'color': '#88CCEE', 'marker': 'D', 'linestyle': '--'},
+        #     'TSTCC (MLP, 30s/15s)': {'color': '#88CCEE', 'marker': 'h', 'linestyle': ':'},
+        #     'TSTCC (Linear, 10s/5s)': {'color': '#88CCEE', 'marker': '*', 'linestyle': '-'},
+        #     'TSTCC (Linear, 30s/5s)': {'color': '#88CCEE', 'marker': '1', 'linestyle': '-'},
+        #     'TSTCC (Linear, 30s/10s)': {'color': '#88CCEE', 'marker': '+', 'linestyle': '--'},
+        #     'TSTCC (Linear, 30s/15s)': {'color': '#88CCEE', 'marker': 'x', 'linestyle': ':'},
+        #
+        #     'TSTCC_S3 (Logistic Regression, 10s/5s)': {'color': '#799EFF', 'marker': 'p', 'linestyle': '-'},
+        #
+        #     # Supervised methods (30s) - in case they exist
+        #     'Supervised (CNN, 30s/5s)': {'color': '#D55E00', 'marker': 'v', 'linestyle': '-'},
+        #     'Supervised (CNN, 30s/10s)': {'color': '#D55E00', 'marker': 'o', 'linestyle': '--'},
+        #     'Supervised (CNN, 30s/15s)': {'color': '#D55E00', 'marker': 's', 'linestyle': ':'},
+        #     'Supervised (TCN, 30s/5s)': {'color': '#44AA99', 'marker': 'p', 'linestyle': '-'},
+        #     'Supervised (TCN, 30s/10s)': {'color': '#44AA99', 'marker': 's', 'linestyle': '--'},
+        #     'Supervised (TCN, 30s/15s)': {'color': '#44AA99', 'marker': 'D', 'linestyle': ':'},
+        #     'Supervised (Transformer, 30s/5s)': {'color': '#58508d', 'marker': '8', 'linestyle': '-'},
+        #     'Supervised (Transformer, 30s/10s)': {'color': '#58508d', 'marker': 'D', 'linestyle': '--'},
+        #     'Supervised (Transformer, 30s/15s)': {'color': '#58508d', 'marker': 'h', 'linestyle': ':'},
+        #     'Supervised (DeepECGNet, 30s/5s)': {'color': '#117733', 'marker': '1', 'linestyle': '-'},
+        #     'Supervised (DeepECGNet, 30s/10s)': {'color': '#117733', 'marker': '>', 'linestyle': '--'},
+        #     'Supervised (DeepECGNet, 30s/15s)': {'color': '#117733', 'marker': '<', 'linestyle': ':'},
+        # }
 
-    y_name = 'AUROC' if metric == "auroc" else "PR-AUC"
-    ax.set_ylabel(y_name, fontsize=18)
-    # ax.set_title('ECG Classification Performance vs Label Fraction', fontsize=16, fontweight='bold', pad=20)
+        # Divergent pattern
+        # method_styles = {
+        #     # Feature-engineered (different window configurations)
+        #     'Feature-engineered (Logistic Regression, 30s/5s)': {'color': '#ff6361', 'marker': 'v', 'linestyle': '-'},
+        #     'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#bc5090', 'marker': 'o', 'linestyle': '--',
+        #                                                           'linewidth': 2., 'alpha': 0.2},
+        #     'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '#ef5675', 'marker': 'x', 'linestyle': '-',
+        #                                                          'linewidth': 2., 'alpha': 0.2},
+        #
+        #     'Feature-engineered (Logistic Regression, 30s/15s)': {'color': '#665191', 'marker': 's', 'linestyle': ':'},
+        #     'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '#ef5675', 'marker': 'x', 'linestyle': '-',
+        #                                                          'linewidth': 2., 'alpha': 0.2},
+        #     'Feature-engineered (MLP, 30s/5s)': {'color': '#E69F00', 'marker': '8', 'linestyle': '-'},
+        #     'Feature-engineered (MLP, 30s/10s)': {'color': '#E69F00', 'marker': 'D', 'linestyle': '--'},
+        #     'Feature-engineered (MLP, 30s/15s)': {'color': '#E69F00', 'marker': 'h', 'linestyle': ':'},
+        #
+        #     # Supervised methods (10s)
+        #     'Supervised (CNN, 10s/5s)': {'color': '#003f5c', 'marker': '^', 'linestyle': 'dotted', 'linewidth': 2.,
+        #                                  'alpha': 0.2},
+        #     'Supervised (TCN, 10s/5s)': {'color': "#374c80", 'marker': '>', 'linestyle': '-', 'linewidth': 1.5,
+        #                                  'alpha': 0.1},
+        #     'Supervised (Transformer, 10s/5s)': {'color': '#7a5195', 'marker': '<', 'linestyle': '-', 'linewidth': 1.5,
+        #                                          'alpha': 0.1},
+        #     'Supervised (DeepECGNet, 10s/5s)': {'color': '#117733', 'marker': 'o', 'linestyle': '-'},
+        #
+        #     # TSTCC (10s and 30s) - ALL LIGHT BLUE '#88CCEE'
+        #     'TSTCC (Logistic Regression, 10s/5s)': {'color': '#ffa600', 'marker': 'v', 'linestyle': '-'},
+        #     'TSTCC (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
+        #     'TSTCC (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '--'},
+        #     'TSTCC (Logistic Regression, 30s/15s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': ':'},
+        #     'TSTCC (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 'p', 'linestyle': '-'},
+        #     'TSTCC (MLP, 30s/5s)': {'color': '#88CCEE', 'marker': '8', 'linestyle': '-'},
+        #     'TSTCC (MLP, 30s/10s)': {'color': '#88CCEE', 'marker': 'D', 'linestyle': '--'},
+        #     'TSTCC (MLP, 30s/15s)': {'color': '#88CCEE', 'marker': 'h', 'linestyle': ':'},
+        #     'TSTCC (Linear, 10s/5s)': {'color': '#88CCEE', 'marker': '*', 'linestyle': '-'},
+        #     'TSTCC (Linear, 30s/5s)': {'color': '#88CCEE', 'marker': '1', 'linestyle': '-'},
+        #     'TSTCC (Linear, 30s/10s)': {'color': '#88CCEE', 'marker': '+', 'linestyle': '--'},
+        #     'TSTCC (Linear, 30s/15s)': {'color': '#88CCEE', 'marker': 'x', 'linestyle': ':'},
+        #
+        #     'TSTCC+S3 (Logistic Regression, 10s/5s)': {'color': '#ff764a', 'marker': 'p', 'linestyle': '-'},
+        #
+        #     # Supervised methods (30s) - in case they exist
+        #     'Supervised (CNN, 30s/5s)': {'color': '#D55E00', 'marker': 'v', 'linestyle': '-', 'linewidth': 2.},
+        #     'Supervised (CNN, 30s/10s)': {'color': '#D55E00', 'marker': 'o', 'linestyle': '--'},
+        #     'Supervised (CNN, 30s/15s)': {'color': '#D55E00', 'marker': 's', 'linestyle': ':'},
+        #     'Supervised (TCN, 30s/5s)': {'color': '#44AA99', 'marker': 'p', 'linestyle': '-'},
+        #     'Supervised (TCN, 30s/10s)': {'color': '#44AA99', 'marker': 's', 'linestyle': '--'},
+        #     'Supervised (TCN, 30s/15s)': {'color': '#44AA99', 'marker': 'D', 'linestyle': ':'},
+        #     'Supervised (Transformer, 30s/5s)': {'color': '#58508d', 'marker': '8', 'linestyle': '-'},
+        #     'Supervised (Transformer, 30s/10s)': {'color': '#58508d', 'marker': 'D', 'linestyle': '--'},
+        #     'Supervised (Transformer, 30s/15s)': {'color': '#58508d', 'marker': 'h', 'linestyle': ':'},
+        #     'Supervised (DeepECGNet, 30s/5s)': {'color': '#117733', 'marker': '1', 'linestyle': '-'},
+        #     'Supervised (DeepECGNet, 30s/10s)': {'color': '#117733', 'marker': '>', 'linestyle': '--'},
+        #     'Supervised (DeepECGNet, 30s/15s)': {'color': '#117733', 'marker': '<', 'linestyle': ':'},
+        # }
 
-    # Set y-axis limits and ticks
-    ax.set_ylim(0.45, 1.0) if y_name == "AUROC" else ax.set_ylim(0.5, 1.0)
-    ax.set_yticks(np.arange(0.5, 1.05, 0.1))
-    # ax.axvline(50, linestyle='--', linewidth=1.0, color='0.45', zorder=1)
-    # Add grid
-    # ax.grid(False)
-    ax.set_axisbelow(True)
+        method_styles = {
+            # Feature-engineered (different window configurations) #4a2377  #56B4E9 #d31f11
+            'Feature-engineered (Logistic Regression, 30s/5s)': {'color': '#ff6361', 'marker': 'v', 'linestyle': '--'},
+            'Feature-engineered (Logistic Regression, 30s/10s)': {'color': "#d31f11", 'marker': 'o', 'linestyle': '--',
+                                                                  'linewidth': 1.5, 'alpha': 0.15},
+            # D4A842 #D4A842  #E69F00
+            'Feature-engineered (Logistic Regression, 10s/5s)': {'color': "#E69F00", 'marker': 'x', 'linestyle': '--',
+                                                                 'linewidth': 1.5, 'alpha': 0.15},
 
-    # Add horizontal line at AUROC = 0.5 (random chance)
-    # if metric == "auroc":
-    #     ax.axhline(y=0.5, color='0.35', linestyle='--', alpha=0.8, linewidth=1.5, label="Random Baseline")
-    #
-    # elif metric == "pr_auc":
-    #     ax.axhline(y=0.5736, color='0.35', linestyle='--', alpha=0.8, linewidth=1.5, label="Random Baseline")
+            'Feature-engineered (MLP, 30s/5s)': {'color': '#E69F00', 'marker': '8', 'linestyle': '-'},
+            'Feature-engineered (MLP, 30s/10s)': {'color': '#E69F00', 'marker': 'D', 'linestyle': '--'},
+            'Feature-engineered (MLP, 30s/15s)': {'color': '#E69F00', 'marker': 'h', 'linestyle': ':'},
 
-    # Customize legend
-    # error_type = "Standard Error" if use_standard_error else "Standard Deviation"
-    ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
-                       fontsize=18)
+            # Supervised methods (10s) #0d7d87
+            'CNN (10s/5s)': {'color': "#7FAB79", 'marker': '^', 'linestyle': 'dotted', 'linewidth': 1.5,
+                                         'alpha': 0.15},
+            'TCN (10s/5s)': {'color': "#D55E00", 'marker': '>', 'linestyle': '-', 'linewidth': 1.5,
+                                         'alpha': 0.1},
+            'Transformer (10s/5s)': {'color': '#845ec2', 'marker': '<', 'linestyle': '-', 'linewidth': 1.5,
+                                                 'alpha': 0.1},
+            'Supervised (DeepECGNet, 10s/5s)': {'color': '#117733', 'marker': 'o', 'linestyle': '-'},
 
-    # ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
-    #                    fontsize=11, title=f'Methods (±{error_type})', title_fontsize=12)
-    # ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), frameon=True,
-    #           fancybox=True, shadow=False, fontsize=11, ncol=4,)
+            # TSTCC (10s and 30s) - ALL LIGHT BLUE '#88CCEE' #56B4E9 #53AED9" #1C9FEB
+            # 0072B2
+            'TSTCC (Logistic Regression, 10s/5s)': {'color': "#0E9FEB", 'marker': 'v', 'linestyle': '-', 'alpha': 0.15},
+            'TSTCC (Logistic Regression, 30s/5s)': {'color': '#88CCEE', 'marker': 'o', 'linestyle': '-'},
+            'TSTCC (Logistic Regression, 30s/10s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '--'},
+            'TSTCC (Logistic Regression, 30s/15s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': ':'},
+            'TSTCC (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 'p', 'linestyle': '-'},
+            'TSTCC (MLP, 30s/5s)': {'color': '#88CCEE', 'marker': '8', 'linestyle': '-'},
+            'TSTCC (MLP, 30s/10s)': {'color': '#88CCEE', 'marker': 'D', 'linestyle': '--'},
+            'TSTCC (MLP, 30s/15s)': {'color': '#88CCEE', 'marker': 'h', 'linestyle': ':'},
+            'TSTCC (Linear, 10s/5s)': {'color': '#88CCEE', 'marker': '*', 'linestyle': '-'},
+            'TSTCC (Linear, 30s/5s)': {'color': '#88CCEE', 'marker': '1', 'linestyle': '-'},
+            'TSTCC (Linear, 30s/10s)': {'color': '#88CCEE', 'marker': '+', 'linestyle': '--'},
+            'TSTCC (Linear, 30s/15s)': {'color': '#88CCEE', 'marker': 'x', 'linestyle': ':'},
 
-    # Improve overall appearance
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_linewidth(1.5)
-    ax.spines['bottom'].set_linewidth(1.5)
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
-    plt.tight_layout()
+            # #009E73 #f47a00    4a2377 #0B7395   #004886
+            'TSTCC+S3 (Logistic Regression, 10s/5s)': {'color': "#005377", 'marker': 's', 'linestyle': '-', 'alpha': 0.15},
 
-    if save_path:
-        plt.savefig(save_path, dpi=500, bbox_inches='tight', facecolor='white')
-        print(f"Plot saved to {save_path}")
+            # Supervised methods (30s) - in case they exist
+            'Supervised (CNN, 30s/5s)': {'color': '#D55E00', 'marker': 'v', 'linestyle': '-', 'linewidth': 1.5, 'alpha': 0.15},
+            'Supervised (CNN, 30s/10s)': {'color': '#D55E00', 'marker': 'o', 'linestyle': '--'},
+            'Supervised (CNN, 30s/15s)': {'color': '#D55E00', 'marker': 's', 'linestyle': ':'},
+            'Supervised (TCN, 30s/5s)': {'color': '#44AA99', 'marker': 'p', 'linestyle': '-'},
+            'Supervised (TCN, 30s/10s)': {'color': '#44AA99', 'marker': 's', 'linestyle': '--'},
+            'Supervised (TCN, 30s/15s)': {'color': '#44AA99', 'marker': 'D', 'linestyle': ':'},
+            'Supervised (Transformer, 30s/5s)': {'color': '#58508d', 'marker': '8', 'linestyle': '-'},
+            'Supervised (Transformer, 30s/10s)': {'color': '#58508d', 'marker': 'D', 'linestyle': '--'},
+            'Supervised (Transformer, 30s/15s)': {'color': '#58508d', 'marker': 'h', 'linestyle': ':'},
+            'Supervised (DeepECGNet, 30s/5s)': {'color': '#117733', 'marker': '1', 'linestyle': '-'},
+            'Supervised (DeepECGNet, 30s/10s)': {'color': '#117733', 'marker': '>', 'linestyle': '--'},
+            'Supervised (DeepECGNet, 30s/15s)': {'color': '#117733', 'marker': '<', 'linestyle': ':'},
+        }
 
-    plt.show()
-    plt.close()
+        #58508d
+        # Old #DDCC77
+        # 003f5c
+        # Plot each method
+        for method in grouped['method_label'].unique():
+            method_data = grouped[grouped['method_label'] == method].sort_values('label_fraction')
+            if "S3" in method:
+                method.replace("_S3","+S3")
+
+            style = method_styles.get(method, {'color': 'black', 'marker': 'o', 'linestyle': '-'})
+
+            # Choose x-axis values based on use_participant_count parameter
+            if use_participant_count:
+                x_vals = method_data['n_labeled_participants']
+            else:
+                x_vals = method_data['label_fraction'] * 100
+            y_vals = method_data['mean']
+
+            # Plot main line
+            linewidth = style.get('linewidth', 1.5)
+            ax.plot(x_vals, y_vals,
+                    color=style['color'],
+                    marker=style['marker'],
+                    linestyle=style['linestyle'],
+                    linewidth=linewidth,
+                    markersize=8,
+                    label=method,
+                    markerfacecolor='white',
+                    markeredgewidth=2,
+                    markeredgecolor=style['color'])
+
+            # Add error visualization with fill_between if we have multiple seeds
+            if method_data['count'].max() > 1:
+                error_vals = method_data['error'].fillna(0)
+
+                # Use fill_between for better uncertainty visualization
+                ax.fill_between(x_vals,
+                              y_vals - error_vals,
+                              y_vals + error_vals,
+                              color=style['color'],
+                              alpha=style.get('alpha', 0.1),
+                              interpolate=True)
+
+        # Customize the plot
+        if use_participant_count:
+            ax.set_xlabel('# Labeled Training Participants', fontsize=20)
+            # Set x-axis scale and limits for participant count
+            ax.set_xscale('log')
+            ax.set_xlim(0.8, 110)
+            # Customize x-axis ticks for participant counts
+            x_ticks = [1, 2, 5, 10, 25, 50, 101]
+            ax.set_xticks(x_ticks)
+            ax.set_xticklabels([str(x) for x in x_ticks])
+        else:
+            ax.set_xlabel('Label Fraction (% of Training Participants Labeled)', fontsize=20)
+            # Set x-axis to log scale for better visualization of small fractions
+            ax.set_xscale('log')
+            ax.set_xlim(0.8, 120)
+            # Customize x-axis ticks for percentages
+            x_ticks = [1, 5, 10, 25, 50, 100]
+            ax.set_xticks(x_ticks)
+            ax.set_xticklabels([f'{x}%' for x in x_ticks])
+
+        y_name = 'AUROC' if metric == "auroc" else "PR-AUC"
+        ax.set_ylabel(y_name, fontsize=20)
+        # ax.set_title('ECG Classification Performance vs Label Fraction', fontsize=16, fontweight='bold', pad=20)
+
+        # Set y-axis limits and ticks
+        ax.set_ylim(0.45, 1.0) if y_name == "AUROC" else ax.set_ylim(0.5, 1.0)
+        ax.set_yticks(np.arange(0.5, 1.05, 0.1))
+        # ax.axvline(50, linestyle='--', linewidth=1.0, color='0.45', zorder=1)
+        # Add grid
+        # ax.grid(False)
+        ax.set_axisbelow(True)
+
+        # Add horizontal line at AUROC = 0.5 (random chance)
+        # if metric == "auroc":
+        #     ax.axhline(y=0.5, color='0.35', linestyle='--', alpha=0.8, linewidth=1.5, label="Random Baseline")
+        #
+        # elif metric == "pr_auc":
+        #     ax.axhline(y=0.5736, color='0.35', linestyle='--', alpha=0.8, linewidth=1.5, label="Random Baseline")
+
+        # Customize legend
+        # error_type = "Standard Error" if use_standard_error else "Standard Deviation"
+        ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
+                           fontsize=20)
+
+        # ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
+        #                    fontsize=11, title=f'Methods (±{error_type})', title_fontsize=12)
+        # ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), frameon=True,
+        #           fancybox=True, shadow=False, fontsize=11, ncol=4,)
+
+        # Improve overall appearance
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_linewidth(1.5)
+        ax.spines['bottom'].set_linewidth(1.5)
+        plt.xticks(fontsize=20)
+        plt.yticks(fontsize=20)
+        plt.tight_layout()
+
+        if save_path:
+            plt.savefig(save_path, dpi=500, bbox_inches='tight', facecolor='white')
+            print(f"Plot saved to {save_path}")
+
+        plt.show()
+        plt.close()
 
     return fig, ax
 
@@ -1593,8 +1591,6 @@ def load_ssl_comparison_results(base_path, ssl_methods=None, include_features=Fa
                 # Handle both numeric seeds and special seeds like "42_s3"
                 if seed_folder.name.isdigit():
                     seed = int(seed_folder.name)
-                elif seed_folder.name == "42_s3":
-                    seed = 43  # Use 43 to distinguish from regular seed 42
                 else:
                     continue
                 
@@ -1612,15 +1608,13 @@ def load_ssl_comparison_results(base_path, ssl_methods=None, include_features=Fa
                         ]
                         
                         for window_size, window_shift in window_combinations:
-                            json_file = label_folder / str(window_size) / str(window_shift) / "test_results.json"
-                            
-                            # Special handling for different file structures
-                            if not json_file.exists():
-                                # Try with additional subfolder for some models
-                                if model_type == "xgboost":
-                                    json_file = label_folder / str(window_size) / str(window_shift) / "0.75" / "test_results.json"
-                                elif model_type in ["logistic_regression", "linear"]:
-                                    json_file = label_folder / str(window_size) / str(window_shift) / "1.0" / "test_results.json"
+                            # Use consistent path structure: always use nested 1.0 folder for SSL methods
+                            if model_type in ["logistic_regression", "linear"]:
+                                json_file = label_folder / str(window_size) / str(window_shift) / "1.0" / "test_results.json"
+                            elif model_type == "xgboost":
+                                json_file = label_folder / str(window_size) / str(window_shift) / "0.75" / "test_results.json"
+                            else:
+                                json_file = label_folder / str(window_size) / str(window_shift) / "test_results.json"
                             
                             if json_file.exists():
                                 try:
@@ -1930,208 +1924,208 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
     """
     
     # Set up the plotting style
-    plt.style.use('default')
-    sns.set_palette("husl")
+    # plt.style.use('default')
+    # sns.set_palette("husl")
 
     # fig, ax = plt.subplots(figsize=(12, 8))
+    with plt.style.context(['ieee']):
+        fig, ax = plt.subplots(figsize=(10, 8))  # Wider to accommodate right labels
+        ax.grid(axis='y', linestyle='--', color='0.35', linewidth=0.7, alpha=0.7)
 
-    fig, ax = plt.subplots(figsize=(10, 8))  # Wider to accommodate right labels
-    ax.grid(axis='y', linestyle='--', linewidth=0.7, alpha=0.7)
+        # Group by method and calculate mean and std
+        grouped = df.groupby(['method_label', 'label_fraction'])[metric].agg(['mean', 'std', 'count']).reset_index()
 
-    # Group by method and calculate mean and std
-    grouped = df.groupby(['method_label', 'label_fraction'])[metric].agg(['mean', 'std', 'count']).reset_index()
-    
-    # Filter out feature-engineered methods if include_features is False
-    if not include_features:
-        # Filter out methods that contain "Feature-engineered" in their name
-        grouped = grouped[~grouped['method_label'].str.contains('Feature-engineered', case=False, na=False)]
-    
-    # Calculate standard error if requested
-    if use_standard_error:
-        grouped['error'] = grouped['std'] / np.sqrt(grouped['count'])
-    else:
-        grouped['error'] = grouped['std']
-    
-    # Calculate number of labeled participants
-    def calculate_labeled_participants(label_fraction):
-        return max(1, int(total_participants * label_fraction))
-    
-    grouped['n_labeled_participants'] = grouped['label_fraction'].apply(calculate_labeled_participants)
+        # Filter out feature-engineered methods if include_features is False
+        if not include_features:
+            # Filter out methods that contain "Feature-engineered" in their name
+            grouped = grouped[~grouped['method_label'].str.contains('Feature-engineered', case=False, na=False)]
 
-    # Define colors and markers for SSL methods
-    method_styles = {
-        # Feature-engineered methods - Same colors as main plot (10/5s was before F0746E)
-        'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '0.35', 'marker': 'x', 'linestyle': 'dotted', 'linewidth': 1.5},
-        'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#E69F00', 'marker': 'o', 'linestyle': '--', 'linewidth': 2},
-
-        # "#0E9FEB"
-        # "#005377"
-
-        # TSTCC (regular) - Light Blue
-        'TSTCC (Logistic Regression, 10s/5s)': {'color': "#0E9FEB", 'marker': 'v', 'linestyle': '-', 'linewidth': 2},
-        'TSTCC (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '-', 'linewidth': 2},
-        'TSTCC (Linear, 10s/5s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': '-', 'linewidth': 2},
-        
-        # TSTCC_S3 (soft version) - Darker Blue
-        'TSTCC+S3 (Logistic Regression, 10s/5s)': {'color': "#005377", 'marker': 'v', 'linestyle': '--', 'linewidth': 1.5},
-        'TSTCC+S3 (MLP, 10s/5s)': {'color': '#4477AA', 'marker': 's', 'linestyle': '--', 'linewidth': 2},
-        'TSTCC+S3 (Linear, 10s/5s)': {'color': '#4477AA', 'marker': '^', 'linestyle': '--', 'linewidth': 2},
-        
-        # SimCLR (regular) - Light Green
-        'SimCLR (Logistic Regression, 10s/5s)': {'color': '#DBABE0', 'marker': 's', 'linestyle': '-', 'linewidth': 1.5},
-        'SimCLR (MLP, 10s/5s)': {'color': '#44AA99', 'marker': 'D', 'linestyle': '-', 'linewidth': 2},
-        'SimCLR (Linear, 10s/5s)': {'color': '#44AA99', 'marker': 'p', 'linestyle': '-', 'linewidth': 2},
-        
-        # SimCLR_S3 (soft version) - Darker Green #D65048
-        'SimCLR+S3 (Logistic Regression, 10s/5s)': {'color': '#78248E', 'marker': 's', 'linestyle': '--', 'linewidth': 1.5},
-        'SimCLR+S3 (MLP, 10s/5s)': {'color': '#117733', 'marker': 'D', 'linestyle': '--', 'linewidth': 2},
-        'SimCLR+S3 (Linear, 10s/5s)': {'color': '#117733', 'marker': 'p', 'linestyle': '--', 'linewidth': 2},
-
-        # TS2Vec (regular) - Light Purple/Magenta
-        'TS2Vec (Logistic Regression, 10s/5s)': {'color': '#D2B48C', 'marker': 'D', 'linestyle': '-', 'linewidth': 1.5},
-        'TS2Vec (MLP, 10s/5s)': {'color': '#CC79A7', 'marker': '8', 'linestyle': '-', 'linewidth': 2},
-        'TS2Vec (Linear, 10s/5s)': {'color': '#CC79A7', 'marker': '*', 'linestyle': '-', 'linewidth': 2},
-        
-        # TS2Vec_S3 (soft version) - Darker Purple/Magenta
-        'TS2Vec+S3 (Logistic Regression, 10s/5s)': {'color': '#944D0F', 'marker': 'D', 'linestyle': '--', 'linewidth': 1.5},
-        'TS2Vec+S3 (MLP, 10s/5s)': {'color': '#882255', 'marker': '8', 'linestyle': '--', 'linewidth': 2},
-        'TS2Vec+S3 (Linear, 10s/5s)': {'color': '#882255', 'marker': '*', 'linestyle': '--', 'linewidth': 2},
-        
-        # InfoTS (regular) - Light Orange/Gold
-        'InfoTS (Logistic Regression, 10s/5s)': {'color': '#EBB952', 'marker': '>', 'linestyle': '-', 'linewidth': 1.5},
-        'InfoTS (MLP, 10s/5s)': {'color': '#DDCC77', 'marker': '<', 'linestyle': '-', 'linewidth': 2},
-        'InfoTS (Linear, 10s/5s)': {'color': '#DDCC77', 'marker': '1', 'linestyle': '-', 'linewidth': 2},
-        
-        # InfoTS_S3 (soft version) - Darker Orange/Gold
-        'InfoTS+S3 (Logistic Regression, 10s/5s)': {'color': '#F08D00', 'marker': '>', 'linestyle': '--', 'linewidth': 1.5},
-        'InfoTS+S3 (MLP, 10s/5s)': {'color': '#AA6C39', 'marker': '<', 'linestyle': '--', 'linewidth': 2},
-        'InfoTS+S3 (Linear, 10s/5s)': {'color': '#AA6C39', 'marker': '1', 'linestyle': '--', 'linewidth': 2},
-        
-        # SimCLR with TSTCC Encoder (regular) - Light Orange/Coral
-        'SimCLR_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#FF9999', 'marker': 's', 'linestyle': '-', 'linewidth': 1.5},
-        'SimCLR_TSTCC_Encoder (MLP, 10s/5s)': {'color': '#FF9999', 'marker': 'X', 'linestyle': '-', 'linewidth': 2},
-        'SimCLR_TSTCC_Encoder (Linear, 10s/5s)': {'color': '#FF9999', 'marker': '+', 'linestyle': '-', 'linewidth': 2},
-        
-        # SimCLR_S3 with TSTCC Encoder (soft version) - Darker Orange/Red
-        'SimCLR+S3_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#CC3333', 'marker': 's', 'linestyle': '--', 'linewidth': 1.5},
-        'SimCLR+S3_TSTCC_Encoder (MLP, 10s/5s)': {'color': '#CC3333', 'marker': 'X', 'linestyle': '--', 'linewidth': 2},
-        'SimCLR+S3_TSTCC_Encoder (Linear, 10s/5s)': {'color': '#CC3333', 'marker': '+', 'linestyle': '--', 'linewidth': 2},
-        
-        # SimCLR_TSTCC_Encoder_S3 (alternative naming) - Same as SimCLR+S3_TSTCC_Encoder
-        'SimCLR_TSTCC_Encoder+S3 (Logistic Regression, 10s/5s)': {'color': '#CC3333', 'marker': 's', 'linestyle': '--', 'linewidth': 1.5},
-        'SimCLR_TSTCC_Encoder+S3 (MLP, 10s/5s)': {'color': '#CC3333', 'marker': 'X', 'linestyle': '--', 'linewidth': 2},
-        'SimCLR_TSTCC_Encoder+S3 (Linear, 10s/5s)': {'color': '#CC3333', 'marker': '+', 'linestyle': '--', 'linewidth': 2},
-    }
-
-    # #56B4E9
-    # S3 #009E73"
-
-    # Plot each method
-    for method in grouped['method_label'].unique():
-        method_data = grouped[grouped['method_label'] == method].sort_values('label_fraction')
-
-        # Create display name for legend (replace _S3 with +S3 for display)
-        # if "S3" in method:
-        #     method.replace("_S3","+S3")
-        display_method = method.replace("_S3", "+S3") if "_S3" in method else method
-
-        # Use display name for style lookup
-        style = method_styles.get(display_method, {'color': 'black', 'marker': 'o', 'linestyle': '-', 'linewidth': 2.})
-
-        # Choose x-axis values based on use_participant_count parameter
-        if use_participant_count:
-            x_vals = method_data['n_labeled_participants']
+        # Calculate standard error if requested
+        if use_standard_error:
+            grouped['error'] = grouped['std'] / np.sqrt(grouped['count'])
         else:
-            x_vals = method_data['label_fraction'] * 100
-        y_vals = method_data['mean']
+            grouped['error'] = grouped['std']
 
-        # Plot main line
-        linewidth = style.get('linewidth', 2.)
-        ax.plot(x_vals, y_vals,
-                color=style['color'],
-                marker=style['marker'],
-                linestyle=style['linestyle'],
-                linewidth=linewidth,
-                markersize=8,
-                label=display_method if "Feature" in display_method else display_method.split(" ")[0],
-                markerfacecolor='white',
-                markeredgewidth=2,
-                markeredgecolor=style['color'])
+        # Calculate number of labeled participants
+        def calculate_labeled_participants(label_fraction):
+            return max(1, int(total_participants * label_fraction))
 
-        # Add error visualization with fill_between if we have multiple seeds
-        if method_data['count'].max() > 1:
-            error_vals = method_data['error'].fillna(0)
-            
-            # Use fill_between for better uncertainty visualization
-            ax.fill_between(x_vals, 
-                          y_vals - error_vals, 
-                          y_vals + error_vals,
-                          color=style['color'], 
-                          alpha=0.20,
-                          interpolate=True)
+        grouped['n_labeled_participants'] = grouped['label_fraction'].apply(calculate_labeled_participants)
 
-    # Customize the plot
-    if use_participant_count:
-        ax.set_xlabel('# Labeled Training Participants', fontsize=18)
-        # Set x-axis scale and limits for participant count
-        ax.set_xscale('log')
-        ax.set_xlim(0.8, 110)
-        # Customize x-axis ticks for participant counts
-        x_ticks = [1, 2, 5, 10, 25, 50, 101]
-        ax.set_xticks(x_ticks)
-        ax.set_xticklabels([str(x) for x in x_ticks])
-    else:
-        ax.set_xlabel('Label Fraction (% of Training Participants Labeled)', fontsize=18)
-        # Set x-axis to log scale for better visualization of small fractions
-        ax.set_xscale('log')
-        ax.set_xlim(0.8, 120)
-        # Customize x-axis ticks for percentages
-        x_ticks = [1, 2.5, 5, 10, 25, 50, 100]
-        ax.set_xticks(x_ticks)
-        ax.set_xticklabels([f'{x}%' for x in x_ticks])
+        # Define colors and markers for SSL methods
+        method_styles = {
+            # Feature-engineered methods - Same colors as main plot (10/5s was before F0746E)
+            'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '0.35', 'marker': 'x', 'linestyle': 'dotted', 'linewidth': 1.5},
+            'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#E69F00', 'marker': 'o', 'linestyle': '--', 'linewidth': 2},
 
-    y_name = 'AUROC' if metric == "auroc" else "PR-AUC"
-    ax.set_ylabel(y_name, fontsize=18)
-    # ax.set_title(f'SSL Methods Comparison: {y_name} vs Label Fraction', fontsize=16, fontweight='bold', pad=20)
+            # "#0E9FEB"
+            # "#005377"
 
-    # Set y-axis limits and ticks
-    ax.set_ylim(0.5, 1.0) if y_name == "PR-AUC" else ax.set_ylim(0.45, 1.0)
-    ax.set_yticks(np.arange(0.5, 1.05, 0.1))
+            # TSTCC (regular) - Light Blue
+            'TSTCC (Logistic Regression, 10s/5s)': {'color': "#0E9FEB", 'marker': 'v', 'linestyle': '-', 'linewidth': 2},
+            'TSTCC (MLP, 10s/5s)': {'color': '#88CCEE', 'marker': 's', 'linestyle': '-', 'linewidth': 2},
+            'TSTCC (Linear, 10s/5s)': {'color': '#88CCEE', 'marker': '^', 'linestyle': '-', 'linewidth': 2},
 
-    # Add grid
-    # ax.grid(False)
-    ax.set_axisbelow(True)
+            # TSTCC_S3 (soft version) - Darker Blue
+            'TSTCC+S3 (Logistic Regression, 10s/5s)': {'color': "#005377", 'marker': 'v', 'linestyle': '--', 'linewidth': 1.5},
+            'TSTCC+S3 (MLP, 10s/5s)': {'color': '#4477AA', 'marker': 's', 'linestyle': '--', 'linewidth': 2},
+            'TSTCC+S3 (Linear, 10s/5s)': {'color': '#4477AA', 'marker': '^', 'linestyle': '--', 'linewidth': 2},
 
-    # Add horizontal line at random baseline
-    # if metric == "auroc":
-    #     ax.axhline(y=0.5, color='0.45', linestyle='solid', alpha=0.7, linewidth=2, label="Random Baseline")
-    # if metric == "pr_auc":
-    #     ax.axhline(y=0.5736, color='0.45', linestyle='solid', alpha=0.7, linewidth=2, label="Random Baseline")
+            # SimCLR (regular) - Light Green
+            'SimCLR (Logistic Regression, 10s/5s)': {'color': '#DBABE0', 'marker': 's', 'linestyle': '-', 'linewidth': 1.5},
+            'SimCLR (MLP, 10s/5s)': {'color': '#44AA99', 'marker': 'D', 'linestyle': '-', 'linewidth': 2},
+            'SimCLR (Linear, 10s/5s)': {'color': '#44AA99', 'marker': 'p', 'linestyle': '-', 'linewidth': 2},
 
-    # Customize legend
-    error_type = "Standard Error" if use_standard_error else "Standard Deviation"
-    # ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
-    #                    fontsize=10, title=f'SSL Methods (±{error_type})', title_fontsize=11)
-    ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
-                       fontsize=18, ncols=2)
+            # SimCLR_S3 (soft version) - Darker Green #D65048
+            'SimCLR+S3 (Logistic Regression, 10s/5s)': {'color': '#78248E', 'marker': 's', 'linestyle': '--', 'linewidth': 1.5},
+            'SimCLR+S3 (MLP, 10s/5s)': {'color': '#117733', 'marker': 'D', 'linestyle': '--', 'linewidth': 2},
+            'SimCLR+S3 (Linear, 10s/5s)': {'color': '#117733', 'marker': 'p', 'linestyle': '--', 'linewidth': 2},
 
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
+            # TS2Vec (regular) - Light Purple/Magenta
+            'TS2Vec (Logistic Regression, 10s/5s)': {'color': '#D2B48C', 'marker': 'D', 'linestyle': '-', 'linewidth': 1.5},
+            'TS2Vec (MLP, 10s/5s)': {'color': '#CC79A7', 'marker': '8', 'linestyle': '-', 'linewidth': 2},
+            'TS2Vec (Linear, 10s/5s)': {'color': '#CC79A7', 'marker': '*', 'linestyle': '-', 'linewidth': 2},
 
-    # Improve overall appearance
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_linewidth(1.5)
-    ax.spines['bottom'].set_linewidth(1.5)
+            # TS2Vec_S3 (soft version) - Darker Purple/Magenta
+            'TS2Vec+S3 (Logistic Regression, 10s/5s)': {'color': '#944D0F', 'marker': 'D', 'linestyle': '--', 'linewidth': 1.5},
+            'TS2Vec+S3 (MLP, 10s/5s)': {'color': '#882255', 'marker': '8', 'linestyle': '--', 'linewidth': 2},
+            'TS2Vec+S3 (Linear, 10s/5s)': {'color': '#882255', 'marker': '*', 'linestyle': '--', 'linewidth': 2},
 
-    plt.tight_layout()
+            # InfoTS (regular) - Light Orange/Gold
+            'InfoTS (Logistic Regression, 10s/5s)': {'color': '#EBB952', 'marker': '>', 'linestyle': '-', 'linewidth': 1.5},
+            'InfoTS (MLP, 10s/5s)': {'color': '#DDCC77', 'marker': '<', 'linestyle': '-', 'linewidth': 2},
+            'InfoTS (Linear, 10s/5s)': {'color': '#DDCC77', 'marker': '1', 'linestyle': '-', 'linewidth': 2},
 
-    if save_path:
-        plt.savefig(save_path, dpi=500, bbox_inches='tight', facecolor='white')
-        print(f"Plot saved to {save_path}")
+            # InfoTS_S3 (soft version) - Darker Orange/Gold
+            'InfoTS+S3 (Logistic Regression, 10s/5s)': {'color': '#F08D00', 'marker': '>', 'linestyle': '--', 'linewidth': 1.5},
+            'InfoTS+S3 (MLP, 10s/5s)': {'color': '#AA6C39', 'marker': '<', 'linestyle': '--', 'linewidth': 2},
+            'InfoTS+S3 (Linear, 10s/5s)': {'color': '#AA6C39', 'marker': '1', 'linestyle': '--', 'linewidth': 2},
 
-    plt.show()
-    plt.close()
+            # SimCLR with TSTCC Encoder (regular) - Light Orange/Coral
+            'SimCLR_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#FF9999', 'marker': 's', 'linestyle': '-', 'linewidth': 1.5},
+            'SimCLR_TSTCC_Encoder (MLP, 10s/5s)': {'color': '#FF9999', 'marker': 'X', 'linestyle': '-', 'linewidth': 2},
+            'SimCLR_TSTCC_Encoder (Linear, 10s/5s)': {'color': '#FF9999', 'marker': '+', 'linestyle': '-', 'linewidth': 2},
+
+            # SimCLR_S3 with TSTCC Encoder (soft version) - Darker Orange/Red
+            'SimCLR+S3_TSTCC_Encoder (Logistic Regression, 10s/5s)': {'color': '#CC3333', 'marker': 's', 'linestyle': '--', 'linewidth': 1.5},
+            'SimCLR+S3_TSTCC_Encoder (MLP, 10s/5s)': {'color': '#CC3333', 'marker': 'X', 'linestyle': '--', 'linewidth': 2},
+            'SimCLR+S3_TSTCC_Encoder (Linear, 10s/5s)': {'color': '#CC3333', 'marker': '+', 'linestyle': '--', 'linewidth': 2},
+
+            # SimCLR_TSTCC_Encoder_S3 (alternative naming) - Same as SimCLR+S3_TSTCC_Encoder
+            'SimCLR_TSTCC_Encoder+S3 (Logistic Regression, 10s/5s)': {'color': '#CC3333', 'marker': 's', 'linestyle': '--', 'linewidth': 1.5},
+            'SimCLR_TSTCC_Encoder+S3 (MLP, 10s/5s)': {'color': '#CC3333', 'marker': 'X', 'linestyle': '--', 'linewidth': 2},
+            'SimCLR_TSTCC_Encoder+S3 (Linear, 10s/5s)': {'color': '#CC3333', 'marker': '+', 'linestyle': '--', 'linewidth': 2},
+        }
+
+        # #56B4E9
+        # S3 #009E73"
+
+        # Plot each method
+        for method in grouped['method_label'].unique():
+            method_data = grouped[grouped['method_label'] == method].sort_values('label_fraction')
+
+            # Create display name for legend (replace _S3 with +S3 for display)
+            # if "S3" in method:
+            #     method.replace("_S3","+S3")
+            display_method = method.replace("_S3", "+S3") if "_S3" in method else method
+
+            # Use display name for style lookup
+            style = method_styles.get(display_method, {'color': 'black', 'marker': 'o', 'linestyle': '-', 'linewidth': 2.})
+
+            # Choose x-axis values based on use_participant_count parameter
+            if use_participant_count:
+                x_vals = method_data['n_labeled_participants']
+            else:
+                x_vals = method_data['label_fraction'] * 100
+            y_vals = method_data['mean']
+
+            # Plot main line
+            linewidth = style.get('linewidth', 2.)
+            ax.plot(x_vals, y_vals,
+                    color=style['color'],
+                    marker=style['marker'],
+                    linestyle=style['linestyle'],
+                    linewidth=linewidth,
+                    markersize=8,
+                    label=display_method if "Feature" in display_method else display_method.split(" ")[0],
+                    markerfacecolor='white',
+                    markeredgewidth=2,
+                    markeredgecolor=style['color'])
+
+            # Add error visualization with fill_between if we have multiple seeds
+            if method_data['count'].max() > 1:
+                error_vals = method_data['error'].fillna(0)
+
+                # Use fill_between for better uncertainty visualization
+                ax.fill_between(x_vals,
+                              y_vals - error_vals,
+                              y_vals + error_vals,
+                              color=style['color'],
+                              alpha=0.20,
+                              interpolate=True)
+
+        # Customize the plot
+        if use_participant_count:
+            ax.set_xlabel('# Labeled Training Participants', fontsize=20)
+            # Set x-axis scale and limits for participant count
+            ax.set_xscale('log')
+            ax.set_xlim(0.8, 110)
+            # Customize x-axis ticks for participant counts
+            x_ticks = [1, 2, 5, 10, 25, 50, 101]
+            ax.set_xticks(x_ticks)
+            ax.set_xticklabels([str(x) for x in x_ticks])
+        else:
+            ax.set_xlabel('Label Fraction (% of Training Participants Labeled)', fontsize=20)
+            # Set x-axis to log scale for better visualization of small fractions
+            ax.set_xscale('log')
+            ax.set_xlim(0.8, 120)
+            # Customize x-axis ticks for percentages
+            x_ticks = [1, 2.5, 5, 10, 25, 50, 100]
+            ax.set_xticks(x_ticks)
+            ax.set_xticklabels([f'{x}%' for x in x_ticks])
+
+        y_name = 'AUROC' if metric == "auroc" else "PR-AUC"
+        ax.set_ylabel(y_name, fontsize=20)
+        # ax.set_title(f'SSL Methods Comparison: {y_name} vs Label Fraction', fontsize=16, fontweight='bold', pad=20)
+
+        # Set y-axis limits and ticks
+        ax.set_ylim(0.5, 1.0) if y_name == "PR-AUC" else ax.set_ylim(0.45, 1.0)
+        ax.set_yticks(np.arange(0.5, 1.05, 0.1))
+
+        # Add grid
+        # ax.grid(False)
+        ax.set_axisbelow(True)
+
+        # Add horizontal line at random baseline
+        # if metric == "auroc":
+        #     ax.axhline(y=0.5, color='0.45', linestyle='solid', alpha=0.7, linewidth=2, label="Random Baseline")
+        # if metric == "pr_auc":
+        #     ax.axhline(y=0.5736, color='0.45', linestyle='solid', alpha=0.7, linewidth=2, label="Random Baseline")
+
+        # Customize legend
+        error_type = "Standard Error" if use_standard_error else "Standard Deviation"
+        # ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
+        #                    fontsize=10, title=f'SSL Methods (±{error_type})', title_fontsize=11)
+        ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
+                           fontsize=20, ncols=2)
+
+        plt.xticks(fontsize=20)
+        plt.yticks(fontsize=20)
+
+        # Improve overall appearance
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_linewidth(1.5)
+        ax.spines['bottom'].set_linewidth(1.5)
+
+        plt.tight_layout()
+
+        if save_path:
+            plt.savefig(save_path, dpi=500, bbox_inches='tight', facecolor='white')
+            print(f"Plot saved to {save_path}")
+
+        plt.show()
+        plt.close()
 
     return fig, ax
 
