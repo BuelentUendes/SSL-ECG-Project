@@ -14,6 +14,7 @@ from typing import Dict, List, Tuple
 import warnings
 warnings.filterwarnings("ignore")
 
+
 def load_json_results(file_path: str) -> Dict:
     """Load test results from JSON file."""
     try:
@@ -33,8 +34,7 @@ def collect_results(results_dir: str) -> pd.DataFrame:
     """Collect all results from the results directory structure."""
     results = []
     results_path = Path(results_dir)
-    
-    # Seeds we're interested in (commonly used in your experiments)
+
     target_seeds = [3, 5, 7, 9, 42]
     
     # Label fractions to collect
@@ -83,9 +83,7 @@ def collect_results(results_dir: str) -> pd.DataFrame:
                 for label_frac in label_fractions:
                     # Try different path structures
                     possible_paths = [
-                        seed_path / str(label_frac) / "test_results.json",
-                        seed_path / str(label_frac) / "10" / "5" / "test_results.json",
-                        seed_path / str(label_frac) / "10" / "5" / "1.0" / "test_results.json"
+                        seed_path / str(label_frac) / "10" / "5" / "test_results.json"
                     ]
                     
                     for result_file in possible_paths:
@@ -117,11 +115,9 @@ def collect_results(results_dir: str) -> pd.DataFrame:
                 continue
                 
             for label_frac in label_fractions:
-                # Try different path structures
+                # Use consistent path structure: 10/5/1.0/test_results.json
                 possible_paths = [
-                    seed_path / str(label_frac) / "test_results.json",
-                    seed_path / str(label_frac) / "10" / "5" / "test_results.json",
-                    seed_path / str(label_frac) / "10" / "5" / "1.0" / "test_results.json"
+                    seed_path / str(label_frac) / "10" / "5" / "1.0" / "test_results.json",
                 ]
                 
                 for result_file in possible_paths:
@@ -139,62 +135,7 @@ def collect_results(results_dir: str) -> pd.DataFrame:
                                 'f1': metrics.get('f1', np.nan)
                             })
                             break  # Found result, don't check other paths
-    
-    # Also check for TSTCC_S3 results in the special directory structure
-    tstcc_s3_path = ecg_path / "TSTCC_S3" / "logistic_regression"
-    if tstcc_s3_path.exists():
-        for seed in target_seeds:
-            seed_path = tstcc_s3_path / str(seed)
-            if seed_path.exists():
-                for label_frac in label_fractions:
-                    # Find any test_results.json files in the seed/fraction subdirectories
-                    frac_base = seed_path / str(label_frac)
-                    if frac_base.exists():
-                        result_files = find_result_files(frac_base)
-                        for result_file in result_files:
-                            metrics = load_json_results(str(result_file))
-                            if metrics and 'auroc' in metrics and 'pr_auc' in metrics:
-                                results.append({
-                                    'method_type': 'SSL',
-                                    'model': 'TSTCC_S3',
-                                    'seed': seed,
-                                    'label_fraction': label_frac,
-                                    'auroc': metrics['auroc'],
-                                    'pr_auc': metrics['pr_auc'],
-                                    'accuracy': metrics.get('accuracy', np.nan),
-                                    'f1': metrics.get('f1', np.nan)
-                                })
-                                break  # Only take first valid result per seed/fraction
-    
-    # Special case: Check for results in TSTCC with 42_s3 seed folder
-    tstcc_path = ecg_path / "TSTCC" / "logistic_regression"
-    if tstcc_path.exists():
-        special_seed_path = tstcc_path / "42_s3"
-        if special_seed_path.exists():
-            for label_frac in label_fractions:
-                possible_paths = [
-                    special_seed_path / str(label_frac) / "test_results.json",
-                    special_seed_path / str(label_frac) / "10" / "5" / "test_results.json",
-                    special_seed_path / str(label_frac) / "10" / "5" / "1.0" / "test_results.json"
-                ]
-                
-                for result_file in possible_paths:
-                    if result_file.exists():
-                        metrics = load_json_results(str(result_file))
-                        if metrics and 'auroc' in metrics and 'pr_auc' in metrics:
-                            results.append({
-                                'method_type': 'SSL',
-                                'model': 'TSTCC_S3',
-                                'seed': 42,  # Treat 42_s3 as seed 42 with S3
-                                'label_fraction': label_frac,
-                                'auroc': metrics['auroc'],
-                                'pr_auc': metrics['pr_auc'],
-                                'accuracy': metrics.get('accuracy', np.nan),
-                                'f1': metrics.get('f1', np.nan)
-                            })
-                            break
-    
-    # Collect ECG Features results (window_size=10, step_size=5)
+
     features_path = results_path / "ECG_features" / "logistic_regression"
     if features_path.exists():
         print("Collecting ECG features results...")
@@ -204,22 +145,30 @@ def collect_results(results_dir: str) -> pd.DataFrame:
                 continue
                 
             for label_frac in label_fractions:
-                # Look for results with window_size=10 and step_size=5
-                result_file = seed_path / str(label_frac) / "10" / "5" / "test_results.json"
-                if result_file.exists():
-                    metrics = load_json_results(str(result_file))
-                    if metrics and 'auroc' in metrics and 'pr_auc' in metrics:
-                        results.append({
-                            'method_type': 'Features',
-                            'model': 'ECG_Features',
-                            'seed': seed,
-                            'label_fraction': label_frac,
-                            'auroc': metrics['auroc'],
-                            'pr_auc': metrics['pr_auc'],
-                            'accuracy': metrics.get('accuracy', np.nan),
-                            'f1': metrics.get('f1', np.nan)
-                        })
-    
+                # Look for results with different window sizes and shifts
+                window_configurations = [
+                    (10, 5),   # 10s window, 5s shift
+                    (30, 10),  # 30s window, 10s shift
+                ]
+                
+                for window_size, window_shift in window_configurations:
+                    result_file = seed_path / str(label_frac) / str(window_size) / str(window_shift) / "test_results.json"
+                    if result_file.exists():
+                        metrics = load_json_results(str(result_file))
+                        if metrics and 'auroc' in metrics and 'pr_auc' in metrics:
+                            results.append({
+                                'method_type': 'Features',
+                                'model': f'ECG_Features_{window_size}s_{window_shift}s',
+                                'seed': seed,
+                                'label_fraction': label_frac,
+                                'window_size': window_size,
+                                'window_shift': window_shift,
+                                'auroc': metrics['auroc'],
+                                'pr_auc': metrics['pr_auc'],
+                                'accuracy': metrics.get('accuracy', np.nan),
+                                'f1': metrics.get('f1', np.nan)
+                            })
+
     df = pd.DataFrame(results)
     print(f"Collected {len(df)} result entries")
     return df
