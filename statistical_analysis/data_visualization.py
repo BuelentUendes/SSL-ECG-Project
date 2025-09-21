@@ -34,19 +34,19 @@ class ECGDataLoader:
     
     def __init__(self):
         self.dataset_configs = {
-            'ECG': {
+            'Ours': {
                 'path': '../data/interim/ECG/1000/10/5/windowed_data.h5',
-                'color': '#1f77b4',  # Blue
-                'sampling_rate': 1000
+                'color': '#57B4BA',  # Blue
+                'sampling_rate': 1_000
             },
             'WESAD': {
                 'path': '../data/interim/WESAD/ECG/700/10/5/windowed_data.h5',
-                'color': '#ff7f0e',  # Orange
+                'color': '#015551',  # Orange
                 'sampling_rate': 700
             },
             'STRESSID': {
                 'path': '../data/interim/STRESSID/ECG/500/10/5/windowed_data.h5',
-                'color': '#2ca02c',  # Green
+                'color': '#FE4F2D',  # Green
                 'sampling_rate': 500
             }
         }
@@ -242,56 +242,80 @@ class ECGVisualizer:
         return embedding, np.array(dataset_labels), np.array(stress_labels)
     
     def plot_umap_results(self, embedding: np.ndarray, dataset_labels: np.ndarray, 
-                         stress_labels: np.ndarray, figsize: Tuple[int, int] = (16, 6)):
+                         stress_labels: np.ndarray, figsize: Tuple[int, int] = (10, 8)):
         """Plot UMAP results with different visualizations."""
-        fig, axes = plt.subplots(1, 2, figsize=figsize)
-        
-        # Plot 1: Color by dataset
-        unique_datasets = np.unique(dataset_labels)
-        colors = [self.datasets[ds]['config']['color'] for ds in unique_datasets]
-        
-        for i, dataset in enumerate(unique_datasets):
-            mask = dataset_labels == dataset
-            axes[0].scatter(embedding[mask, 0], embedding[mask, 1], 
-                          c=colors[i], label=dataset, alpha=0.7, s=8)
-        
-        axes[0].set_title('UMAP Embedding - Colored by Dataset', fontsize=14)
-        axes[0].set_xlabel('UMAP 1', fontsize=12)
-        axes[0].set_ylabel('UMAP 2', fontsize=12)
-        axes[0].legend(fontsize=12, markerscale=2)
-        axes[0].grid(True, alpha=0.3)
-        
-        # Plot 2: Color by dataset with stress distinction
-        for i, dataset in enumerate(unique_datasets):
-            dataset_mask = dataset_labels == dataset
-            stress_mask = dataset_mask & (stress_labels == 1)
-            baseline_mask = dataset_mask & (stress_labels == 0)
+
+        with plt.style.context(['ieee']):
+            fig, axes = plt.subplots(1, 1, figsize=figsize)
+            # plt.style.use('default')
+            axes.set_facecolor('white')
+            fig.patch.set_facecolor('white')
             
-            # Plot baseline as lighter, hollow circles
-            if np.any(baseline_mask):
-                axes[1].scatter(embedding[baseline_mask, 0], embedding[baseline_mask, 1],
-                              c='white', edgecolors=colors[i], label=f'{dataset} - Baseline',
-                              alpha=0.8, s=10, linewidths=1.2)
-            
-            # Plot stress as solid, darker circles
-            if np.any(stress_mask):
-                axes[1].scatter(embedding[stress_mask, 0], embedding[stress_mask, 1],
-                              c=colors[i], label=f'{dataset} - Stress',
-                              alpha=0.8, s=10)
-        
-        axes[1].set_title('UMAP Embedding - Dataset + Stress/Baseline', fontsize=14)
-        axes[1].set_xlabel('UMAP 1', fontsize=12)
-        axes[1].set_ylabel('UMAP 2', fontsize=12)
-        axes[1].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=11, markerscale=1.5)
-        axes[1].grid(True, alpha=0.3)
-        
-        plt.tight_layout()
+            # Set axis colors to black
+            axes.tick_params(colors='black')
+            axes.xaxis.label.set_color('black')
+            axes.yaxis.label.set_color('black')
+            for spine in axes.spines.values():
+                spine.set_edgecolor('black')
+                spine.set_linewidth(1.5)
+
+            # Plot 1: Color by dataset
+            unique_datasets = np.unique(dataset_labels)
+            colors = [self.datasets[ds]['config']['color'] for ds in unique_datasets]
+
+            for i, dataset in enumerate(unique_datasets):
+                mask = dataset_labels == dataset
+                axes.scatter(embedding[mask, 0], embedding[mask, 1],
+                              c=colors[i], label=dataset, alpha=0.7, s=8)
+
+            # axes[0].set_title('UMAP Embedding - Colored by Dataset', fontsize=14)
+            plt.xticks(fontsize=20)
+            plt.yticks(fontsize=20)
+            axes.set_xlabel('UMAP 1', fontsize=20)
+            axes.set_ylabel('UMAP 2', fontsize=20)
+            legend = axes.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
+                      fontsize=20, markerscale=4)
+            legend.get_frame().set_facecolor('white')
+            # legend.get_frame().set_edgecolor('black')
+            # legend.get_frame().set_linewidth(1.0)
+            axes.grid(True, alpha=0.7)
+
+            # # Plot 2: Color by dataset with stress distinction
+            # for i, dataset in enumerate(unique_datasets):
+            #     dataset_mask = dataset_labels == dataset
+            #     stress_mask = dataset_mask & (stress_labels == 1)
+            #     baseline_mask = dataset_mask & (stress_labels == 0)
+            #
+            #     # Plot baseline as lighter, hollow circles
+            #     if np.any(baseline_mask):
+            #         axes[1].scatter(embedding[baseline_mask, 0], embedding[baseline_mask, 1],
+            #                       c='white', edgecolors=colors[i], label=f'{dataset} - Baseline',
+            #                       alpha=0.8, s=10, linewidths=1.2)
+            #
+            #     # Plot stress as solid, darker circles
+            #     if np.any(stress_mask):
+            #         axes[1].scatter(embedding[stress_mask, 0], embedding[stress_mask, 1],
+            #                       c=colors[i], label=f'{dataset} - Stress',
+            #                       alpha=0.8, s=10)
+            #
+            # # axes[1].set_title('UMAP Embedding - Dataset + Stress/Baseline', fontsize=14)
+            # axes[1].set_xlabel('UMAP 1', fontsize=12)
+            # axes[1].set_ylabel('UMAP 2', fontsize=12)
+            # axes[1].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=11, markerscale=1.5)
+            # axes[1].grid(True, alpha=0.3)
+            #
+            # Improve overall appearance
+            axes.spines['top'].set_visible(False)
+            axes.spines['right'].set_visible(False)
+            axes.spines['left'].set_linewidth(1.5)
+            axes.spines['bottom'].set_linewidth(1.5)
+            plt.tight_layout()
         return fig
 
 def main():
     """Main function to run the visualization."""
     parser = argparse.ArgumentParser(description='Visualize ECG data using UMAP')
-    parser.add_argument('--samples-per-participant', type=int, default=250,
+    parser.add_argument('--samples-per-participant', type=int, default=100,
                        help='Number of samples to take per participant (None for all)')
     parser.add_argument('--focus-mental-stress', action='store_true', default=True,
                        help='Focus only on mental stress (1) and baseline (0) labels')
@@ -336,7 +360,7 @@ def main():
     print("\nCreating raw ECG plots...")
     fig_raw = visualizer.plot_raw_ecg_samples()
     if args.save_plots:
-        fig_raw.savefig('ecg_raw_signals.png', dpi=300, bbox_inches='tight')
+        fig_raw.savefig('ecg_raw_signals.png', dpi=500, bbox_inches='tight')
         print("Saved raw ECG plot to ecg_raw_signals.png")
     
     # Create UMAP embedding
