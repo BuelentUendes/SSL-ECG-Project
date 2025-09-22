@@ -10,8 +10,6 @@ import argparse
 import numpy as np
 import torch
 import torch.optim as optim
-import mlflow
-import mlflow.pytorch
 
 from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, average_precision_score, balanced_accuracy_score
@@ -29,6 +27,7 @@ from utils.torch_utilities import (
     train_one_epoch,
     test,
     EarlyStopping,
+    evaluate_zero_shot_model_performance,
 )
 
 from models.supervised import (
@@ -366,7 +365,6 @@ def get_paths(
 
 
 def main(
-        mlflow_tracking_uri: str,
         fs: str,
         dataset: str,
         model_type: str = "cnn",
@@ -391,6 +389,8 @@ def main(
         initial_num_segments: int=2,
         num_s3_layers: int = 2,
         segment_multiplier: int =2,
+        zero_shot_evaluation: bool=False,
+        zero_shot_dataset: str="wesad",
 ):
 
     set_seed(seed)
@@ -405,21 +405,6 @@ def main(
     use_cuda = (device.type == "cuda")
     pin_memory = use_cuda
 
-    # mlflow setup
-    exp_map = {
-        "cnn": "Supervised_CNN",
-        "tcn": "Supervised_TCN",
-        "transformer": "Supervised_Transformer",
-        "deep_ecg_net": "Deep ECG Net",
-        "patchtst": "PatchTST",
-        "moment": "MOMENT Foundation Model",
-    }
-    experiment_name = exp_map.get(model_type.lower())
-    if experiment_name is None:
-        raise ValueError(f"Unknown model_type '{model_type}'")
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
-    mlflow.set_experiment(experiment_name)
-    run = mlflow.start_run(run_name=None)
 
     # Check if directory for saving model parameters exist, otherwise create it
     create_directory(SAVED_MODELS_PATH)
@@ -430,6 +415,39 @@ def main(
     )
     create_directory(model_save_path)
     create_directory(results_save_path)
+
+    # Create zero-shot results path
+    if zero_shot_evaluation:
+        target_domain = "StressID" if zero_shot_dataset == "stressid" else "WESAD"
+        zero_shot_results_path = os.path.join(
+            RESULTS_PATH, "Transfer_learning", target_domain, "zero_shot_performance", model_type,
+            f"{seed}", f"{label_fraction}",
+    )
+
+        create_directory(zero_shot_results_path)
+
+    # If zero shot evaluation is set true, we load the StressID and WESAD dataset
+    if zero_shot_evaluation:
+        if zero_shot_dataset == "wesad":
+            if int(fs) == 700:
+                zero_shot_window_data_path = os.path.join(
+                    DATA_PATH, "interim", "WESAD", "ECG", str(fs), str(window_size), str(step_size), 'windowed_data.h5')
+            else:
+                raise ValueError("For zero-shot evaluation for wesad the frequency needs to be 700")
+
+        elif zero_shot_dataset == "stressid":
+            if int(fs) == 500:
+                zero_shot_window_data_path = os.path.join(
+                DATA_PATH, "interim", "STRESSID", "ECG", str(fs), str(window_size), str(step_size), 'windowed_data.h5')
+            else:
+                raise ValueError("For zero-shot evaluation for stressid the frequency needs to be 500")
+        else:
+            raise ValueError('Please use a proper dataset "wesad" or "stressid"')
+
+        X_zero_shot, y_zero_shot, groups_shot = load_processed_data(
+            zero_shot_window_data_path, label_map={"baseline": 0, "mental_stress": 1}
+        )
+        y_zero_shot = y_zero_shot.astype(np.float32)
 
     # load data
     X, y, groups = load_processed_data(
@@ -481,7 +499,7 @@ def main(
 
     # --Step 3: Training if set (force retraining) --------
     if force_retraining:
-        results, final_model = run_supervised_model_with_cv_and_test(
+        results, model = run_supervised_model_with_cv_and_test(
             model_type, X_train, y_train, groups_train, X_test, y_test,
             cv_splitter, device, classifier_epochs=num_epochs, classifier_batch_size=batch_size,
             classifier_lr=lr, pin_memory=pin_memory, scoring_metric=scoring_metric,
@@ -489,20 +507,13 @@ def main(
             num_s3_layers=num_s3_layers, segment_multiplier=segment_multiplier,
         )
 
-        # log the results:
-        mlflow.log_metrics({
-            "test_accuracy": results["test_metrics"]["accuracy"],
-            "test_aurco": results["test_metrics"]["auroc"],
-            "test_f1": results["test_metrics"]["f1"],
-            "test_pr_auc": results["test_metrics"]["pr_auc"],
-        })
         # Save the results:
         with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
             json.dump(results, f)
 
         saved_results = os.path.join(model_save_path, f"{model_type}.pt")
         torch.save(
-            {"model_parameters": final_model.state_dict()},
+            {"model_parameters": model.state_dict()},
             saved_results
         )
 
@@ -544,14 +555,20 @@ def main(
         )
         loss_fn = torch.nn.BCEWithLogitsLoss()
 
-        #ToDo: Change the best t for f1 score
         loss, acc, auroc, prauc, f1 = test(
             model, test_loader, device,
             threshold=0.5, loss_fn=loss_fn,
         )
 
         print(f"Test acc: {acc:.4f}, AUROC: {auroc:.4f}, F1: {f1:.4f}, PR-AUC: {prauc:.4f}")
-        mlflow.log_metrics({"test_loss": loss, "test_acc": acc, "test_auroc": auroc, "test_f1": f1})
+
+    # Then test the performance
+    if zero_shot_evaluation:
+        zero_shot_results = evaluate_zero_shot_model_performance(model, X_zero_shot, y_zero_shot)
+
+        # Save results
+        with open(os.path.join(zero_shot_results_path, "zero_shot_results.json"), 'w') as f:
+            json.dump(zero_shot_results, f, indent=2, default=str)
 
     # cleanup
     for _ in range(3): gc.collect()
@@ -562,7 +579,6 @@ def main(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train ECG classifier")
-    parser.add_argument("--mlflow_tracking_uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     parser.add_argument("--fs", default=1_000, type=str, help="What sample frequency used for training")
     parser.add_argument("--dataset", choices=("stressid", "wesad", "ours"), default="ours", type=str)
     parser.add_argument("--model_type",
@@ -597,7 +613,12 @@ if __name__ == "__main__":
     parser.add_argument("--num_s3_layers", type=int, default=2)
     parser.add_argument("--segment_multiplier", type=int, default=2)
 
+    # Zero-shot evaluation
+    parser.add_argument("--zero_shot_evaluation", action="store_true",
+                                 help="If set, we do downstream zero-shot evaluation.")
+    parser.add_argument("--zero_shot_dataset", type=str,
+                                 choices=("stressid", "wesad"), default="wesad")
+
     args = parser.parse_args()
 
-    args.force_retraining = True
     main(**vars(args))
