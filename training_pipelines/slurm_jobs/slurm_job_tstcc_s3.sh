@@ -7,6 +7,7 @@
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_tstcc_s3%j.out
 #SBATCH --error=ecg_tstcc_s3%j.err
+#SBATCH -C A4000
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -48,19 +49,21 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 0.1 --use_s3_layers --force_retraining
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 0.01 --use_s3_layers
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 0.025 --use_s3_layers
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 0.05 --use_s3_layers
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 0.25 --use_s3_layers
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 0.5 --use_s3_layers
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 1.0 --use_s3_layers
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.1 --use_s3_layers --force_retraining
+#python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 0.01 --use_s3_layers
+#python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 0.025 --use_s3_layers
+#python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 0.05 --use_s3_layers
+#python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 0.25 --use_s3_layers
+#python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 0.5 --use_s3_layers
+#python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 1.0 --use_s3_layers
 
 ## Command to run the job
-#  for SEED in 100 101 102 103 104; do
+#  for SEED in 3 5 7 9 42; do
 #      sbatch --job-name=ECG_TSTCC_s3_seed_${SEED} \
 #             --output=ecg_tstcc_s3_${SEED}_%j.out \
 #             --error=ecg_tstcc_s3_${SEED}_%j.err \
+#             --begin=20:00 \
+#             --time=24:00:00 \
 #             ./slurm_jobs/slurm_job_tstcc_s3.sh $SEED
 #  done
 ##
