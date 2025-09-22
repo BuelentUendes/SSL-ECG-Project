@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=ECG_TS2Vec_S3
-#SBATCH --time=60:00:00
+#SBATCH --job-name=ECG_SimCLR
+#SBATCH --time=0:20:00
 #SBATCH -N 1
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=b.uendes@vu.nl
-#SBATCH --output=ecg_ts2vec_s3_%j.out
-#SBATCH --error=ecg_ts2vec_s3_%j.err
+#SBATCH --output=ecg_simclr_%j.out
+#SBATCH --error=ecg_simclr_%j.err
 #SBATCH -C A4000
 
 # Useful bash commands:
@@ -49,20 +49,15 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.1 --use_s3_layers
-python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.01 --use_s3_layers
-python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.025 --use_s3_layers
-python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.05 --use_s3_layers
-python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.25 --use_s3_layers
-python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.5 --use_s3_layers
-python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 1.0 --use_s3_layers
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1
 
 # Command to run the job
-  for SEED in 3 5 7 9 42; do
-      sbatch --job-name=ECG_TS2Vec_s3_seed_${SEED} \
-             --output=ecg_ts2vec_s3_${SEED}_%j.out \
-             --time=60:00:00 \
-             --error=ecg_ts2vec_s3_${SEED}_%j.err \
-             ./slurm_jobs/slurm_job_ts2vec_s3.sh $SEED
-  done
+#  for SEED in 3 5 7 9 42; do
+#      sbatch --job-name=ECG_SimCLR_seed_${SEED} \
+#             --output=ecg_simclr_${SEED}_%j.out \
+#             --error=ecg_simclr_${SEED}_%j.err \
+#             --begin=20:00 \
+#             --time=12:00:00 \
+#             ./slurm_jobs/slurm_job_simclr.sh $SEED
+#  done
 ##

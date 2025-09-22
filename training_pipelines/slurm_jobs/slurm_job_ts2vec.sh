@@ -58,12 +58,11 @@ python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction
 python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 1.0
 
 # Command to run the job
-#  for SEED in 3 5 7 9 42; do
-#      sbatch --job-name=ECG_TS2Vec_seed_${SEED} \
-#             --output=ecg_ts2vec_${SEED}_%j.out \
-#             --time=60:00:00 \
-#             --begin=20:00 \
-#             --error=ecg_ts2vec_${SEED}_%j.err \
-#             ./slurm_jobs/slurm_job_ts2vec.sh $SEED
-#  done
+  for SEED in 3 5 7 9 42; do
+      sbatch --job-name=ECG_TS2Vec_seed_${SEED} \
+             --output=ecg_ts2vec_${SEED}_%j.out \
+             --time=60:00:00 \
+             --error=ecg_ts2vec_${SEED}_%j.err \
+             ./slurm_jobs/slurm_job_ts2vec.sh $SEED
+  done
 ##

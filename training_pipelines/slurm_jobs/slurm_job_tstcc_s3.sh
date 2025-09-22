@@ -57,10 +57,10 @@ python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 0.5 
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 1 --label_fraction 1.0 --use_s3_layers
 
 ## Command to run the job
-#  for SEED in 3 5 7 9 42; do
-#      sbatch --job-name=ECG_TSTCC_seed_${SEED} \
-#             --output=ecg_tstcc_${SEED}_%j.out \
-#             --error=ecg_tstcc_${SEED}_%j.err \
-#             slurm_job_tstcc.sh $SEED
+#  for SEED in 100 101 102 103 104; do
+#      sbatch --job-name=ECG_TSTCC_s3_seed_${SEED} \
+#             --output=ecg_tstcc_s3_${SEED}_%j.out \
+#             --error=ecg_tstcc_s3_${SEED}_%j.err \
+#             ./slurm_jobs/slurm_job_tstcc_s3.sh $SEED
 #  done
 ##
