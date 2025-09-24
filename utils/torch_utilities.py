@@ -1609,6 +1609,30 @@ def evaluate_zero_shot_model_performance(classifier_model, X_zero_shot, y_zero_s
 
     return zero_shot_results
 
+def evaluate_zero_shot_model_performance_supervised(classifier_model, X_zero_shot, y_zero_shot, device="cpu"):
+    # Evaluate on test set
+    # M1 error when running with such a large dataset, so putting it on the cpu
+    if not torch.cuda.is_available():
+        device="cpu"
+
+    classifier_model.eval().to(device)
+    X_zero_shot = torch.from_numpy(X_zero_shot).permute(0, 2, 1).to(device)
+    y_zero_shot = torch.from_numpy(y_zero_shot).float()
+    y_test_logits = classifier_model(X_zero_shot)
+    y_test_proba = torch.sigmoid(y_test_logits).cpu().numpy()
+    y_test_pred = (y_test_proba > 0.5).astype(float)
+
+    print(f"The mean test prediction is {np.mean(y_test_pred)}, {y_test_pred}")
+    zero_shot_results = {"zero_shot_accuracy": accuracy_score(y_zero_shot, y_test_pred),
+                         "zero_shot_balanced_accuracy": balanced_accuracy_score(y_zero_shot, y_test_pred),
+                         "zero_shot_roc_auc": roc_auc_score(y_zero_shot, y_test_proba),
+                         "zero_shot_pr_auc": average_precision_score(y_zero_shot, y_test_proba),
+                         "zero_shot_f1_score": average_precision_score(y_zero_shot, y_test_proba)}
+
+    print(f"\n=== Zero-shot Test Set Results ===")
+    print(zero_shot_results)
+
+    return zero_shot_results
 
 
 
