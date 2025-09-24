@@ -20,14 +20,10 @@ from utils.torch_utilities import (
     load_processed_data,
     split_indices_by_participant_groups,
     get_participant_cv_splitter,
-    build_supervised_fingerprint,
     PhysiologicalDataset,
     set_seed,
     create_directory,
-    train_one_epoch,
     test,
-    EarlyStopping,
-    evaluate_zero_shot_model_performance_supervised,
 )
 
 from models.supervised import (
@@ -564,10 +560,24 @@ def main(
 
     # Then test the performance
     if zero_shot_evaluation:
-        zero_shot_results = evaluate_zero_shot_model_performance_supervised(
-            model, X_zero_shot, y_zero_shot, device=device
+        test_ds = PhysiologicalDataset(X_zero_shot, y_zero_shot)
+        test_loader = DataLoader(
+            test_ds, batch_size=batch_size, shuffle=False, drop_last=False,
+            pin_memory=pin_memory
+        )
+        loss, acc, auroc, prauc, f1 = test(
+            model, test_loader, device,
+            threshold=0.5, loss_fn=loss_fn,
         )
 
+        zero_shot_results = {"zero_shot_accuracy": acc,
+                             "zero_shot_roc_auc": auroc,
+                             "zero_shot_pr_auc": prauc,
+                             }
+        print(f"\n=== Zero-shot Test Set Results ===")
+        print(zero_shot_results)
+
+        # Save the results then:
         # Save results
         with open(os.path.join(zero_shot_results_path, "zero_shot_results.json"), 'w') as f:
             json.dump(zero_shot_results, f, indent=2, default=str)
@@ -581,7 +591,7 @@ def main(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train ECG classifier")
-    parser.add_argument("--fs", default=1000, type=int, help="What sample frequency used for training")
+    parser.add_argument("--fs", default=700, type=int, help="What sample frequency used for training")
     parser.add_argument("--dataset", choices=("stressid", "wesad", "ours"), default="ours", type=str)
     parser.add_argument("--model_type",
                         choices=["cnn", "tcn", "transformer", "deep_ecg_net", "patchtst", "moment"], default="cnn")
@@ -622,5 +632,6 @@ if __name__ == "__main__":
                                  choices=("stressid", "wesad"), default="wesad")
 
     args = parser.parse_args()
+    args.zero_shot_evaluation = True
 
     main(**vars(args))
