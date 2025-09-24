@@ -632,6 +632,5 @@ if __name__ == "__main__":
                                  choices=("stressid", "wesad"), default="wesad")
 
     args = parser.parse_args()
-    args.zero_shot_evaluation = True
 
     main(**vars(args))
