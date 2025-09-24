@@ -356,12 +356,12 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Extract features from our windowed ECG data")
     parser.add_argument("--dataset", choices=("ours", "stressid", "wesad"),
-                        help="Which dataset to use for feature extraction.", default="stressid")
-    parser.add_argument("--sample_frequency", type=int, default=500,
+                        help="Which dataset to use for feature extraction.", default="ours")
+    parser.add_argument("--sample_frequency", type=int, default=700,
                         help="Sampling rate used for the dataset")
-    parser.add_argument("--window_size", type=int, default=10,
+    parser.add_argument("--window_size", type=int, default=30,
                         help="Window size in seconds")
-    parser.add_argument("--window_shift", type=int, default=5,
+    parser.add_argument("--window_shift", type=int, default=10,
                         help="Window shift in seconds")
     parser.add_argument("--use_normalized_ecg_signal", action="store_true",
                         help="If set, we use the normalized ecg signal.")
