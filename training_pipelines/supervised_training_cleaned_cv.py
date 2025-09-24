@@ -27,7 +27,7 @@ from utils.torch_utilities import (
     train_one_epoch,
     test,
     EarlyStopping,
-    evaluate_zero_shot_model_performance,
+    evaluate_zero_shot_model_performance_supervised,
 )
 
 from models.supervised import (
@@ -564,7 +564,9 @@ def main(
 
     # Then test the performance
     if zero_shot_evaluation:
-        zero_shot_results = evaluate_zero_shot_model_performance(model, X_zero_shot, y_zero_shot)
+        zero_shot_results = evaluate_zero_shot_model_performance_supervised(
+            model, X_zero_shot, y_zero_shot, device=device
+        )
 
         # Save results
         with open(os.path.join(zero_shot_results_path, "zero_shot_results.json"), 'w') as f:
@@ -579,11 +581,11 @@ def main(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train ECG classifier")
-    parser.add_argument("--fs", default=1_000, type=int, help="What sample frequency used for training")
+    parser.add_argument("--fs", default=1000, type=int, help="What sample frequency used for training")
     parser.add_argument("--dataset", choices=("stressid", "wesad", "ours"), default="ours", type=str)
     parser.add_argument("--model_type",
                         choices=["cnn", "tcn", "transformer", "deep_ecg_net", "patchtst", "moment"], default="cnn")
-    parser.add_argument("--label_fraction", type=float, default=0.25,
+    parser.add_argument("--label_fraction", type=float, default=1.0,
                         help="Percent of labeled participants in the training stage.")
     parser.add_argument("--window_size", type=int, default=10,
                            help="Window size in seconds")
