@@ -591,7 +591,7 @@ def main(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train ECG classifier")
-    parser.add_argument("--fs", default=700, type=int, help="What sample frequency used for training")
+    parser.add_argument("--fs", default=1000, type=int, help="What sample frequency used for training")
     parser.add_argument("--dataset", choices=("stressid", "wesad", "ours"), default="ours", type=str)
     parser.add_argument("--model_type",
                         choices=["cnn", "tcn", "transformer", "deep_ecg_net", "patchtst", "moment"], default="cnn")
