@@ -77,7 +77,8 @@ def main(args):
     seeds = [3,5,7,9,42]
     zero_shot_results = {}
     # Get all model_names
-    folder_paths = list(pathlib.Path(results_path).iterdir())
+    folder_paths = [path for path in pathlib.Path(results_path).iterdir() if path.is_dir()]
+    # Remove the json file
     model_names = [str(path).split("/")[-1] for path in folder_paths]
 
     # Define (window_size, step_size) pairs for feature-engineered
