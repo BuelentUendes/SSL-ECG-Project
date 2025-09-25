@@ -806,7 +806,7 @@ def standardize_features(X_train, X_val, X_test, feature_names):
         if X_test is not None:
             X_test_scaled[:, nn_indices] = minmax_scaler.transform(X_test[:, nn_indices])
 
-    return X_train_scaled, X_val_scaled, X_test_scaled
+    return X_train_scaled, X_val_scaled, X_test_scaled, (standard_scaler, minmax_scaler)
 
 
 def get_participant_cv_splitter(groups, min_participants_for_kfold=5, k=5):
@@ -877,8 +877,9 @@ def run_logistic_regression_with_gridsearch(
     """
 
     # Standardize features (fit on train, transform both)
+    scaler = None
     if standardize:
-        X_train, _, X_test = standardize_features(X_train, None, X_test, feature_names)
+        X_train, _, X_test, scaler = standardize_features(X_train, None, X_test, feature_names)
 
     model_param_grid = {
         "logistic_regression": {
@@ -1023,7 +1024,8 @@ def run_logistic_regression_with_gridsearch(
             'f1': test_f1,
             'pr_auc': test_pr_auc
         },
-        'model': best_model
+        'model': best_model,
+        'scaler': scaler
     }
 
 
@@ -1597,7 +1599,6 @@ def evaluate_zero_shot_model_performance(classifier_model, X_zero_shot, y_zero_s
     y_test_proba = classifier_model.predict_proba(X_zero_shot)[:, 1]
     y_test_pred = classifier_model.predict(X_zero_shot)
 
-    print(f"The mean test prediction is {np.mean(y_test_pred)}, {y_test_pred}")
     zero_shot_results = {"zero_shot_accuracy": accuracy_score(y_zero_shot, y_test_pred),
                          "zero_shot_balanced_accuracy": balanced_accuracy_score(y_zero_shot, y_test_pred),
                          "zero_shot_roc_auc": roc_auc_score(y_zero_shot, y_test_proba),
@@ -1605,6 +1606,7 @@ def evaluate_zero_shot_model_performance(classifier_model, X_zero_shot, y_zero_s
                          "zero_shot_f1_score": average_precision_score(y_zero_shot, y_test_proba)}
 
     print(f"\n=== Zero-shot Test Set Results ===")
+    print(f"The mean test prediction is {np.mean(y_test_pred)}, {y_test_pred}")
     print(zero_shot_results)
 
     return zero_shot_results
