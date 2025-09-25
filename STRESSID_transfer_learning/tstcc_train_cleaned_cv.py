@@ -140,9 +140,9 @@ def main(
     #Save the results based on either pretrained from our dataset or trained from scratch
     if use_pretrained_encoder:
         if fine_tune_encoder:
-            subfolder_name = "pretrained_encoder_fine_tuned_encoder"
+            subfolder_name = "fine_tuned_encoder_new_head"
         else:
-            subfolder_name = "pretrained_encoder"
+            subfolder_name = "pretrained_encoder_new_head"
     else:
         if fine_tune_encoder:
             subfolder_name = "trained_from_scratch_fine_tuned_encoder"
@@ -412,7 +412,7 @@ def main(
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────
 
-    # Includes the fine-tuning step now as wel
+    # Includes the fine-tuning step now as well
     if fine_tune_encoder:
         print(f"FINE-TUNING Encoder")
 
@@ -671,7 +671,7 @@ if __name__ == "__main__":
                            help="Window size in seconds")
     data_group.add_argument("--step_size", type=int, default=5,
                            help="Step size in seconds for sliding window")
-    data_group.add_argument("--label_fraction", type=float, default=0.1,
+    data_group.add_argument("--label_fraction", type=float, default=1.0,
                            help="Fraction of labeled participants to use (0.0-1.0)")
     data_group.add_argument("--pretrain_all_conditions", action="store_true",
                            help="Pretrain on all conditions (not just baseline/mental_stress)")
@@ -760,5 +760,9 @@ if __name__ == "__main__":
 
     #Important:
     args.pretrain_all_conditions = True
+
+    # IMPORTANT:
+    # use pretrained encoder -> train a new head
+    # fine_tune_encoder -> fine tune encoder and a new head
 
     main(**vars(args))
