@@ -10,6 +10,7 @@ import argparse
 import numpy as np
 import torch
 import torch.optim as optim
+from tqdm import tqdm
 
 from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, average_precision_score, balanced_accuracy_score
@@ -24,6 +25,9 @@ from utils.torch_utilities import (
     set_seed,
     create_directory,
     test,
+    run_logistic_regression_with_gridsearch,
+    run_logistic_regression_with_gridsearch_verbose,
+    run_mlp_with_cv_and_test,
 )
 
 from models.supervised import (
@@ -360,6 +364,56 @@ def get_paths(
     return model_save_path, results_save_path, window_data_path
 
 
+def load_and_return_saved_model(model_type, model_weights_path, device):
+    # model
+    if model_type.lower() == "cnn":
+        model = Improved1DCNN_v2()
+    elif model_type.lower() == "tcn":
+        model = TCNClassifier()
+    elif model_type.lower() == "deep_ecg_net":
+        model = DeepECGNet()
+    elif model_type.lower() == "patchtst":
+        model = PatchTSTECGClassifier()
+    elif model_type.lower() == "moment":
+        model = MomentFMClassifier()
+    else:
+        model = TransformerECGClassifier()
+
+    model = model.to(device)
+
+    if os.path.exists(model_weights_path):
+        print(f"Loading saved model parameters from: {model_weights_path}")
+        checkpoint = torch.load(model_weights_path, map_location=device, weights_only=True)
+
+        # Load model state dict
+        model.load_state_dict(checkpoint["model_parameters"])
+
+        return model
+
+    else:
+        print(f"No saved model found at {model_weights_path}. Please run with --force_retraining")
+        raise FileNotFoundError(f"Model file not found: {model_weights_path}")
+
+
+def get_representations_in_batches(model, data, batch_size=32):
+    model.eval()
+    representations = []
+    total_len = (len(data) // batch_size) + 1
+
+    for i in tqdm(range(0, len(data), batch_size), desc="Processing batches", total=total_len, unit="batch"):
+        batch = data[i:i + batch_size]
+        with torch.no_grad():
+            batch_repr = model.get_encoder_representations(batch)
+            representations.append(batch_repr.cpu().numpy())
+
+            # Clear GPU cache if using CUDA
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    return np.concatenate(representations, axis=0)
+
+
+
 def main(
         fs: int,
         dataset: str,
@@ -387,6 +441,12 @@ def main(
         segment_multiplier: int =2,
         zero_shot_evaluation: bool=False,
         zero_shot_dataset: str="wesad",
+        use_pretrained_encoder: bool = False,
+        fine_tune_encoder: bool = False,
+        classifier_head: str = "logistic_regression",
+        classifier_epochs: int = 25,
+        classifier_lr: float = 1e-4,
+        classifier_batch_size: int =32,
 ):
 
     set_seed(seed)
@@ -401,7 +461,6 @@ def main(
     use_cuda = (device.type == "cuda")
     pin_memory = use_cuda
 
-
     # Check if directory for saving model parameters exist, otherwise create it
     create_directory(SAVED_MODELS_PATH)
     create_directory(RESULTS_PATH)
@@ -411,6 +470,31 @@ def main(
     )
     create_directory(model_save_path)
     create_directory(results_save_path)
+
+    if use_pretrained_encoder:
+        if fine_tune_encoder:
+            subfolder_name = "fine_tuned_encoder_new_head"
+        else:
+            subfolder_name = "pretrained_encoder_new_head"
+    else:
+        if fine_tune_encoder:
+            subfolder_name = "trained_from_scratch_fine_tuned_encoder"
+        else:
+            subfolder_name = "trained_from_scratch"
+
+    # Get the transfer learning results
+    if use_pretrained_encoder:
+        pretrained_model_save_path = os.path.join(
+            SAVED_MODELS_PATH, "ECG", str(fs), f"{model_type}", f"{seed}", f"{label_fraction}",
+            f"{window_size}", f"{step_size}"
+        )
+        dataset_name = "WESAD" if dataset == "wesad" else "StressID"
+        transfer_learning_results_save_path = os.path.join(
+            RESULTS_PATH, "Transfer_learning", dataset_name,subfolder_name, model_type,
+            f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
+    )
+
+        create_directory(transfer_learning_results_save_path)
 
     # Create zero-shot results path
     if zero_shot_evaluation:
@@ -514,49 +598,84 @@ def main(
         )
 
     else:
-        # Load parameters from saved results
-        saved_results = os.path.join(model_save_path, f"{model_type}.pt")
+        if use_pretrained_encoder:
+            # We need to load the corresponding architecture
+            pretrained_model_weights_path = os.path.join(
+                pretrained_model_save_path, f"{model_type}.pt"
+            )
+            pretrained_model = load_and_return_saved_model(model_type, pretrained_model_weights_path, device)
 
-        # model
-        if model_type.lower() == "cnn":
-            model = Improved1DCNN_v2()
-        elif model_type.lower() == "tcn":
-            model = TCNClassifier()
-        elif model_type.lower() == "deep_ecg_net":
-            model = DeepECGNet()
-        elif model_type.lower() == "patchtst":
-            model = PatchTSTECGClassifier()
-        elif model_type.lower() == "moment":
-            model = MomentFMClassifier()
+            if fine_tune_encoder:
+                raise NotImplementedError
+                # Here we want to fine-tune the CNN model and get a new head
+            else:
+                # Here we use the encoder and learn a logistic regression based on the encoder
+                # and see what generalizes better
+
+                pretrained_model.eval().to(device)
+                X_train = torch.from_numpy(X_train).to(device).permute(0, 2, 1)
+                X_test = torch.from_numpy(X_test).to(device).permute(0, 2, 1)
+
+                train_repr = get_representations_in_batches(pretrained_model, X_train, batch_size)
+                test_repr = get_representations_in_batches(pretrained_model, X_test, batch_size)
+
+                set_seed(seed)
+
+                # Create feature names for representations (just numbered features)
+                feature_names = [f"repr_{i}" for i in range(train_repr.shape[1])]
+
+                if classifier_head in ["logistic_regression", "random_forest", "xgboost"]:
+                    # IMPORTANT: The encoder already normalizes the features, so no need to standardize again
+                    # Verbose option:
+                    results = run_logistic_regression_with_gridsearch(
+                        train_repr, y_train, groups_train,
+                        test_repr, y_test, feature_names, cv_splitter, standardize=True, seed=seed,
+                        scoring_metric=scoring_metric, classifier_model=classifier_head
+                    )
+
+                    # Log metrics locally
+                    print(f"Best CV AUROC: {results['best_cv_score'] if cv_splitter is not None else 0:.4f}")
+                    print(f"Test metrics - Accuracy: {results['test_metrics']['accuracy']:.4f}, "
+                          f"AUROC: {results['test_metrics']['auroc']:.4f}, F1: {results['test_metrics']['f1']:.4f}, "
+                          f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}")
+                    print(f"Best hyperparameters: {results['best_params']}")
+
+                else:
+                    results = run_mlp_with_cv_and_test(
+                        train_repr, y_train, groups_train,
+                        test_repr, y_test, feature_names, cv_splitter,
+                        device, classifier_epochs, classifier_batch_size, classifier_lr, standardize=True,
+                        seed=seed
+                    )
+
+                    # Log metrics locally
+                    print(f"Best CV AUROC: {results['best_cv_score']:.4f}")
+                    print(f"Test metrics - Accuracy: {results['test_metrics']['accuracy']:.4f}, "
+                          f"AUROC: {results['test_metrics']['auroc']:.4f}, F1: {results['test_metrics']['f1']:.4f}, "
+                          f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}")
+                    print(f"Best hyperparameters: {results['best_params']}")
+
+                with open(os.path.join(transfer_learning_results_save_path, "test_results.json"), "w") as f:
+                    json.dump(results, f, indent=2, default=str)
+
         else:
-            model = TransformerECGClassifier()
+            # Load parameters from saved results
+            saved_results = os.path.join(model_save_path, f"{model_type}.pt")
+            model = load_and_return_saved_model(model_type, saved_results, device)
 
-        model = model.to(device)
+            test_ds = PhysiologicalDataset(X_test, y_test)
+            test_loader = DataLoader(
+                test_ds, batch_size=batch_size, shuffle=False, drop_last=False,
+                pin_memory=pin_memory
+            )
+            loss_fn = torch.nn.BCEWithLogitsLoss()
 
-        if os.path.exists(saved_results):
-            print(f"Loading saved model parameters from: {saved_results}")
-            checkpoint = torch.load(saved_results, map_location=device, weights_only=True)
+            loss, acc, auroc, prauc, f1 = test(
+                model, test_loader, device,
+                threshold=0.5, loss_fn=loss_fn,
+            )
 
-            # Load model state dict
-            model.load_state_dict(checkpoint["model_parameters"])
-
-        else:
-            print(f"No saved model found at {saved_results}. Please run with --force_retraining")
-            raise FileNotFoundError(f"Model file not found: {saved_results}")
-
-        test_ds = PhysiologicalDataset(X_test, y_test)
-        test_loader = DataLoader(
-            test_ds, batch_size=batch_size, shuffle=False, drop_last=False,
-            pin_memory=pin_memory
-        )
-        loss_fn = torch.nn.BCEWithLogitsLoss()
-
-        loss, acc, auroc, prauc, f1 = test(
-            model, test_loader, device,
-            threshold=0.5, loss_fn=loss_fn,
-        )
-
-        print(f"Test acc: {acc:.4f}, AUROC: {auroc:.4f}, F1: {f1:.4f}, PR-AUC: {prauc:.4f}")
+            print(f"Test acc: {acc:.4f}, AUROC: {auroc:.4f}, F1: {f1:.4f}, PR-AUC: {prauc:.4f}")
 
     # Then test the performance
     if zero_shot_evaluation:
@@ -630,6 +749,20 @@ if __name__ == "__main__":
                                  help="If set, we do downstream zero-shot evaluation.")
     parser.add_argument("--zero_shot_dataset", type=str,
                                  choices=("stressid", "wesad"), default="wesad")
+
+    # Pretrained encoder + Fine Tune
+    parser.add_argument("--use_pretrained_encoder",action="store_true",
+                                  help="If set, we use the pre-trained encoder from our dataset")
+    parser.add_argument("--fine_tune_encoder", action="store_true",
+                                  help="If set, we fine-tune also the encoder and not only the logistic regression.")
+    parser.add_argument("--classifier_head", default="logistic_regression",
+                        help="If pretrained encoder is set, what classifier head model to use.")
+    parser.add_argument("--classifier_epochs", type=int, default=25,
+                                 help="Number of epochs for MLP classifier training or fine-tuning of the encoder and TC head")
+    parser.add_argument("--classifier_lr", type=float, default=1e-4,
+                                 help="Learning rate for MLP classifier")
+    parser.add_argument("--classifier_batch_size", type=int, default=32,
+                                 help="Batch size for MLP classifier training")
 
     args = parser.parse_args()
 
