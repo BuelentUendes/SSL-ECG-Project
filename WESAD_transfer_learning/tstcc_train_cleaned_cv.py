@@ -140,12 +140,14 @@ def main(
                 SAVED_MODELS_PATH, "WESAD", "TSTCC", f"{seed}", f"{window_size}", f"{step_size}"
             )
 
-    #Save the results based on either pretrained from our dataset or trained from scratch
+    # Save the results based on either pretrained from our dataset or trained from scratch
+    # use pretrained encoder -> train a new head
+    # fine_tune_encoder -> fine tune encoder and a new head
     if use_pretrained_encoder:
         if fine_tune_encoder:
-            subfolder_name = "pretrained_encoder_fine_tuned_encoder"
+            subfolder_name = "fine_tuned_encoder_new_head"
         else:
-            subfolder_name = "pretrained_encoder"
+            subfolder_name = "pretrained_encoder_new_head"
     else:
         if fine_tune_encoder:
             subfolder_name = "trained_from_scratch_fine_tuned_encoder"
@@ -397,6 +399,7 @@ def main(
             device=device, config=cfg,
             experiment_log_dir=workdir,
             training_mode="self_supervised",
+            save_path_result=results_save_path,
         )
         ckpt = os.path.join(workdir, "tstcc.pt")
         torch.save(
@@ -721,5 +724,10 @@ if __name__ == "__main__":
 
     #Important:
     args.pretrain_all_conditions = True
+    # args.use_pretrained_encoder = True
+    # args.fine_tune_encoder = True
+    # IMPORTANT:
+    # use pretrained encoder -> train a new head
+    # fine_tune_encoder -> fine tune encoder and a new head
 
     main(**vars(args))
