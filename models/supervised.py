@@ -243,7 +243,43 @@ class Improved1DCNN_v2(nn.Module):
         x = self.dropout4(x)
         x = self.fc3(x)
         return x
-    
+
+    def get_encoder_representations(self, x):
+        # Input x: (batch, channels, length)
+        if self.use_s3_layers:
+            # S3 expects (N, L, C) but we have (N, C, L)
+            x_s3 = x.transpose(1, 2)  # (N, C, L) → (N, L, C)
+            x_s3 = self.s3_layers(x_s3)
+            x = x_s3.transpose(1, 2)  # (N, L, C) → (N, C, L)
+
+        x = self.bn_input(x)
+        # Block 1
+        x = F.gelu(self.conv1_1(x))
+        x = F.gelu(self.conv1_2(x))
+        x = self.pool1(x)
+        x = self.bn1(x)
+        x = self.dropout1(x)
+        # Block 2
+        x = F.gelu(self.conv2_1(x))
+        x = F.gelu(self.conv2_2(x))
+        x = self.pool2(x)
+        x = self.bn2(x)
+        x = self.dropout2(x)
+        # Block 3
+        x = F.gelu(self.conv3_1(x))
+        x = F.gelu(self.conv3_2(x))
+        x = self.gap(x)  # shape: (batch, 128, 1)
+        x = x.view(x.size(0), -1)
+        return x
+
+
+
+
+#ToDo: I want to add a finetuned CCN version, where i copy the weights from the backbone,
+# And intialize all weights from the three fully connected linear layers
+# Second option, all three layers newly initalized
+
+
 # ----------------------
 # Transformer Model Class
 # ----------------------
