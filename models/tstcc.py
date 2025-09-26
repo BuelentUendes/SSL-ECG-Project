@@ -1,7 +1,6 @@
 import json
 import time
-import copy
-
+from copy import deepcopy
 import torch
 import torch.nn as nn
 import numpy as np
@@ -1453,8 +1452,8 @@ class FineTunedNet(nn.Module):
     def clone(self):
         """Create a deep copy of the FineTunedNet model"""
         # Create new instances with deep copied components
-        cloned_encoder = copy.deepcopy(self.encoder)
-        cloned_tc_head = copy.deepcopy(self.tc_head)
+        cloned_encoder = deepcopy(self.encoder)
+        cloned_tc_head = deepcopy(self.tc_head)
         cloned_model = FineTunedNet(cloned_encoder, cloned_tc_head, self.fc.in_features)
         # Copy the fc layer weights
         cloned_model.fc.load_state_dict(self.fc.state_dict())
