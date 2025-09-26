@@ -775,7 +775,7 @@ if __name__ == "__main__":
     parser.add_argument("--classifier_lr", type=float, default=1e-4,
                                  help="Learning rate for MLP classifier")
     parser.add_argument("--classifier_batch_size", type=int, default=32,
-                                 help="Batch size for MLP classifier training")
+                                 help="Batch size for fine-tuning")
 
     args = parser.parse_args()
 
