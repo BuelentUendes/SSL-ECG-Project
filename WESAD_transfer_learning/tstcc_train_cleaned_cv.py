@@ -683,11 +683,11 @@ if __name__ == "__main__":
                                  choices=("logistic_regression", "mlp"),
                                  help="Type of downstream classifier to use")
     classifier_group.add_argument("--classifier_epochs", type=int, default=25,
-                                 help="Number of epochs for MLP classifier training or fine-tuning of the encoder and TC head")
+                                 help="Number of epochs for fine-tuning of the encoder and TC head")
     classifier_group.add_argument("--classifier_lr", type=float, default=1e-4,
                                  help="Learning rate for MLP classifier")
     classifier_group.add_argument("--classifier_batch_size", type=int, default=32,
-                                 help="Batch size for MLP classifier training")
+                                 help="Batch size for fine-tuning")
     classifier_group.add_argument("--use_pretrained_encoder",action="store_true",
                                   help="If set, we use the pre-trained encoder from our dataset")
     classifier_group.add_argument("--fine_tune_encoder", action="store_true",
