@@ -278,12 +278,13 @@ class FineTunedCNNNet(nn.Module):
     def __init__(self, backbone, input_dim=128, classifier_head="mlp"):
         super(FineTunedCNNNet, self).__init__()
         self.backbone = backbone
-        self.classifier_head = classifier_head
+        self.input_dim = input_dim
+        self.head_type = classifier_head
         # Initialize new classification head with three fully connected layers
 
-        if self.classifier_head == "mlp":
+        if self.head_type== "mlp":
             self.classifier_head = nn.Sequential(
-                nn.Linear(input_dim, 128),
+                nn.Linear(self.input_dim, 128),
                 nn.Dropout(0.3),
                 nn.Linear(128, 64),
                 nn.Dropout(0.3),
