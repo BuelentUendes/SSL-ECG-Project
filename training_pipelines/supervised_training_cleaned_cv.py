@@ -623,7 +623,7 @@ def main(
                 print(f"We finished the fine-tuning stage")
                 print(fine_tuned_results["test_metrics"])
 
-                with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+                with open(os.path.join(transfer_learning_results_save_path, "test_results.json"), "w") as f:
                     json.dump(fine_tuned_results, f, indent=2, default=str)
 
             else:
