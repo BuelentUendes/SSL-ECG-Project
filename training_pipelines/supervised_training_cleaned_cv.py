@@ -28,6 +28,7 @@ from utils.torch_utilities import (
     run_logistic_regression_with_gridsearch,
     run_logistic_regression_with_gridsearch_verbose,
     run_mlp_with_cv_and_test,
+    run_linear_classifier_with_cv_and_test,
 )
 
 from models.supervised import (
@@ -36,7 +37,8 @@ from models.supervised import (
     TransformerECGClassifier,
     DeepECGNet,
     PatchTSTECGClassifier,
-    MomentFMClassifier
+    MomentFMClassifier,
+    FineTunedCNNNet,
 )
 
 
@@ -427,11 +429,6 @@ def main(
         lr: float = 1e-4,
         batch_size: int = 32,
         num_epochs: int = 25,
-        patience: int = 5,
-        scheduler_mode: str = "min",
-        scheduler_factor: float = 0.1,
-        scheduler_patience: int = 2,
-        scheduler_min_lr: float = 1e-11,
         k_folds: int = 5,
         min_participants_for_kfold: int = 5,
         scoring_metric: str = "roc_auc",
@@ -606,12 +603,32 @@ def main(
             pretrained_model = load_and_return_saved_model(model_type, pretrained_model_weights_path, device)
 
             if fine_tune_encoder:
-                raise NotImplementedError
-                # Here we want to fine-tune the CNN model and get a new head
+                # If we fine-tune the encoder we learn a representation right away and save the results
+                cv_splitter, n_splits = get_participant_cv_splitter(
+                    groups_train,
+                    min_participants_for_kfold=min_participants_for_kfold,
+                    k=k_folds
+                )
+
+                fine_tune_model = FineTunedCNNNet(backbone=pretrained_model).to(device)
+
+                # This fine-tunes the encoder and test them right away
+                fine_tuned_results = run_linear_classifier_with_cv_and_test(
+                    X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
+                    feature_names=None, cv_splitter=cv_splitter, device=device, classifier_epochs=classifier_epochs,
+                    classifier_batch_size=classifier_batch_size,
+                    standardize=False, seed=42
+                )
+
+                print(f"We finished the fine-tuning stage")
+                print(fine_tuned_results["test_metrics"])
+
+                with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+                    json.dump(fine_tuned_results, f, indent=2, default=str)
+
             else:
                 # Here we use the encoder and learn a logistic regression based on the encoder
                 # and see what generalizes better
-
                 pretrained_model.eval().to(device)
                 X_train = torch.from_numpy(X_train).to(device).permute(0, 2, 1)
                 X_test = torch.from_numpy(X_test).to(device).permute(0, 2, 1)
@@ -726,11 +743,6 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=1e-5)
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--num_epochs", type=int, default=25)
-    parser.add_argument("--patience", type=int, default=20)
-    parser.add_argument("--scheduler_mode", default="min")
-    parser.add_argument("--scheduler_factor", type=float, default=0.5)
-    parser.add_argument("--scheduler_patience", type=int, default=2)
-    parser.add_argument("--scheduler_min_lr", type=float, default=1e-9)
     parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
     parser.add_argument("--min_participants_for_kfold", type=int, default=5,
                         help="Minimum participants needed for k-fold (otherwise use Leave one participant out)")
@@ -738,6 +750,7 @@ if __name__ == "__main__":
                          choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
                          help="Scoring metric for cross-validation hyperparameter selection")
 
+    # S3 Module architecture
     parser.add_argument("--use_s3_layers", action="store_true",
                                   help="If set, we use the S3 layer")
     parser.add_argument("--initial_num_segments", type=int, default=2)
