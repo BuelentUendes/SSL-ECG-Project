@@ -236,6 +236,7 @@ def main(
             n_epochs=infots_epochs,
             verbose=True,
             supervised_meta=False,
+            batch_size=infots_batch_size,
             results_save_path=results_save_path, # InfoTS uses unsupervised meta-learning by default
         )
 
@@ -310,7 +311,10 @@ def main(
         print(f"Best hyperparameters: {results['best_params']}")
 
     # ── Step 6: Save Results ────────────────────────────────────────────────────
-    with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+    # Different save name for non-default batch size
+    test_result_name = "test_results.json" if infots_batch_size == 32 else f"test_results_{infots_batch_size}.json"
+
+    with open(os.path.join(results_save_path, test_result_name), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
     # Log additional parameters locally
@@ -443,7 +447,6 @@ if __name__ == "__main__":
     # ══════════════════════════════════════════════════════════════════════════════
     # Hyperparameter Optimization Configuration
     # ══════════════════════════════════════════════════════════════════════════════
-    #ToDo: Do this optimization here and tune the parameters accordingly
     hp_group = parser.add_argument_group('Hyperparameter Optimization')
     hp_group.add_argument("--optimize_hyperparameters", action="store_true",
                          help="Enable hyperparameter optimization for InfoTS augmentation parameters")
