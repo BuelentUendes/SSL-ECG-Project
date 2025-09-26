@@ -360,6 +360,7 @@ def main(
             experiment_log_dir=workdir,
             training_mode="self_supervised",
             results_save_path=results_save_path,
+            batch_size=tcc_batch_size,
         )
         model_file_name = "tstcc_spectral.pt" if use_spectral_augmentation else "tstcc.pt"
         ckpt = os.path.join(workdir, model_file_name)
@@ -470,7 +471,7 @@ def main(
         # Plot then the zero shot performance as a function of label availability (across different seeds)
 
     # ── Step 7: Save Results ────────────────────────────────────────────────────
-    test_results_name = "test_results_spectral.json" if use_spectral_augmentation else "test_results.json"
+    test_results_name = f"test_results_{tcc_batch_size}.json" if tcc_batch_size != 128 else "test_results.json"
 
     with open(os.path.join(results_save_path, test_results_name), "w") as f:
         json.dump(results, f, indent=2, default=str)
