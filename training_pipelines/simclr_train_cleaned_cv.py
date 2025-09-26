@@ -240,11 +240,18 @@ def main(
             logging.info(f"SSL train loss: {tr_loss}")
             print(f"Epoch {ep}/{epochs}: loss={tr_loss:.4f}")
 
-        with open(os.path.join(results_save_path, "runtime_per_epoch.json"), "w") as f:
+        if batch_size != 256:  # default one:
+            run_time_save_name = f"runtime_per_epoch_{batch_size}.json"
+            peak_memory_save_name = f"peak_memory_consumption_epochs_{batch_size}.json"
+        else:
+            run_time_save_name = "runtime_per_epoch.json"
+            peak_memory_save_name = "peak_memory_consumption_epochs.json"
+
+        with open(os.path.join(results_save_path, run_time_save_name), "w") as f:
             json.dump(epoch_runtimes, f, indent=2)
 
         if torch.cuda.is_available():
-            with open(os.path.join(results_save_path, "peak_memory_consumption_epochs.json"), "w") as f:
+            with open(os.path.join(results_save_path, peak_memory_save_name), "w") as f:
                 json.dump(epoch_peak_memory, f, indent=2)
 
         # Save model locally
@@ -325,7 +332,10 @@ def main(
         logging.info(f"Best parameters: {results['best_params']}")
 
     # ── Step 6: Save Results ────────────────────────────────────────────────────
-    with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+    # Different save name for non-default batch size
+    test_result_name = "test_results.json" if batch_size == 256 else f"test_results_{batch_size}.json"
+
+    with open(os.path.join(results_save_path, test_result_name), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
     # Log additional parameters locally
