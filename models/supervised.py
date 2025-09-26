@@ -275,37 +275,47 @@ class Improved1DCNN_v2(nn.Module):
 
 
 class FineTunedCNNNet(nn.Module):
-    def __init__(self, backbone, input_dim=128):
+    def __init__(self, backbone, input_dim=128, classifier_head="mlp"):
         super(FineTunedCNNNet, self).__init__()
         self.backbone = backbone
+        self.classifier_head = classifier_head
         # Initialize new classification head with three fully connected layers
-        self.fc1 = nn.Linear(input_dim, 128)
-        self.dropout1 = nn.Dropout(0.3)
-        self.fc2 = nn.Linear(128, 64)
-        self.dropout2 = nn.Dropout(0.3)
-        self.fc3 = nn.Linear(64, 1)
+
+        if self.classifier_head == "mlp":
+            self.classifier_head = nn.Sequential(
+                nn.Linear(input_dim, 128),
+                nn.Dropout(0.3),
+                nn.Linear(128, 64),
+                nn.Dropout(0.3),
+                nn.Linear(64, 1),
+            )
+        else:
+            self.classifier_head = nn.Linear(input_dim, 1)
 
     def forward(self, x):
         # Extract encoder representations (everything except the final classification layers)
         x = self.backbone.get_encoder_representations(x)
         # Pass through new classification head (we keep the architecture the same as before)
-        x = F.relu(self.fc1(x))
-        x = self.dropout1(x)
-        x = F.relu(self.fc2(x))
-        x = self.dropout2(x)
-        x = self.fc3(x)
+        # Pass through the classifier head
+        x = self.classifier_head(x)
+
         return x
 
     def clone(self):
         """Create a deep copy of the FineTunedCNNNet model"""
-        cloned_backbone= copy.deepcopy(self.backbone)
-        cloned_model = FineTunedCNNNet(cloned_backbone, self.fc1.in_features)
-        # Copy the new head weights
-        # This ensures later that for the hyperparameter tuning,
-        # all initialized network weights are the same (initialized to the same random weights)
-        cloned_model.fc1.load_state_dict(self.fc1.state_dict())
-        cloned_model.fc2.load_state_dict(self.fc2.state_dict())
-        cloned_model.fc3.load_state_dict(self.fc3.state_dict())
+        # Clone the backbone
+        cloned_backbone = copy.deepcopy(self.backbone)
+
+        # Create new model with same parameters
+        cloned_model = FineTunedCNNNet(
+            backbone=cloned_backbone,
+            input_dim=self.input_dim,
+            classifier_head=self.head_type
+        )
+
+        # Copy the classifier head weights
+        cloned_model.classifier_head.load_state_dict(self.classifier_head.state_dict())
+
         return cloned_model
 
 
