@@ -9,7 +9,6 @@ from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 from torcheval.metrics.functional import multiclass_f1_score
 from typing import Tuple, Dict, Any, List
 import numpy as np
-import math
 import random
 from datetime import datetime
 import pickle
@@ -17,8 +16,6 @@ import mlflow
 from mlflow.tracking import MlflowClient
 from scipy.stats import uniform, randint
 from sklearn.model_selection import ParameterSampler, ParameterGrid
-from scipy.special import softmax
-from sklearn.metrics import log_loss
 from S3 import S3
 import os
 from tqdm import tqdm
@@ -754,6 +751,10 @@ class InfoTS:
             pbar.close()
             self.n_epochs += 1
 
+            # Calculate epoch runtime
+            epoch_runtime = time.time() - epoch_start_time
+            epoch_runtimes[f"{self.n_epochs}"] = epoch_runtime
+
             # Log memory usage for CUDA
             if torch.cuda.is_available():
                 epoch_peak_memory[f"{self.n_epochs}"] = torch.cuda.max_memory_allocated() / (1024 ** 3)
@@ -762,10 +763,6 @@ class InfoTS:
 
             if interrupted:
                 break
-
-            # Calculate epoch runtime
-            epoch_runtime = time.time() - epoch_start_time
-            epoch_runtimes[f"{self.n_epochs}"] = epoch_runtime
 
             cum_loss /= n_epoch_iters
             loss_log.append(cum_loss)
