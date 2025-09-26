@@ -1426,6 +1426,19 @@ def run_linear_classifier_with_cv_and_test(
 
     print("Running manual CV for fine-tuning the encoder + linear classifier head...")
 
+    # ====== VERIFICATION: Store initial head weights ======
+    if hasattr(pretrained_model, 'fc'):  # FineTunedNet (TSTCC)
+        initial_head_weights = pretrained_model.fc.weight.data.clone()
+        initial_head_name = 'fc'
+    elif hasattr(pretrained_model, 'fc1'):  # FineTunedCNNNet 
+        initial_head_weights = pretrained_model.fc1.weight.data.clone()
+        initial_head_name = 'fc1'
+    else:
+        initial_head_weights = None
+        initial_head_name = None
+
+    # ========================================================
+
     if cv_splitter is None:
         print("cv_splitter is None (single participant). Using default best parameters...")
         print(f"Default parameters: {default_best_params}")
@@ -1434,7 +1447,7 @@ def run_linear_classifier_with_cv_and_test(
         best_cv_score = 0.0
 
     else:
-        for lr_rate in lr_rates:
+        for lr_idx, lr_rate in enumerate(lr_rates):
             print(f"Learning rate to be tested: {lr_rate}")
             fold_scores = []
 
@@ -1445,6 +1458,20 @@ def run_linear_classifier_with_cv_and_test(
 
                 # Create and train model
                 training_model = pretrained_model.clone().to(device)
+                
+                # ====== VERIFICATION: Check cloned model weights ======
+                if initial_head_weights is not None:
+                    if hasattr(training_model, initial_head_name):
+                        cloned_head_weights = getattr(training_model, initial_head_name).weight.data
+                        weights_identical = torch.allclose(initial_head_weights, cloned_head_weights, atol=1e-6)
+                        if fold == 0:  #
+                            print(f"[VERIFY] LR {lr_rate}, Fold {fold}: Cloned {initial_head_name} "
+                                  f"weights identical to original random initialized: {weights_identical}")
+                            if not weights_identical:
+                                print(f"[VERIFY] ERROR: Weights should be identical!")
+                                print(f"[VERIFY] Original: {initial_head_weights[0,:5]}")
+                                print(f"[VERIFY] Cloned: {cloned_head_weights[0,:5]}")
+                # =========================================================
 
                 # Create datasets that don't pre-load to GPU (avoids multiprocessing CUDA issues)
                 tr_ds = PhysiologicalDataset(X_fold_train, y_fold_train)
