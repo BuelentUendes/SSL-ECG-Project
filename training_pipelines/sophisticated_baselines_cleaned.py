@@ -17,7 +17,7 @@ from utils.torch_utilities import (
     create_directory,
 )
 
-from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH
+from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
 
 def main(
@@ -45,7 +45,7 @@ def main(
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
     if dataset == "ours":
-        folder_path = "Ours_Baseline"
+        folder_path = "ECG"
         window_data_path = os.path.join(DATA_PATH, "interim", "ECG", '1000', 'windowed_data.h5')
     elif dataset == "stressid":
         folder_path = "StressID"
@@ -55,7 +55,7 @@ def main(
         window_data_path = os.path.join(DATA_PATH, "interim", "WESAD", "ECG", '700', "10", "5", 'windowed_data.h5')
 
     model_save_path = os.path.join(SAVED_MODELS_PATH, "ECG", "Baseline", pretrain_data, f"{seed}")
-    results_save_path = os.path.join(SAVED_MODELS_PATH, folder_path, pretrain_data, f"{seed}")
+    results_save_path = os.path.join(RESULTS_PATH, folder_path, pretrain_data, f"{seed}")
     create_directory(model_save_path)
     create_directory(results_save_path)
 
