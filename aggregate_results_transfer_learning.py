@@ -333,7 +333,7 @@ if __name__ == "__main__":
     if is_zero_shot:
         transfer_path_approach = "zero_shot_performance"
         # For zero shot, include feature engineered models with different window/step sizes
-        models_to_compare = ['cnn_mlp', 'cnn_logistic_regression', 'TSTCC', 'TSTCC_S3', 'feature_engineered_ws30_ss10', 'feature_engineered_ws10_ss5']
+        models_to_compare = ['cnn', 'TSTCC', 'TSTCC_S3', 'feature_engineered_ws30_ss10', 'feature_engineered_ws10_ss5']
         print("===Zero Shot Results Comparison ===")
     else:
         transfer_path_approach = "fine_tuned_encoder_new_head" if args.fine_tune_strategy == "full" \
