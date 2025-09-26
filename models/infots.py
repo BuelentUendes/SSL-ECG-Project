@@ -649,7 +649,9 @@ class InfoTS:
 
     def fit(self, train_data, n_epochs=None, n_iters=None, verbose=True,
             supervised_meta=True, beta=1.0, valid_dataset=None, miverbose=None, 
-            split_number=8, meta_epoch=2, meta_beta=1.0, train_labels=None, results_save_path=RESULTS_PATH):
+            split_number=8, meta_epoch=2, meta_beta=1.0, train_labels=None,
+            batch_size=32,
+            results_save_path=RESULTS_PATH):
         
         assert train_data.ndim == 3
         
@@ -770,11 +772,18 @@ class InfoTS:
                 print(f"Epoch #{self.n_epochs}: loss={cum_loss}")
                 mlflow.log_metric("train_loss", cum_loss, step=self.n_epochs)
 
-        with open(os.path.join(results_save_path, "runtime_per_epoch.json"), "w") as f:
+        if batch_size != 32:  # default one:
+            run_time_save_name = f"runtime_per_epoch_{batch_size}.json"
+            peak_memory_save_name = f"peak_memory_consumption_epochs_{batch_size}.json"
+        else:
+            run_time_save_name = "runtime_per_epoch.json"
+            peak_memory_save_name = "peak_memory_consumption_epochs.json"
+
+        with open(os.path.join(results_save_path, run_time_save_name), "w") as f:
             json.dump(epoch_runtimes, f, indent=2)
 
         if torch.cuda.is_available():
-            with open(os.path.join(results_save_path, "peak_memory_consumption_epochs.json"), "w") as f:
+            with open(os.path.join(results_save_path, peak_memory_save_name), "w") as f:
                 json.dump(epoch_peak_memory, f, indent=2)
 
         return loss_log
