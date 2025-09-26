@@ -1400,7 +1400,7 @@ def run_linear_classifier_with_cv_and_test(
         feature_names, cv_splitter, device, classifier_epochs=25, classifier_batch_size=32,
         standardize=False, seed=42
 ):
-    """Run CV for MLP hyperparameter selection, then train final model and test."""
+    """Run CV for linear head and MLP hyperparameter selection, then train final model and test."""
 
     # Standardize features
     if standardize:
@@ -1430,7 +1430,20 @@ def run_linear_classifier_with_cv_and_test(
     if hasattr(pretrained_model, 'fc'):  # FineTunedNet (TSTCC)
         initial_head_weights = pretrained_model.fc.weight.data.clone()
         initial_head_name = 'fc'
-    elif hasattr(pretrained_model, 'fc1'):  # FineTunedCNNNet 
+    elif hasattr(pretrained_model, 'classifier_head'):  # New FineTunedCNNNet
+        # Handle both linear and sequential classifier heads
+        if hasattr(pretrained_model.classifier_head, 'weight'):
+            # Linear classifier head
+            initial_head_weights = pretrained_model.classifier_head.weight.data.clone()
+            initial_head_name = 'classifier_head'
+        elif hasattr(pretrained_model.classifier_head, '0') and hasattr(pretrained_model.classifier_head[0], 'weight'):
+            # Sequential MLP classifier head - use first layer weights for verification
+            initial_head_weights = pretrained_model.classifier_head[0].weight.data.clone()
+            initial_head_name = 'classifier_head'
+        else:
+            initial_head_weights = None
+            initial_head_name = None
+    elif hasattr(pretrained_model, 'fc1'):  # Legacy FineTunedCNNNet 
         initial_head_weights = pretrained_model.fc1.weight.data.clone()
         initial_head_name = 'fc1'
     else:
@@ -1461,8 +1474,19 @@ def run_linear_classifier_with_cv_and_test(
                 
                 # ====== VERIFICATION: Check cloned model weights ======
                 if initial_head_weights is not None:
-                    if hasattr(training_model, initial_head_name):
-                        cloned_head_weights = getattr(training_model, initial_head_name).weight.data
+                    cloned_head_weights = None
+                    if initial_head_name == 'fc' and hasattr(training_model, 'fc'):
+                        cloned_head_weights = training_model.fc.weight.data
+                    elif initial_head_name == 'classifier_head' and hasattr(training_model, 'classifier_head'):
+                        # Handle both linear and sequential classifier heads
+                        if hasattr(training_model.classifier_head, 'weight'):
+                            cloned_head_weights = training_model.classifier_head.weight.data
+                        elif hasattr(training_model.classifier_head, '0') and hasattr(training_model.classifier_head[0], 'weight'):
+                            cloned_head_weights = training_model.classifier_head[0].weight.data
+                    elif initial_head_name == 'fc1' and hasattr(training_model, 'fc1'):
+                        cloned_head_weights = training_model.fc1.weight.data
+                    
+                    if cloned_head_weights is not None:
                         weights_identical = torch.allclose(initial_head_weights, cloned_head_weights, atol=1e-6)
                         if fold == 0:  #
                             print(f"[VERIFY] LR {lr_rate}, Fold {fold}: Cloned {initial_head_name} "
