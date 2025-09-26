@@ -487,8 +487,8 @@ def main(
         )
         dataset_name = "WESAD" if dataset == "wesad" else "StressID"
         transfer_learning_results_save_path = os.path.join(
-            RESULTS_PATH, "Transfer_learning", dataset_name,subfolder_name, model_type,
-            f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
+            RESULTS_PATH, "Transfer_learning", dataset_name, subfolder_name, model_type,
+            f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}", classifier_head
     )
 
         create_directory(transfer_learning_results_save_path)
@@ -610,7 +610,8 @@ def main(
                     k=k_folds
                 )
 
-                fine_tune_model = FineTunedCNNNet(backbone=pretrained_model).to(device)
+                # Here we use the option for the classifier head option to vary the head
+                fine_tune_model = FineTunedCNNNet(backbone=pretrained_model, classifier_head=classifier_head).to(device)
 
                 # This fine-tunes the encoder and test them right away
                 fine_tuned_results = run_linear_classifier_with_cv_and_test(
@@ -769,7 +770,10 @@ if __name__ == "__main__":
     parser.add_argument("--fine_tune_encoder", action="store_true",
                                   help="If set, we fine-tune also the encoder and not only the logistic regression.")
     parser.add_argument("--classifier_head", default="logistic_regression",
-                        help="If pretrained encoder is set, what classifier head model to use.")
+                        choices=("mlp", "logistic_regression"),
+                        help="If fine_tune_encoder is set, what classifier head model to use. "
+                             "Important: By default the CNN uses not a logistic regression but MLP layer. "
+                             "One needs to use the use simple layer head argument")
     parser.add_argument("--classifier_epochs", type=int, default=25,
                                  help="Number of epochs for MLP classifier training or fine-tuning of the encoder and TC head")
     parser.add_argument("--classifier_lr", type=float, default=1e-4,
