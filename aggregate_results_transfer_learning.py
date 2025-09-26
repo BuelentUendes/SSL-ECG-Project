@@ -6,6 +6,37 @@ import pandas as pd
 
 from utils.helper_paths import RESULTS_PATH
 
+def load_feature_results(base_path, dataset_name, window_size, step_size, seeds, label_fraction=1.0):
+    """Load feature-engineered results from WESAD_features or StressID_features directories."""
+    results = []
+    
+    # Determine the feature results path
+    if dataset_name == "WESAD":
+        features_path = os.path.join(RESULTS_PATH, f"{dataset_name}_features")
+    else:  # StressID
+        features_path = os.path.join(RESULTS_PATH, f"{dataset_name}_features")
+    
+    for seed in seeds:
+        file_path = os.path.join(features_path, str(window_size), str(step_size), 
+                               'logistic_regression', str(seed), str(label_fraction), 'test_results.json')
+        
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                    test_metrics = data['test_metrics']
+                    results.append({
+                        'seed': seed,
+                        'auroc': test_metrics['auroc'],
+                        'pr_auc': test_metrics['pr_auc']
+                    })
+            except (json.JSONDecodeError, KeyError) as e:
+                print(f"Error loading feature results from {file_path}: {e}")
+        else:
+            print(f"Missing feature file: {file_path}")
+    
+    return results
+
 def load_results(
         base_path, transfer_path_approach, model_type, seeds, label_fraction=1.0, window_size=10, step_size=5, is_zero_shot=False
 ):
@@ -86,12 +117,14 @@ def compute_stats(values):
         'n': len(values)
     }
 
-def main(base_path, transfer_path_approach, models_to_compare, is_zero_shot=False):
+def main(base_path, transfer_path_approach, models_to_compare, is_zero_shot=False, include_features=False):
     all_results = []
     summary_stats = []
     aggregated_results = {}  # For JSON output similar to averaged_zero_shot_results
     seeds = [3, 5, 7, 9, 42]
+    dataset_name = "WESAD" if "WESAD" in base_path else "StressID"
 
+    # Process regular transfer learning models
     for model_type in models_to_compare:
         results = load_results(base_path, transfer_path_approach, model_type, seeds, is_zero_shot=is_zero_shot)
         
@@ -217,6 +250,55 @@ def main(base_path, transfer_path_approach, models_to_compare, is_zero_shot=Fals
                     }
                 ])
     
+    # Process feature-engineered results if requested (for 'full' option)
+    if include_features and not is_zero_shot:
+        # Define feature configurations to include
+        feature_configs = [
+            (10, 5),   # window_size=10, step_size=5
+            (30, 10),  # window_size=30, step_size=10
+            (30, 15)   # window_size=30, step_size=15 (if available)
+        ]
+        
+        for window_size, step_size in feature_configs:
+            feature_results = load_feature_results(base_path, dataset_name, window_size, step_size, seeds, label_fraction=1.0)
+            
+            if feature_results:
+                feature_model_name = f"feature_engineered_logistic_regression_{window_size}_{step_size}"
+                
+                auroc_values = [r['auroc'] for r in feature_results]
+                pr_auc_values = [r['pr_auc'] for r in feature_results]
+                
+                # Print results
+                print(f"{feature_model_name} Results:")
+                print(f"AUROC: {np.mean(auroc_values):.3f} ± {np.std(auroc_values):.3f} (stderr: {np.std(auroc_values)/np.sqrt(len(auroc_values)):.4f})")
+                print(f"PR-AUC: {np.mean(pr_auc_values):.3f} ± {np.std(pr_auc_values):.3f} (stderr: {np.std(pr_auc_values)/np.sqrt(len(pr_auc_values)):.4f})")
+                print(f"Seeds: {[r['seed'] for r in feature_results]} (n={len(feature_results)})")
+                print()
+                
+                # Add to individual results
+                for r in feature_results:
+                    all_results.append({'model': feature_model_name, **r})
+                
+                # Add to summary stats
+                summary_stats.extend([
+                    {
+                        'model': feature_model_name,
+                        'metric': 'AUROC',
+                        'mean': np.mean(auroc_values),
+                        'std': np.std(auroc_values),
+                        'stderr': np.std(auroc_values)/np.sqrt(len(auroc_values)),
+                        'n_seeds': len(auroc_values)
+                    },
+                    {
+                        'model': feature_model_name,
+                        'metric': 'PR_AUC',
+                        'mean': np.mean(pr_auc_values),
+                        'std': np.std(pr_auc_values),
+                        'stderr': np.std(pr_auc_values)/np.sqrt(len(pr_auc_values)),
+                        'n_seeds': len(pr_auc_values)
+                    }
+                ])
+    
     # Save individual results
     df_individual = pd.DataFrame(all_results)
     suffix = '_zero_shot' if is_zero_shot else ''
@@ -248,6 +330,7 @@ if __name__ == "__main__":
 
     dataset_name = "WESAD" if args.dataset == "wesad" else "StressID"
     is_zero_shot = args.fine_tune_strategy == "zero_shot"
+    include_features = args.fine_tune_strategy == "full"  # Include features only for 'full' option
     
     if is_zero_shot:
         transfer_path_approach = "zero_shot_performance"
@@ -260,8 +343,10 @@ if __name__ == "__main__":
         models_to_compare = ['cnn', 'TSTCC', 'TSTCC_S3']
         print("===Transfer Learning Results Comparison ===")
         print(f"Label fraction: 1.0, Window size: 10/5")
+        if include_features:
+            print("Including feature-engineered results...")
 
     base_path = os.path.join(RESULTS_PATH, "Transfer_learning", dataset_name)
     print()
 
-    main(base_path, transfer_path_approach, models_to_compare, is_zero_shot=is_zero_shot)
+    main(base_path, transfer_path_approach, models_to_compare, is_zero_shot=is_zero_shot, include_features=include_features)
