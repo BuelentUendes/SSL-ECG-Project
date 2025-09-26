@@ -704,6 +704,7 @@ def search_encoder_fp(
 def Trainer(
         model, temporal_contr_model, model_optimizer, temp_cont_optimizer, train_dl, valid_dl,
         test_dl, device, config, experiment_log_dir, training_mode, results_save_path=RESULTS_PATH,
+        batch_size=128,
 ):
     # Start training
     print("Training started ....")
@@ -749,11 +750,20 @@ def Trainer(
                 "ssl_val_loss": val_loss if valid_dl is not None else np.nan,
             }, step=epoch)
 
-    with open(os.path.join(results_save_path, "runtime_per_epoch.json"), "w") as f:
+    # We save the results for different batch sizes differently
+    if batch_size != 128: #default one:
+        run_time_save_name = f"runtime_per_epoch_{batch_size}.json"
+        peak_memory_save_name = f"peak_memory_consumption_epochs_{batch_size}.json"
+    else:
+        run_time_save_name = "runtime_per_epoch.json"
+        peak_memory_save_name = "peak_memory_consumption_epochs.json"
+
+    with open(os.path.join(results_save_path, run_time_save_name), "w") as f:
         json.dump(epoch_runtimes, f, indent=2)
 
+
     if torch.cuda.is_available():
-        with open(os.path.join(results_save_path, "peak_memory_consumption_epochs.json"), "w") as f:
+        with open(os.path.join(results_save_path, peak_memory_save_name), "w") as f:
             json.dump(epoch_peak_memory, f, indent=2)
 
     # Save models (either best from early stopping or final)
