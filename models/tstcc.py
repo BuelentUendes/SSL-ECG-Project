@@ -1,5 +1,6 @@
 import json
 import time
+import copy
 
 import torch
 import torch.nn as nn
@@ -749,8 +750,6 @@ def Trainer(
                 "ssl_val_loss": val_loss if valid_dl is not None else np.nan,
             }, step=epoch)
 
-    # Dump memory snapshot history to a file and stop recording
-    # Start recording memory snapshot history
     with open(os.path.join(results_save_path, "runtime_per_epoch.json"), "w") as f:
         json.dump(epoch_runtimes, f, indent=2)
 
@@ -1453,7 +1452,6 @@ class FineTunedNet(nn.Module):
 
     def clone(self):
         """Create a deep copy of the FineTunedNet model"""
-        import copy
         # Create new instances with deep copied components
         cloned_encoder = copy.deepcopy(self.encoder)
         cloned_tc_head = copy.deepcopy(self.tc_head)
