@@ -7,7 +7,7 @@
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_infots_s3_%j.out
 #SBATCH --error=ecg_infots_s3_%j.err
-#SBATCH -C A6000
+#SBATCH -C A4000
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -49,7 +49,7 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.1 --use_s3_layers --infots_batch_size 8
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.1 --use_s3_layers --infots_batch_size 8 --force_retraining
 #python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.01 --use_s3_layers
 #python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.025 --use_s3_layers
 #python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.05 --use_s3_layers
