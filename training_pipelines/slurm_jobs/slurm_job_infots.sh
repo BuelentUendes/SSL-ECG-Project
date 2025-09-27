@@ -58,12 +58,12 @@ python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction
 #python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 1.0
 
 #
-  for SEED in 3 5 7 9 42; do
-      sbatch --job-name=ECG_INFOTS_seed_${SEED} \
-             --output=ecg_infots_${SEED}_%j.out \
-             --time=60:00:00 \
-             --begin=20:00 \
-             --error=ecg_infots_${SEED}_%j.err \
-             ./slurm_jobs/slurm_job_infots.sh $SEED
-  done
+#  for SEED in 3 5 7 9 42; do
+#      sbatch --job-name=ECG_INFOTS_seed_${SEED} \
+#             --output=ecg_infots_${SEED}_%j.out \
+#             --time=60:00:00 \
+#             --begin=20:00 \
+#             --error=ecg_infots_${SEED}_%j.err \
+#             ./slurm_jobs/slurm_job_infots.sh $SEED
+#  done
 ##
