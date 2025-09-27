@@ -49,7 +49,7 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --batch_size 8
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --batch_size 8 --force_retraining
 
 # Command to run the job
 #  for SEED in 3 5 7 9 42; do
