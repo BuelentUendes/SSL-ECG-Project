@@ -223,7 +223,7 @@ def main(
     torch.cuda.empty_cache()
     set_seed(seed)
 
-    model_file_name = "tstcc_spectral.pt" if use_spectral_augmentation else "tstcc.pt"
+    model_file_name = "tstcc.pt" if tcc_batch_size == 128 else f"tstcc_{tcc_batch_size}.pt"
 
     # Check if we have a locally saved model and no forced retraining
     if os.path.exists(os.path.join(model_save_path, model_file_name)) and not force_retraining:
@@ -362,7 +362,10 @@ def main(
             results_save_path=results_save_path,
             batch_size=tcc_batch_size,
         )
-        model_file_name = "tstcc_spectral.pt" if use_spectral_augmentation else "tstcc.pt"
+
+        #IMPORTANT:
+        model_file_name = "tstcc.pt" if tcc_batch_size == 128 else f"tstcc_{tcc_batch_size}.pt"
+
         ckpt = os.path.join(workdir, model_file_name)
         torch.save(
             {"encoder": model.state_dict(),
@@ -370,7 +373,6 @@ def main(
             ckpt
         )
 
-        # Model artifact logging removed (replaced with direct file saving)
         saved_results = os.path.join(model_save_path, model_file_name)
         torch.save(
             {"encoder": model.state_dict(),

@@ -175,10 +175,13 @@ def main(
     torch.cuda.empty_cache()
     set_seed(seed)
 
+    # We save the weights differently depending on the batch size for the experiments later for the ablation study
+    model_save_name = "infots_model.pt" if infots_batch_size == 32 else f"infots_model_{infots_batch_size}.pt"
+
     # Check if we have a locally saved model and no forced retraining
-    if os.path.exists(os.path.join(model_save_path, "infots_model.pt")) and not force_retraining:
+    if os.path.exists(os.path.join(model_save_path, model_save_name)) and not force_retraining:
         print("We found a pretrained model. Load the pretrained weights")
-        model_path = os.path.join(model_save_path, "infots_model.pt")
+        model_path = os.path.join(model_save_path, model_save_name)
 
         infots = InfoTS(
             input_dims=n_features,
@@ -241,7 +244,10 @@ def main(
         )
 
         # Save model
-        saved_results = os.path.join(model_save_path, "infots_model.pt")
+        # Save the model differently here depending on whether it was trained with batch size 8 or  not
+        model_save_name = "infots_model.pt" if infots_batch_size == 32 else f"infots_model_{infots_batch_size}.pt"
+
+        saved_results = os.path.join(model_save_path, model_save_name)
         torch.save(infots.net, saved_results)
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────

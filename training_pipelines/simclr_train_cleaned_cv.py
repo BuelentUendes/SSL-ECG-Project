@@ -194,10 +194,12 @@ def main(
         use_tstcc_encoder=use_tstcc_encoder,
     )
 
+    model_save_name_weights = "simclr_encoder.pt" if batch_size == 256 else f"simclr_encoder_{batch_size}.pt"
+
     # Check for local pretrained model
-    if os.path.exists(os.path.join(model_save_path, "simclr_encoder.pt")) and not force_retraining:
+    if os.path.exists(os.path.join(model_save_path, model_save_name_weights)) and not force_retraining:
         print("Found pretrained model. Loading weights...")
-        model_path = os.path.join(model_save_path, "simclr_encoder.pt")
+        model_path = os.path.join(model_save_path, model_save_name_weights)
         model.load_state_dict(torch.load(model_path, map_location=device))
 
     else:
@@ -255,7 +257,7 @@ def main(
                 json.dump(epoch_peak_memory, f, indent=2)
 
         # Save model locally
-        saved_results = os.path.join(model_save_path, "simclr_encoder.pt")
+        saved_results = os.path.join(model_save_path, model_save_name_weights)
         torch.save(model.state_dict(), saved_results)
 
         logging.info("Encoder training complete")
