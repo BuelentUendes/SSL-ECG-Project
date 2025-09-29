@@ -307,8 +307,34 @@ def main(
         mlflow.log_params(results['best_params'])
 
     if zero_shot_evaluation:
-        # Load the best-trained model
+        # Load the best-trained model and scaler
         classifier_model = results["model"]
+        scaler = results.get("scaler", None)
+        
+        # Apply the same standardization to zero-shot data if scaler exists
+        if scaler is not None:
+            standard_scaler, minmax_scaler = scaler
+            X_zero_shot_scaled = X_zero_shot.copy()
+            
+            # Apply the same feature standardization as training
+            min_max_scaler_names = ["nn20", "nk_pnn20", "nn50", "nk_pnn50"]
+            nn_indices = []
+            standard_indices = []
+            
+            for i, name in enumerate(feature_names):
+                if name.lower() in min_max_scaler_names:
+                    nn_indices.append(i)
+                else:
+                    standard_indices.append(i)
+            
+            # Transform zero-shot data using fitted scalers
+            if standard_indices:
+                X_zero_shot_scaled[:, standard_indices] = standard_scaler.transform(X_zero_shot[:, standard_indices])
+            if nn_indices:
+                X_zero_shot_scaled[:, nn_indices] = minmax_scaler.transform(X_zero_shot[:, nn_indices])
+            
+            X_zero_shot = X_zero_shot_scaled
+        
         # Then test the performance
         zero_shot_results = evaluate_zero_shot_model_performance(classifier_model, X_zero_shot, y_zero_shot)
 
