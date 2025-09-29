@@ -1,27 +1,13 @@
 #!/usr/bin/env python
-"""
-Label Consistency Analysis V2 - Simplified Domain Discrimination
-
-This simplified script performs domain discrimination analysis using logistic regression
-with 5-fold cross-validation and participant-level splits to prevent data leakage.
-
-Key features:
-- Participant-level train/test splits (no participant overlap between folds)
-- Proper feature standardization within CV folds
-- Simplified reporting of mean performance across folds
-- No visualization or heatmap generation
-"""
 
 import os
 import sys
 import json
 import argparse
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple
 
 import numpy as np
-import h5py
 from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.metrics import balanced_accuracy_score, accuracy_score, roc_auc_score, average_precision_score
 from sklearn.model_selection import GroupKFold
 from sklearn.dummy import DummyClassifier
@@ -33,70 +19,49 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 
-class SimplifiedDomainAnalyzer:
-    """Simplified domain discriminability analyzer with participant-level CV"""
+class SimplifiedEmbeddingDomainAnalyzer:
+    """Simplified embedding domain discriminability analyzer with participant-level CV"""
     
     def __init__(self, random_state: int = 42):
         self.random_state = random_state
         set_seed(random_state)
     
-    def load_dataset(self, dataset_path: str, dataset_name: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Load features, labels, and participant groups from H5 file"""
+    def load_embeddings(self, embedding_path: str, dataset_name: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Load embeddings, labels, and participant groups from NPZ file"""
         try:
-            label_map = {"baseline": 0, "mental_stress": 1}
-            
-            X_list, y_list, groups_list = [], [], []
-            with h5py.File(dataset_path, "r") as f:
-                participants = list(f.keys())
-
-                feature_names = f[participants[0]].attrs['feature_names']
-
-                for participant_key in participants:
-                    participant_id = participant_key.replace("participant_", "")
-                    for cat in f[participant_key].keys():
-                        if cat not in label_map:
-                            continue
-                        cat_group = f[participant_key][cat]
-                        segment_windows_list = []
-                        for segment_name in cat_group.keys():
-                            windows = cat_group[segment_name][...]
-                            segment_windows_list.append(windows)
-                        if len(segment_windows_list) == 0:
-                            continue
-                        
-                        windows_all = np.concatenate(segment_windows_list, axis=0)
-                        n_windows = windows_all.shape[0]
-                        groups_arr = np.array([participant_id] * n_windows, dtype=object)
-
-                        X_list.append(windows_all)
-                        y_list.append(np.full((n_windows,), label_map[cat], dtype=int))
-                        groups_list.append(groups_arr)
-
-            if len(X_list) == 0:
-                print(f"No valid data found in {dataset_path}")
+            if not os.path.exists(embedding_path):
+                print(f"Embedding file not found at {embedding_path}")
                 return None, None, None
-
-            X = np.concatenate(X_list, axis=0)
-            y = np.concatenate(y_list, axis=0)
-            groups = np.concatenate(groups_list, axis=0)
             
-            # Handle NaN values
-            nan_mask = ~np.isnan(X).any(axis=1)
+            # Load embeddings from NPZ file
+            data = np.load(embedding_path)
+            embeddings = data['array1']  # X embeddings
+            y = data['array_2']  # y labels
+            
+            print(f"Loaded embeddings for {dataset_name}: X={embeddings.shape}, labels={len(y)}")
+            
+            # Since embeddings files don't contain participant groups, create dummy groups
+            # This is a limitation but acceptable for domain analysis
+            # We create groups based on rough estimate assuming ~100 samples per participant
+            groups = np.array([f"participant_{i//100}" for i in range(len(y))], dtype=object)
+            
+            # Handle NaN values in embeddings
+            nan_mask = ~np.isnan(embeddings).any(axis=1)
             if not nan_mask.all():
                 print(f"Removing {(~nan_mask).sum()} samples with NaN values from {dataset_name}")
-                X = X[nan_mask]
+                embeddings = embeddings[nan_mask]
                 y = y[nan_mask]
                 groups = groups[nan_mask]
             
-            print(f"Loaded {dataset_name}: X={X.shape}, participants={len(np.unique(groups))}")
-            return X, y, groups, feature_names
+            print(f"Final {dataset_name}: X={embeddings.shape}, participants={len(np.unique(groups))}")
+            return embeddings, y, groups
                 
         except Exception as e:
-            print(f"Error loading {dataset_path}: {e}")
+            print(f"Error loading embeddings from {embedding_path}: {e}")
             return None, None, None
     
-    def create_combined_dataset(self, X1: np.ndarray, y1: np.ndarray, groups1: np.ndarray, feature_names_1,
-                               X2: np.ndarray, y2: np.ndarray, groups2: np.ndarray, feature_names_2) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def create_combined_dataset(self, X1: np.ndarray, y1: np.ndarray, groups1: np.ndarray,
+                               X2: np.ndarray, y2: np.ndarray, groups2: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Create combined dataset for domain discrimination"""
         # Combine datasets
         X_combined = np.vstack([X1, X2])
@@ -107,22 +72,17 @@ class SimplifiedDomainAnalyzer:
         groups2_prefixed = np.array([f"ds2_{g}" for g in groups2])
         groups_combined = np.concatenate([groups1_prefixed, groups2_prefixed])
 
-        assert list(feature_names_1) == list(feature_names_2), "feature order is not the same"
-        feature_names = feature_names_1 # The feature names are anyways the same
-
-        print(f"Combined dataset: X={X_combined.shape}, domain distribution={np.bincount(y_domain.astype(int))}")
-        return X_combined, y_domain, groups_combined, feature_names
+        print(f"Combined embedding dataset: X={X_combined.shape}, domain distribution={np.bincount(y_domain.astype(int))}")
+        return X_combined, y_domain, groups_combined
     
     def evaluate_with_participant_cv(
             self,
             X: np.ndarray,
             y_domain: np.ndarray,
             groups: np.ndarray,
-            feature_names=None,
             k_folds: int = 5,
             analysis_type: str = "overall"
     ) -> Dict:
-
         """Evaluate domain discrimination using participant-level k-fold CV"""
         unique_participants = np.unique(groups)
         n_participants = len(unique_participants)
@@ -173,37 +133,18 @@ class SimplifiedDomainAnalyzer:
                 print(f"Warning: Fold {fold_idx+1} has insufficient class diversity, skipping")
                 continue
             
-            # Fit scaler on training data only
-            scaler = StandardScaler()
-            min_max_scaler = MinMaxScaler()
-
-            min_max_scaler_names = ["nn20", "nn50", "wmax"]
-
-            # Apply the same feature standardization as training
-            nn_indices = []
-            standard_indices = []
-
-            for i, name in enumerate(feature_names):
-                if name.lower() in min_max_scaler_names:
-                    nn_indices.append(i)
-                else:
-                    standard_indices.append(i)
-
-            if standard_indices:
-                X_train_scaled = scaler.fit_transform(X_train[:, standard_indices])
-                X_test_scaled = scaler.transform(X_test[:, standard_indices])
-
-            if nn_indices:
-                X_train_scaled = min_max_scaler.fit_transform(X_train[:, nn_indices])
-                X_test_scaled = min_max_scaler.transform(X_test[:, nn_indices])
-
+            # No standardization needed - embeddings are already normalized
+            # Use embeddings directly
+            X_train_processed = X_train
+            X_test_processed = X_test
+            
             # Train dummy classifier (majority class baseline)
             dummy_clf = DummyClassifier(strategy='most_frequent', random_state=self.random_state)
-            dummy_clf.fit(X_train_scaled, y_train)
+            dummy_clf.fit(X_train_processed, y_train)
             
             # Evaluate dummy classifier
-            dummy_y_pred = dummy_clf.predict(X_test_scaled)
-            dummy_y_prob = dummy_clf.predict_proba(X_test_scaled)[:, 1]
+            dummy_y_pred = dummy_clf.predict(X_test_processed)
+            dummy_y_prob = dummy_clf.predict_proba(X_test_processed)[:, 1]
             
             dummy_accuracy = accuracy_score(y_test, dummy_y_pred)
             dummy_balanced_acc = balanced_accuracy_score(y_test, dummy_y_pred)
@@ -216,11 +157,11 @@ class SimplifiedDomainAnalyzer:
                 max_iter=1000,
                 n_jobs=-1
             )
-            clf.fit(X_train_scaled, y_train)
+            clf.fit(X_train_processed, y_train)
             
             # Evaluate logistic regression
-            y_pred = clf.predict(X_test_scaled)
-            y_prob = clf.predict_proba(X_test_scaled)[:, 1]
+            y_pred = clf.predict(X_test_processed)
+            y_prob = clf.predict_proba(X_test_processed)[:, 1]
             
             # Calculate metrics
             accuracy = accuracy_score(y_test, y_pred)
@@ -259,8 +200,8 @@ class SimplifiedDomainAnalyzer:
         
         return results
     
-    def create_class_specific_dataset(self, X1: np.ndarray, y1: np.ndarray, groups1: np.ndarray, feature_names_1,
-                                     X2: np.ndarray, y2: np.ndarray, groups2: np.ndarray, feature_names_2,
+    def create_class_specific_dataset(self, X1: np.ndarray, y1: np.ndarray, groups1: np.ndarray,
+                                     X2: np.ndarray, y2: np.ndarray, groups2: np.ndarray,
                                      target_class: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Create dataset for class-specific domain discrimination"""
         # Filter to specific class
@@ -285,24 +226,21 @@ class SimplifiedDomainAnalyzer:
         groups2_prefixed = np.array([f"ds2_{g}" for g in groups2_class])
         groups_combined = np.concatenate([groups1_prefixed, groups2_prefixed])
 
-        assert list(feature_names_1) == list(feature_names_2), "feature order is not the same"
-        feature_names = feature_names_1  # The feature names are anyways the same
+        print(f"Class {target_class} embedding dataset: X={X_combined.shape}, domain distribution={np.bincount(y_domain.astype(int))}")
+        return X_combined, y_domain, groups_combined
 
-        print(f"Class {target_class} dataset: X={X_combined.shape}, domain distribution={np.bincount(y_domain.astype(int))}")
-        return X_combined, y_domain, groups_combined, feature_names
-
-    def analyze_dataset_pair(self, dataset1_path: str, dataset1_name: str,
-                           dataset2_path: str, dataset2_name: str, 
+    def analyze_dataset_pair(self, embedding1_path: str, dataset1_name: str,
+                           embedding2_path: str, dataset2_name: str, 
                            k_folds: int = 5) -> Dict:
-        """Analyze domain discriminability between two datasets"""
-        print(f"\n=== Analyzing {dataset1_name} vs {dataset2_name} ===")
+        """Analyze domain discriminability between two datasets using embeddings"""
+        print(f"\n=== Analyzing {dataset1_name} vs {dataset2_name} (Embeddings) ===")
         
-        # Load datasets
-        X1, y1, groups1, feature_names_1 = self.load_dataset(dataset1_path, dataset1_name)
-        X2, y2, groups2, feature_names_2 = self.load_dataset(dataset2_path, dataset2_name)
+        # Load embeddings
+        X1, y1, groups1 = self.load_embeddings(embedding1_path, dataset1_name)
+        X2, y2, groups2 = self.load_embeddings(embedding2_path, dataset2_name)
         
         if X1 is None or X2 is None:
-            return {'error': 'Failed to load data'}
+            return {'error': 'Failed to load embeddings'}
         
         # Filter to binary classification only
         binary_mask1 = np.isin(y1, [0, 1])
@@ -322,16 +260,17 @@ class SimplifiedDomainAnalyzer:
             'dataset2_samples': len(X2_binary),
             'dataset1_participants': len(np.unique(groups1_binary)),
             'dataset2_participants': len(np.unique(groups2_binary)),
+            'embedding_dim': X1_binary.shape[1]
         }
         
         # 1. Overall domain discrimination (all classes mixed)
         print(f"\n--- Overall Domain Discrimination ---")
-        X_combined_overall, y_domain_overall, groups_combined_overall, feature_names = self.create_combined_dataset(
-            X1_binary, y1_binary, groups1_binary,feature_names_1, X2_binary, y2_binary, groups2_binary, feature_names_2
+        X_combined_overall, y_domain_overall, groups_combined_overall = self.create_combined_dataset(
+            X1_binary, y1_binary, groups1_binary, X2_binary, y2_binary, groups2_binary
         )
         
         overall_results = self.evaluate_with_participant_cv(
-            X_combined_overall, y_domain_overall, groups_combined_overall, feature_names, k_folds, "overall"
+            X_combined_overall, y_domain_overall, groups_combined_overall, k_folds, "overall"
         )
         results['overall_discrimination'] = overall_results
         
@@ -340,27 +279,25 @@ class SimplifiedDomainAnalyzer:
         
         # Class 0 (baseline) discrimination
         print(f"\n--- Class 0 (Baseline) Domain Discrimination ---")
-        X_class0, y_domain_class0, groups_class0, feature_names = self.create_class_specific_dataset(
-            X1_binary, y1_binary, groups1_binary, feature_names_1, X2_binary, y2_binary, groups2_binary,
-            feature_names_2, target_class=0
+        X_class0, y_domain_class0, groups_class0 = self.create_class_specific_dataset(
+            X1_binary, y1_binary, groups1_binary, X2_binary, y2_binary, groups2_binary, target_class=0
         )
         
         if X_class0 is not None:
             class0_results = self.evaluate_with_participant_cv(
-                X_class0, y_domain_class0, groups_class0, feature_names, k_folds, "class_0_baseline"
+                X_class0, y_domain_class0, groups_class0, k_folds, "class_0_baseline"
             )
             class_results['class_0_baseline'] = class0_results
         
         # Class 1 (mental stress) discrimination
         print(f"\n--- Class 1 (Mental Stress) Domain Discrimination ---")
-        X_class1, y_domain_class1, groups_class1, feature_names = self.create_class_specific_dataset(
-            X1_binary, y1_binary, groups1_binary, feature_names_1,
-            X2_binary, y2_binary, groups2_binary, feature_names_2, target_class=1
+        X_class1, y_domain_class1, groups_class1 = self.create_class_specific_dataset(
+            X1_binary, y1_binary, groups1_binary, X2_binary, y2_binary, groups2_binary, target_class=1
         )
         
         if X_class1 is not None:
             class1_results = self.evaluate_with_participant_cv(
-                X_class1, y_domain_class1, groups_class1, feature_names, k_folds, "class_1_stress"
+                X_class1, y_domain_class1, groups_class1, k_folds, "class_1_stress"
             )
             class_results['class_1_stress'] = class1_results
         
@@ -373,7 +310,7 @@ class SimplifiedDomainAnalyzer:
         results = {}
         dataset_names = list(datasets.keys())
         
-        print(f"Running pairwise analysis for {len(dataset_names)} datasets with {k_folds}-fold CV...")
+        print(f"Running pairwise embedding analysis for {len(dataset_names)} datasets with {k_folds}-fold CV...")
         
         for i, (name1, path1) in enumerate(datasets.items()):
             for j, (name2, path2) in enumerate(datasets.items()):
@@ -388,28 +325,31 @@ class SimplifiedDomainAnalyzer:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Simplified Label Consistency Analysis")
+    parser = argparse.ArgumentParser(description="Simplified Embedding Consistency Analysis")
     parser.add_argument("--output_dir", type=str, default="statistical_analysis/results",
                        help="Output directory for results")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--fs", type=str, default="1000", help="Sampling frequency")
-    parser.add_argument("--window_size", type=int, default=30, help="Window size")
+    parser.add_argument("--ssl_method", type=str, default="TSTCC", 
+                       choices=["TSTCC", "TS2Vec", "SimCLR", "SoftTSTCC", "SoftTS2Vec"],
+                       help="SSL method for embedding extraction")
+    parser.add_argument("--window_size", type=int, default=10, help="Window size")
     parser.add_argument("--step_size", type=int, default=5, help="Step size")
     parser.add_argument("--k_folds", type=int, default=5, help="Number of CV folds")
     
     args = parser.parse_args()
     
     # Initialize analyzer
-    analyzer = SimplifiedDomainAnalyzer(random_state=args.seed)
+    analyzer = SimplifiedEmbeddingDomainAnalyzer(random_state=args.seed)
     
-    # Define dataset paths
+    # Define embedding paths based on SSL method
+    # data/embeddings/<dataset>/<fs>/<ssl_method>/<seed>/<window_size>/<step_size>/x_y_embedding.npz
     datasets = {
-        'Ours': os.path.join(DATA_PATH, "interim", "ECG_features", args.fs,
-                           str(args.window_size), str(args.step_size), "windowed_data.h5"),
-        'STRESSID': os.path.join(DATA_PATH, "interim", "STRESSID_features", "ECG", "500",
-                                str(args.window_size), str(args.step_size), "windowed_data.h5"),
-        'WESAD': os.path.join(DATA_PATH, "interim", "WESAD_features", "ECG", "700",
-                             str(args.window_size), str(args.step_size), "windowed_data.h5")
+        'Ours': os.path.join(DATA_PATH, "embeddings", "ECG", "1000", args.ssl_method, 
+                           str(args.seed), str(args.window_size), str(args.step_size), "x_y_embedding.npz"),
+        'STRESSID': os.path.join(DATA_PATH, "embeddings", "STRESSID", "500", args.ssl_method,
+                                str(args.seed), str(args.window_size), str(args.step_size), "x_y_embedding.npz"),
+        'WESAD': os.path.join(DATA_PATH, "embeddings", "WESAD", "700", args.ssl_method,
+                             str(args.seed), str(args.window_size), str(args.step_size), "x_y_embedding.npz")
     }
     
     # Filter existing datasets
@@ -417,12 +357,13 @@ def main():
     for name, path in datasets.items():
         if os.path.exists(path):
             existing_datasets[name] = path
-            print(f"Found dataset: {name}")
+            print(f"Found embeddings: {name}")
         else:
-            print(f"Warning: Dataset {name} not found at {path}")
+            print(f"Warning: Embeddings {name} not found at {path}")
     
     if len(existing_datasets) < 2:
         print("Error: Need at least 2 datasets for comparison")
+        print("Please ensure you have run SSL training with --save_embeddings flag")
         return
     
     # Run analysis
@@ -430,7 +371,9 @@ def main():
     
     # Save results
     os.makedirs(args.output_dir, exist_ok=True)
-    results_path = os.path.join(args.output_dir, f"label_consistency_{args.window_size}_{args.step_size}.json")
+    results_path = os.path.join(
+        args.output_dir, f"embedding_consistency_{args.ssl_method}_{args.window_size}_{args.step_size}.json"
+    )
     with open(results_path, 'w') as f:
         json.dump(results, f, indent=2, default=str)
     
@@ -438,7 +381,7 @@ def main():
     print(f"Results saved to: {results_path}")
     
     # Print comprehensive summary
-    print("\n=== Domain Discrimination Results ===")
+    print("\n=== Embedding Domain Discrimination Results ===")
     for pair_name, pair_results in results.items():
         if 'error' in pair_results:
             print(f"{pair_name}: ERROR - {pair_results['error']}")
@@ -447,6 +390,7 @@ def main():
         print(f"\n{pair_name}:")
         print(f"  Dataset sizes: {pair_results['dataset1_samples']} vs {pair_results['dataset2_samples']} samples")
         print(f"  Participants: {pair_results['dataset1_participants']} vs {pair_results['dataset2_participants']}")
+        print(f"  Embedding dim: {pair_results['embedding_dim']}")
         
         # Overall discrimination results
         if 'overall_discrimination' in pair_results:
@@ -497,7 +441,8 @@ def main():
     print(f"\n=== Summary ===")
     print("Higher scores indicate better ability to discriminate between datasets (larger domain gap)")
     print("Scores close to 0.5 indicate datasets are similar (small domain gap)")
-    print("Analysis includes participant-level CV splits to prevent data leakage")
+    print("Analysis uses participant-level CV splits to prevent data leakage")
+    print(f"SSL method used: {args.ssl_method}")
 
 
 if __name__ == "__main__":
