@@ -2,17 +2,13 @@
 #!/usr/bin/env python
 import os
 import json
-import sys
 import argparse
 import logging
 import tempfile
 import gc
 
 import numpy as np
-import pandas as pd
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 import mlflow
 import mlflow.pytorch
@@ -27,7 +23,6 @@ from utils.torch_utilities import (
     run_logistic_regression_with_gridsearch_verbose,
     run_mlp_with_cv_and_test,
     run_linear_classifier_with_cv_and_test,
-    binary_accuracy,
 )
 
 from torch.utils.data import DataLoader, TensorDataset, Dataset
@@ -506,9 +501,12 @@ def main(
                                                   model, tc_head, tcc_batch_size, device)
 
             if save_embeddings:
-               x_repr_all, _ = encode_representations(X, y, model, tc_head, tcc_batch_size, device)
-               np.savez(os.path.join(embedding_save_path, "x_y_embedding.npz"), array1=x_repr_all, array_2=y)
-               print(f"We saved the embeddings and y")
+                print(f"Saving the embeddings for later analysis ...")
+                x_repr_all, _ = encode_representations(X, y, model, tc_head, tcc_batch_size, device)
+                np.savez(os.path.join(
+                    embedding_save_path, "x_y_groups_embedding.npz"), array1=x_repr_all, array_2=y, array_3=groups
+                )
+                print(f"We saved the embeddings, y and groups")
 
         # filter to binary downstream samples
         train_repr = train_repr[downstream_mask["train"]]
