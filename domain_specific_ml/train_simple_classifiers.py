@@ -317,7 +317,7 @@ def main(
             X_zero_shot_scaled = X_zero_shot.copy()
             
             # Apply the same feature standardization as training
-            min_max_scaler_names = ["nn20", "nk_pnn20", "nn50", "nk_pnn50"]
+            min_max_scaler_names = ["nn20", "nn50", "wmax"]
             nn_indices = []
             standard_indices = []
             
