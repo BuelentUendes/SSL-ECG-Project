@@ -781,7 +781,7 @@ def standardize_features(X_train, X_val, X_test, feature_names):
     nn_indices = []
     standard_indices = []
 
-    min_max_scaler_names = ["nn20","nn50", "wmax"] #These are the categorical ones
+    min_max_scaler_names = ["nn20","nn50", "wmax"] #These are the integer ones
     for i, name in enumerate(feature_names):
         if name.lower() in min_max_scaler_names:
             nn_indices.append(i)
