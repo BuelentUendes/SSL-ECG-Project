@@ -393,8 +393,12 @@ def main(
         # Extract all representations and save them which will be saved and processed in the label consistency script
         # Also do the model name! For save path!
         if save_embeddings:
+            print(f"Saving the embeddings for later analysis ...")
             x_repr_all, _ = encode_representations(X, y, model, tc_head, tcc_batch_size, device)
-            np.savez(os.path.join(embedding_save_path, "x_y_embedding.npz"), array1=x_repr_all, array_2=y)
+            # We also have the groups so we know which data point belongs to which participant id
+            np.savez(os.path.join(
+                embedding_save_path, "x_y_groups_embedding.npz"), array1=x_repr_all, array_2=y, array_3=groups
+            )
             print(f"We saved the embeddings and y")
 
     # filter to binary downstream samples
@@ -468,9 +472,6 @@ def main(
         with open(os.path.join(zero_shot_results_path, "zero_shot_results.json"), 'w') as f:
             json.dump(zero_shot_results, f, indent=2, default=str)
 
-        # Then later do that for each of the dataset (wesad and stressid)
-
-        # Plot then the zero shot performance as a function of label availability (across different seeds)
 
     # ── Step 7: Save Results ────────────────────────────────────────────────────
     test_results_name = f"test_results_{tcc_batch_size}.json" if tcc_batch_size != 128 else "test_results.json"
