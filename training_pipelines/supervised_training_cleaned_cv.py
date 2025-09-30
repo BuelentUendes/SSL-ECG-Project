@@ -3,6 +3,7 @@
 ###
 
 import os
+import copy
 import json
 import gc
 import argparse
@@ -26,7 +27,6 @@ from utils.torch_utilities import (
     create_directory,
     test,
     run_logistic_regression_with_gridsearch,
-    run_logistic_regression_with_gridsearch_verbose,
     run_mlp_with_cv_and_test,
     run_linear_classifier_with_cv_and_test,
 )
@@ -39,6 +39,7 @@ from models.supervised import (
     PatchTSTECGClassifier,
     MomentFMClassifier,
     FineTunedCNNNet,
+    freeze_and_unfreeze_encoder,
 )
 
 
@@ -610,21 +611,41 @@ def main(
                     k=k_folds
                 )
 
+                # LP+FT pipeline
+                # Step 1: First train the head
+                # Here we first freeze the backbone and train first classifier head only
+                # We tune a total of 25 epochs, as this is the same as we used for our supervised baselines
+
                 # Here we use the option for the classifier head option to vary the head
                 fine_tune_model = FineTunedCNNNet(backbone=pretrained_model, classifier_head=classifier_head).to(device)
 
-                # This fine-tunes the encoder and test them right away
+                fine_tune_model = freeze_and_unfreeze_encoder(fine_tune_model, freeze=True)
+
+                # This fine-tunes the classifier head first (with the frozen backbone)
                 fine_tuned_results = run_linear_classifier_with_cv_and_test(
                     X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
-                    feature_names=None, cv_splitter=cv_splitter, device=device, classifier_epochs=classifier_epochs,
+                    feature_names=None, cv_splitter=cv_splitter, device=device, classifier_epochs=15,
                     classifier_batch_size=classifier_batch_size,
                     standardize=False, seed=42
                 )
 
-                print(f"We finished the fine-tuning stage")
+                # Get the updated model (this has the head already fine-tuned)
+                fine_tune_model = copy.deepcopy(fine_tuned_results["model"])
+
+                # Now unfreeze the weights so the encoder and the head will be trained
+                fine_tune_model = freeze_and_unfreeze_encoder(fine_tune_model, freeze=False)
+
+                fine_tuned_results = run_linear_classifier_with_cv_and_test(
+                    X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
+                    feature_names=None, cv_splitter=cv_splitter, device=device, classifier_epochs=10,
+                    classifier_batch_size=classifier_batch_size,
+                    standardize=False, seed=42
+                )
+
+                print(f"We finished the fine-tuning stage (LP + FT)")
                 print(fine_tuned_results["test_metrics"])
 
-                with open(os.path.join(transfer_learning_results_save_path, "test_results.json"), "w") as f:
+                with open(os.path.join(transfer_learning_results_save_path, "test_results_lp_ft.json"), "w") as f:
                     json.dump(fine_tuned_results, f, indent=2, default=str)
 
             else:
