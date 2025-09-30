@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import copy
 import json
 import argparse
 import logging
@@ -36,7 +37,8 @@ from models.tstcc import (
     build_tstcc_fingerprint,
     search_encoder_fp,
     optimize_tstcc_hyperparameters,
-    FineTunedNet
+    FineTunedNet,
+    freeze_and_unfreeze_encoder,
 )
 
 def main(
@@ -430,10 +432,28 @@ def main(
 
         fine_tune_model = FineTunedNet(encoder=model, tc_head=tc_head).to(device)
 
+        # We follow the lp+ft approach (https://arxiv.org/pdf/2202.10054)
+        # So we first freez all the weights
+        fine_tune_model = freeze_and_unfreeze_encoder(fine_tune_model, freeze=True)
+
+        # This fine-tunes the encoder and test them right away (we will extract the head here)
+        fine_tune_results = run_linear_classifier_with_cv_and_test(
+            X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
+            feature_names, cv_splitter, device, classifier_epochs=15,
+            classifier_batch_size=classifier_batch_size,
+            standardize=False, seed=42
+        )
+
+        # Get the updated model (this has the head already fine-tuned)
+        fine_tune_model = copy.deepcopy(fine_tune_results["model"])
+
+        # Now unfreeze the weights so the encoder and the head will be trained
+        fine_tune_model = freeze_and_unfreeze_encoder(fine_tune_model, freeze=False)
+
         # This fine-tunes the encoder and test them right away
         fine_tuned_results = run_linear_classifier_with_cv_and_test(
             X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
-            feature_names, cv_splitter, device, classifier_epochs=classifier_epochs,
+            feature_names, cv_splitter, device, classifier_epochs=10,
             classifier_batch_size=classifier_batch_size,
             standardize=False, seed=42
         )
@@ -441,52 +461,9 @@ def main(
         print(f"We finished the fine-tuning stage")
         print(fine_tuned_results["test_metrics"])
 
-        with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+        with open(os.path.join(results_save_path, "test_results_lp_ft.json"), "w") as f:
             json.dump(fine_tuned_results, f, indent=2, default=str)
 
-
-    #     fine_tune_model = FineTunedNet(encoder=model, tc_head=tc_head).to(device)
-    #     y_train = y[train_idx][downstream_mask["train"]]
-    #
-    #     loader = DataLoader(
-    #         TensorDataset(torch.from_numpy(X[train_idx][downstream_mask["train"]]).float(),
-    #                       torch.from_numpy(y_train).long()),
-    #         batch_size=tcc_batch_size, shuffle=True,
-    #     )
-    #     optimizer = torch.optim.AdamW(fine_tune_model.parameters(), lr=1e-4)
-    #     loss_fn = torch.nn.BCEWithLogitsLoss()
-    #
-    #     # Train final model
-    #     for idx in (range(classifier_epochs)):
-    #         print(f"Fine-tuning training: Epoch {idx+1} / {classifier_epochs}", flush=True, end="\r")
-    #         fine_tune_model.train()
-    #         epoch_accuracy = []
-    #         epoch_loss = []
-    #
-    #         for X_batch, y_batch in loader:
-    #             if X_batch.shape.index(min(X_batch.shape)) != 1:
-    #                 X_batch = X_batch.permute(0, 2, 1)
-    #
-    #             X_batch = X_batch.to(device)
-    #             y_batch = y_batch.to(device).float()
-    #             optimizer.zero_grad()
-    #             logits = fine_tune_model(X_batch).squeeze(-1)
-    #             loss = loss_fn(logits, y_batch)
-    #             loss.backward()
-    #
-    #             accuracy_epoch = binary_accuracy(logits, y_batch, logits=True)
-    #             epoch_loss.append(loss.cpu().item())
-    #             epoch_accuracy.append(accuracy_epoch.cpu().item())
-    #             optimizer.step()
-    #
-    #         # Get the epoch accuracy and epoch loss
-    #         if (idx + 1) % 2 == 0:
-    #             print(f"The loss is {np.mean(epoch_loss)}")
-    #             print(f"The binary accuracy is {np.mean(epoch_accuracy)}")
-    #
-    # if fine_tune_encoder:
-    #     model = fine_tune_model.encoder.eval()
-    #     tc_head = fine_tune_model.tc_head.eval()
     else:
         model.eval()
         tc_head.eval()

@@ -39,18 +39,9 @@ from models.tstcc import (
     build_tstcc_fingerprint,
     search_encoder_fp,
     optimize_tstcc_hyperparameters,
-    FineTunedNet
+    FineTunedNet,
+    freeze_and_unfreeze_encoder,
 )
-
-def freeze_and_unfreeze_encoder(model, freeze=True):
-    for param in model.encoder.parameters():
-        param.requires_grad = False if freeze else True
-
-    for param in model.tc_head.parameters():
-        param.requires_grad = False if freeze else True
-
-    return model
-
 
 
 def main(
@@ -751,8 +742,6 @@ if __name__ == "__main__":
 
     #Important:
     args.pretrain_all_conditions = True
-    args.use_pretrained_encoder = True
-    args.fine_tune_encoder = True
     # IMPORTANT:
     # use pretrained encoder -> train a new head
     # fine_tune_encoder -> fine tune encoder and a new head
