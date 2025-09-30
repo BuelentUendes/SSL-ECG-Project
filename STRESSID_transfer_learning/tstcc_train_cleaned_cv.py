@@ -451,6 +451,8 @@ def main(
         fine_tune_model = freeze_and_unfreeze_encoder(fine_tune_model, freeze=False)
 
         # This fine-tunes the encoder and test them right away
+        # We use a total of 25 epochs (as the same for the supervised baselines)
+
         fine_tuned_results = run_linear_classifier_with_cv_and_test(
             X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
             feature_names, cv_splitter, device, classifier_epochs=10,
