@@ -318,7 +318,7 @@ def load_transfer_learning_results(base_path, dataset_name):
                             # Look for window_size/window_shift folders
                             window_combinations = [
                                 (10, 5),   # 10s windows, 5s shift
-                                (30, 5),   # 30s windows, 5s shift
+                                # (30, 5),   # 30s windows, 5s shift
                                 # (30, 10),  # 30s windows, 10s shift
                             ]
                             
@@ -911,6 +911,7 @@ def load_feature_vs_ssl_comparison_results(base_path):
                     # Look for window size/shift combinations
                     window_combinations = [
                         (10, 5),   # 10s windows, 5s shift
+                        (30, 5),   # 30s windows, 5s shift
                         (30, 10),  # 30s windows, 10s shift
                         (30, 15),  # 30s windows, 15s shift
                     ]
@@ -1162,8 +1163,8 @@ def plot_feature_vs_ssl_comparison(df, metric="auroc", save_path=None, use_parti
         ax.set_ylabel(y_name, fontsize=20)
 
         # Set y-axis limits and ticks
-        ax.set_ylim(0.45, 1.0)
-        ax.set_yticks(np.arange(0.5, 1.05, 0.1))
+        ax.set_ylim(0.45, 1.0) if y_name == "AUROC" else ax.set_ylim(0.55, 1.0)
+        ax.set_yticks(np.arange(0.5, 1.05, 0.1)) if y_name == "AUROC" else ax.set_yticks(np.arange(0.55, 1.05, 0.1))
 
         # Add grid
         # ax.grid(False)
@@ -1347,7 +1348,9 @@ def load_ssl_comparison_results(base_path, ssl_methods=None, include_features=Fa
                         # Look for window size/shift combinations
                         window_combinations = [
                             (10, 5),   # 10s windows, 5s shift
-                            # (30, 10),  # 30s windows, 10s shift
+                            (30, 10),  # 30s windows, 10s shift
+                            (30, 15),
+                            (30, 5),
                         ]
                         
                         for window_size, window_shift in window_combinations:
@@ -1937,7 +1940,9 @@ def create_zero_shot_method_labels(df):
     return df
 
 
-def plot_zero_shot_results(df, dataset_name, metric="auroc", save_path=None, use_participant_count=False, total_participants=None, use_standard_error=False):
+def plot_zero_shot_results(
+        df, dataset_name, metric="auroc", save_path=None, use_participant_count=False, total_participants=None,
+        use_standard_error=False):
     """Create a plot showing zero-shot transfer performance for a specific dataset
     
     Args:
@@ -2190,139 +2195,6 @@ def main():
         print("Comparison results saved to 'feature_vs_ssl_comparison_results.csv'")
     else:
         print("No feature vs SSL comparison results found!")
-    #
-    # # Load and plot transfer learning results for both datasets
-    # print("\nLoading transfer learning results...")
-    # datasets = ["WESAD", "StressID"]
-    #
-    # for dataset_name in datasets:
-    #     print(f"\nProcessing {dataset_name} transfer learning results...")
-    #
-    #     # Load combined transfer learning and feature baseline results for this dataset
-    #     transfer_df = load_combined_transfer_learning_results(base_path, dataset_name)
-    #
-    #     if transfer_df.empty:
-    #
-    #         print(f"No transfer learning results found for {dataset_name}")
-    #         continue
-    #
-    #     print(f"Successfully loaded {len(transfer_df)} transfer learning results for {dataset_name}")
-    #
-    #     # Create method labels for transfer learning data
-    #     transfer_df = create_method_labels(transfer_df)
-    #
-    #     # Set participant counts based on dataset
-    #     if dataset_name == "WESAD":
-    #         total_participants = 12  #
-    #     elif dataset_name == "StressID":
-    #         total_participants = 52  #
-    #     else:
-    #         total_participants = 101  # Default fallback
-    #
-    #     # Create transfer learning plots for AUROC
-    #     print(f"Creating {dataset_name} transfer learning AUROC plot...")
-    #     plot_transfer_learning_results(
-    #         transfer_df,
-    #         dataset_name=dataset_name,
-    #         metric="auroc",
-    #         save_path=f'{dataset_name.lower()}_transfer_learning_auroc.png',
-    #         use_participant_count=use_participant_count,
-    #         total_participants=total_participants,
-    #         use_standard_error=True
-    #     )
-    #
-    #     # Create transfer learning plots for PR-AUC
-    #     print(f"Creating {dataset_name} transfer learning PR-AUC plot...")
-    #     plot_transfer_learning_results(
-    #         transfer_df,
-    #         dataset_name=dataset_name,
-    #         metric="pr_auc",
-    #         save_path=f'{dataset_name.lower()}_transfer_learning_pr_auc.png',
-    #         use_participant_count=use_participant_count,
-    #         total_participants=total_participants,
-    #         use_standard_error=True
-    #     )
-    #
-    #     # Create fine-tuned vs pretrained comparison plots
-    #     print(f"Creating {dataset_name} fine-tuned vs pre-trained comparison plots...")
-    #     plot_fine_tuned_vs_pretrained_comparison(
-    #         transfer_df,
-    #         dataset_name=dataset_name,
-    #         metric="auroc",
-    #         save_path=f'{dataset_name.lower()}_fine_tuned_vs_pretrained_auroc.png',
-    #         use_participant_count=use_participant_count,
-    #         total_participants=total_participants,
-    #         use_standard_error=True
-    #     )
-    #     plot_fine_tuned_vs_pretrained_comparison(
-    #         transfer_df,
-    #         dataset_name=dataset_name,
-    #         metric="pr_auc",
-    #         save_path=f'{dataset_name.lower()}_fine_tuned_vs_pretrained_pr_auc.png',
-    #         use_participant_count=use_participant_count,
-    #         total_participants=total_participants,
-    #         use_standard_error=True
-    #     )
-    #
-    #     # Save transfer learning data to CSV
-    #     transfer_df.to_csv(f'{dataset_name.lower()}_transfer_learning_results_summary.csv', index=False)
-    #     print(f"{dataset_name} transfer learning results saved to '{dataset_name.lower()}_transfer_learning_results_summary.csv'")
-    #
-    # # Load and plot zero-shot transfer results for both datasets
-    # print("\nLoading zero-shot transfer results...")
-    #
-    # for dataset_name in datasets:
-    #     print(f"\nProcessing {dataset_name} zero-shot transfer results...")
-    #
-    #     # Load zero-shot results for this dataset
-    #     zero_shot_df = load_zero_shot_results(base_path, dataset_name)
-    #
-    #     if zero_shot_df.empty:
-    #         print(f"No zero-shot results found for {dataset_name}")
-    #         continue
-    #
-    #     print(f"Successfully loaded {len(zero_shot_df)} zero-shot results for {dataset_name}")
-    #
-    #     # Create method labels for zero-shot data
-    #     zero_shot_df = create_zero_shot_method_labels(zero_shot_df)
-    #
-    #     # Set participant counts based on dataset (same as transfer learning)
-    #     if dataset_name == "WESAD":
-    #         total_participants = 12
-    #     elif dataset_name == "StressID":
-    #         total_participants = 52
-    #     else:
-    #         total_participants = 101
-    #
-    #     # Create zero-shot plots for AUROC
-    #     print(f"Creating {dataset_name} zero-shot AUROC plot...")
-    #     plot_zero_shot_results(
-    #         zero_shot_df,
-    #         dataset_name=dataset_name,
-    #         metric="auroc",
-    #         save_path=f'{dataset_name.lower()}_zero_shot_transfer_auroc.png',
-    #         use_participant_count=use_participant_count,
-    #         total_participants=total_participants,
-    #         use_standard_error=True
-    #     )
-    #
-    #     # Create zero-shot plots for PR-AUC
-    #     print(f"Creating {dataset_name} zero-shot PR-AUC plot...")
-    #     plot_zero_shot_results(
-    #         zero_shot_df,
-    #         dataset_name=dataset_name,
-    #         metric="pr_auc",
-    #         save_path=f'{dataset_name.lower()}_zero_shot_transfer_pr_auc.png',
-    #         use_participant_count=use_participant_count,
-    #         total_participants=total_participants,
-    #         use_standard_error=True
-    #     )
-    #
-    #     # Save zero-shot data to CSV
-    #     zero_shot_df.to_csv(f'{dataset_name.lower()}_zero_shot_results_summary.csv', index=False)
-    #     print(f"{dataset_name} zero-shot results saved to '{dataset_name.lower()}_zero_shot_results_summary.csv'")
-
-    # return df
 
 
 if __name__ == "__main__":
