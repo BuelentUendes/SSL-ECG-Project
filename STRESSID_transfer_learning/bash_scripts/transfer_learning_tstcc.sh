@@ -15,10 +15,10 @@ do
     for fraction in "${fractions[@]}"
     do
       python3 tstcc_train_cleaned_cv.py  --fs 500 --use_pretrained_encoder --fine_tune_encoder --seed "$seed" --label_fraction "$fraction" --window_size 10 --step_size 5
-      python3 tstcc_train_cleaned_cv.py  --fs 500 --use_pretrained_encoder --seed "$seed" --label_fraction "$fraction" --window_size 10 --step_size 5
+#      python3 tstcc_train_cleaned_cv.py  --fs 500 --use_pretrained_encoder --seed "$seed" --label_fraction "$fraction" --window_size 10 --step_size 5
       # Now the S3 layers
       python3 tstcc_train_cleaned_cv.py  --fs 500 --use_s3_layers --use_pretrained_encoder --fine_tune_encoder --seed "$seed" --label_fraction "$fraction" --window_size 10 --step_size 5
-      python3 tstcc_train_cleaned_cv.py  --fs 500 --use_s3_layers --use_pretrained_encoder --seed "$seed" --label_fraction "$fraction" --window_size 10 --step_size 5
+#      python3 tstcc_train_cleaned_cv.py  --fs 500 --use_s3_layers --use_pretrained_encoder --seed "$seed" --label_fraction "$fraction" --window_size 10 --step_size 5
     done
   done
 done
