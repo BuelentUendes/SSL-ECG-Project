@@ -441,7 +441,7 @@ def main(
         # This fine-tunes the encoder and test them right away (we will extract the head here)
         fine_tune_results = run_linear_classifier_with_cv_and_test(
             X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
-            feature_names, cv_splitter, device, classifier_epochs=15,
+            feature_names, cv_splitter, device, classifier_epochs=10,
             classifier_batch_size=classifier_batch_size,
             standardize=False, seed=42
         )
@@ -454,7 +454,7 @@ def main(
 
         fine_tuned_results = run_linear_classifier_with_cv_and_test(
             X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
-            feature_names, cv_splitter, device, classifier_epochs=10,
+            feature_names, cv_splitter, device, classifier_epochs=15,
             classifier_batch_size=classifier_batch_size,
             standardize=False, seed=42
         )
