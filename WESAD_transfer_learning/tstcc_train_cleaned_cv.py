@@ -1,5 +1,6 @@
 # Simple script to run and train it fine-tuned
 #!/usr/bin/env python
+import copy
 import os
 import json
 import argparse
@@ -40,6 +41,17 @@ from models.tstcc import (
     optimize_tstcc_hyperparameters,
     FineTunedNet
 )
+
+def freeze_and_unfreeze_encoder(model, freeze=True):
+    for param in model.encoder.parameters():
+        param.requires_grad = False if freeze else True
+
+    for param in model.tc_head.parameters():
+        param.requires_grad = False if freeze else True
+
+    return model
+
+
 
 def main(
         mlflow_tracking_uri: str,
@@ -431,18 +443,35 @@ def main(
 
         fine_tune_model = FineTunedNet(encoder=model, tc_head=tc_head).to(device)
 
-        # This fine-tunes the encoder and test them right away
-        fine_tuned_results = run_linear_classifier_with_cv_and_test(
+        # We follow the lp+ft approach (https://arxiv.org/pdf/2202.10054)
+        # So we first freez all the weights
+        fine_tune_model = freeze_and_unfreeze_encoder(fine_tune_model, freeze = True)
+
+        # This fine-tunes the encoder and test them right away (we will extract the head here)
+        fine_tune_results = run_linear_classifier_with_cv_and_test(
             X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
-            feature_names, cv_splitter, device, classifier_epochs=classifier_epochs,
+            feature_names, cv_splitter, device, classifier_epochs=15,
             classifier_batch_size=classifier_batch_size,
             standardize=False, seed=42
         )
 
-        print(f"We finished the fine-tuning stage")
+        # Get the updated model (this has the head already fine-tuned)
+        fine_tune_model = copy.deepcopy(fine_tune_results["model"])
+
+        # Now unfreeze the weights so the encoder and the head will be trained
+        fine_tune_model = freeze_and_unfreeze_encoder(fine_tune_model, freeze=False)
+
+        fine_tuned_results = run_linear_classifier_with_cv_and_test(
+            X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
+            feature_names, cv_splitter, device, classifier_epochs=10,
+            classifier_batch_size=classifier_batch_size,
+            standardize=False, seed=42
+        )
+
+        print(f"We finished the fine-tuning stage (LP + FT)")
         print(fine_tuned_results["test_metrics"])
 
-        with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+        with open(os.path.join(results_save_path, "test_results_lp_ft.json"), "w") as f:
             json.dump(fine_tuned_results, f, indent=2, default=str)
 
         # Old code
@@ -722,8 +751,8 @@ if __name__ == "__main__":
 
     #Important:
     args.pretrain_all_conditions = True
-    # args.use_pretrained_encoder = True
-    # args.fine_tune_encoder = True
+    args.use_pretrained_encoder = True
+    args.fine_tune_encoder = True
     # IMPORTANT:
     # use pretrained encoder -> train a new head
     # fine_tune_encoder -> fine tune encoder and a new head
