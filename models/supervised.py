@@ -320,6 +320,16 @@ class FineTunedCNNNet(nn.Module):
         return cloned_model
 
 
+def freeze_and_unfreeze_encoder(model, freeze=True):
+    """
+    Simple function to freeze and unfreeze the parameters of the CNN module for the LP+FT fine-tuning
+    """
+    for param in model.backbone.parameters():
+        param.requires_grad = False if freeze else True
+
+    return model
+
+
 # ----------------------
 # Transformer Model Class
 # ----------------------
