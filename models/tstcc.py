@@ -1468,3 +1468,16 @@ class FineTunedNet(nn.Module):
         # Copy the fc layer weights
         cloned_model.fc.load_state_dict(self.fc.state_dict())
         return cloned_model
+
+
+def freeze_and_unfreeze_encoder(model, freeze=True):
+    """
+    Simple function to freeze and unfreeze the parameters of the TSTCC module for the LP+FT fine-tuning
+    """
+    for param in model.encoder.parameters():
+        param.requires_grad = False if freeze else True
+
+    for param in model.tc_head.parameters():
+        param.requires_grad = False if freeze else True
+
+    return model
