@@ -1,4 +1,4 @@
-# Beyond Supervision: Evaluating Contrastive Self-Supervised Learning for Mental Stress Detection from a Novel ECG Dataset
+# Beyond Supervision: Evaluating Contrastive Self-Supervised Learning Techniques for Electrocardiogram-Based Mental Stress Detection
 
 This project explores mental stress detection from a Novel ECG Dataset compromising 127 participants across 26 different conditions using both supervised and self-supervised learning (SSL) methods. It benchmarks CNNs, TCN, Transformers, and contrastive SSL approaches such as SimCLR, TSTCC, TS2Vec, SoftTSTCC and SoftTS2Vec, with a special focus on label efficiency.
 
