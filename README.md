@@ -1,17 +1,18 @@
 # Beyond Supervision: Evaluating Contrastive Self-Supervised Learning Techniques for Electrocardiogram-Based Mental Stress Detection
 
-This project explores mental stress detection from a Novel ECG Dataset compromising 127 participants across 26 different conditions using both supervised and self-supervised learning (SSL) methods. It benchmarks CNNs, TCN, Transformers, and contrastive SSL approaches such as SimCLR, TSTCC, TS2Vec, SoftTSTCC and SoftTS2Vec, with a special focus on label efficiency.
+**Authors:** [Buelent Uendes](https://buelentuendes.github.io/), [Carlos Laborda Gisbert](https://github.com/Carlos-Laborda), and Mark Hoogendoorn
 
-In the self-supervised setting, once encoders are pre-trained, they are frozen and their learned representations are used to train lightweight downstream classifiers (linear or MLP).
+This project explores mental stress detection using an ECG Dataset compromising 127 participants across 26 different conditions using both supervised and self-supervised learning (SSL) methods. It benchmarks CNNs, TCN, Transformers, and contrastive SSL approaches such as SimCLR, TSTCC, TS2Vec, and InfoTS, with a special focus on label efficiency. It also considers the S3 augmented version of the contrastive SSL approaches.
 
-The codebase is built with **PyTorch**, tracked via **MLflow**, and orchestrated using **Metaflow** for scalable and reproducible experimentation.
+In the self-supervised setting, once encoders are pre-trained, they are frozen and their learned representations are used to train lightweight linear classifiers.
 
-Key features:
-- Raw ECG time-series input (single-lead)
-- Supervised and self-supervised pipelines
-- Frozen SSL encoders with linear/MLP classifiers
-- Label-efficient evaluation setup
-- Full MLflow integration for experiment tracking
+For the cross-dataset generalization, two additional datasets, StressID and WESAD were considered and the best-performing SSL method (TS-TCC and TS-TCC+S3) were compared using zero-shot, linear-probing (LP), and LP+fine-tuning (LP+FT).
+
+The following figure illustrates the overall experimental setup:
+
+<p align="center">
+  <img src="pics/graphical_abstract.pdf" width="450">
+</p>
 
 ## Table of Contents
 
