@@ -11,7 +11,7 @@ For the cross-dataset generalization, two additional datasets, StressID and WESA
 The following figure illustrates the overall experimental setup:
 
 <p align="center">
-  <img src="pics/graphical_abstract.pdf" width="450">
+  <img src="pics/graphical_abstract.png" width="450">
 </p>
 
 ## Table of Contents
