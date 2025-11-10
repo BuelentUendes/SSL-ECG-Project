@@ -6,7 +6,7 @@ This project explores mental stress detection using an ECG Dataset compromising 
 
 In the self-supervised setting, once encoders are pre-trained, they are frozen and their learned representations are used to train lightweight linear classifiers.
 
-For the cross-dataset generalization, two additional datasets, StressID and WESAD were considered and the best-performing SSL method (TS-TCC and TS-TCC+S3) were compared using zero-shot, linear-probing (LP), and LP+fine-tuning (LP+FT).
+For the cross-dataset generalization, two additional datasets, StressID and WESAD were considered and the best-performing SSL method (TS-TCC and TS-TCC+S3) were compared to supervised encoders (CNN) using zero-shot, linear-probing (LP), and LP+fine-tuning (LP+FT).
 
 The following figure illustrates the overall experimental setup:
 
