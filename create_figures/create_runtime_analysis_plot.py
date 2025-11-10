@@ -1,10 +1,10 @@
 import matplotlib.pyplot as plt
-from utils.helper_paths import RESULTS_PATH
+from utils.helper_paths import RESULTS_PATH, FIGURES_PATH
+from utils.torch_utilities import create_directory
 import pandas as pd
 import numpy as np
 import json
 import os
-from pathlib import Path
 
 
 def load_ssl_runtime_data(results_base_path="results/ECG"):
@@ -12,7 +12,7 @@ def load_ssl_runtime_data(results_base_path="results/ECG"):
     
     Args:
         results_base_path: Base path to the results directory
-        
+
     Returns:
         dict: Dictionary containing averaged metrics for each method
     """
@@ -197,8 +197,10 @@ def create_ssl_runtime_plot(legend_style='in_labels', save_path=None, figsize=(1
             method = row['method']
             x = row['avg_runtime']
             y = row['auroc']
+
             # Use exponential scaling to make memory differences more pronounced
             size = (row['avg_memory'] ** 1.8) * 80
+            print(f"{method}: Runtime: {x}, size: {size} and performance: {y}")
 
             color = method_colors.get(method, '#000000')
 
@@ -215,7 +217,7 @@ def create_ssl_runtime_plot(legend_style='in_labels', save_path=None, figsize=(1
 
             # Create label based on legend style
             if legend_style == 'in_labels':
-                label_text = f"{method} [{memory:.2f}GB]"
+                label_text = f"{method} [{memory:.2f} GB]"
             else:
                 label_text = method
 
@@ -306,14 +308,16 @@ def create_ssl_runtime_plot(legend_style='in_labels', save_path=None, figsize=(1
             plt.tight_layout()
 
         # Save the plots
+        save_name_pdf = 'ssl_runtime_analysis.pdf'
+        save_name_png = 'ssl_runtime_analysis.png'
         if save_path:
             # Save with proper bbox handling for external legends
             save_kwargs = {'dpi': 500, 'bbox_inches': 'tight', 'facecolor': 'white'}
             if size_legend is not None:
                 save_kwargs['bbox_extra_artists'] = (size_legend,)
 
-            plt.savefig(f'{save_path}.pdf', **save_kwargs)
-            plt.savefig(f'{save_path}.png', **save_kwargs)
+            plt.savefig(f'{os.path.join(save_path, save_name_pdf)}', **save_kwargs)
+            plt.savefig(f'{os.path.join(save_path, save_name_png)}', **save_kwargs)
             print(f"Plot saved to {save_path}.pdf and {save_path}.png")
         else:
             # Default save paths
@@ -321,14 +325,15 @@ def create_ssl_runtime_plot(legend_style='in_labels', save_path=None, figsize=(1
             if size_legend is not None:
                 save_kwargs['bbox_extra_artists'] = (size_legend,)
 
-            plt.savefig('ssl_runtime_analysis.pdf', **save_kwargs)
-            plt.savefig('ssl_runtime_analysis.png', **save_kwargs)
+            plt.savefig(save_name_pdf, **save_kwargs)
+            plt.savefig(save_name_png, **save_kwargs)
             print("Plot saved as ssl_runtime_analysis.pdf and ssl_runtime_analysis.png")
 
         print(f"Legend style: {legend_style}")
         print("\nData summary:")
         for _, row in method_averages.iterrows():
-            print(f"{row['method']}: Runtime={row['avg_runtime']:.2f}s, Memory={row['avg_memory']:.2f}GB, AUROC={row['auroc']:.3f} (from {row['num_seeds']} seeds)")
+            print(f"{row['method']}: Runtime={row['avg_runtime']:.2f}s, "
+                  f"Memory={row['avg_memory']:.2f} GB, AUROC={row['auroc']:.3f} (from {row['num_seeds']} seeds)")
 
         plt.show()
 
@@ -338,22 +343,10 @@ def create_ssl_runtime_plot(legend_style='in_labels', save_path=None, figsize=(1
 # Example usage
 if __name__ == "__main__":
     # Create the plot with memory values in labels (recommended)
-    try:
-        fig, ax = create_ssl_runtime_plot(legend_style='in_labels')
-    except ValueError as e:
-        print(f"Error: {e}")
-        print("\nTrying with different base path...")
-        # Alternative paths to try
-        alternative_paths = ["../results/ECG", "./results/ECG", "/Users/buelentuendes/PycharmProjects/SSL_ECG_Project/results/ECG"]
-        
-        for alt_path in alternative_paths:
-            try:
-                if os.path.exists(alt_path):
-                    print(f"Trying path: {alt_path}")
-                    fig, ax = create_ssl_runtime_plot(legend_style='in_labels', results_base_path=alt_path)
-                    break
-            except ValueError:
-                continue
-        else:
-            print("Could not find valid results directory. Please check the path.")
+
+    # Create figures dictionary (if not yet created)
+    create_directory(FIGURES_PATH)
+    fig, ax = create_ssl_runtime_plot(legend_style='in_labels', save_path=FIGURES_PATH)
+
+
 
