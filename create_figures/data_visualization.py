@@ -4,14 +4,9 @@ ECG Data Visualization with UMAP
 =================================
 
 This script visualizes ECG data from three datasets (ECG, WESAD, STRESSID) using UMAP dimensionality reduction.
-It creates two types of plots:
-1. Raw ECG signal visualization
-2. UMAP embedding with dataset and stress/no-stress distinctions
-
-Author: Claude Code
-Date: 2025-09-14
 """
 
+import os
 import h5py
 import numpy as np
 import matplotlib
@@ -19,10 +14,12 @@ matplotlib.use('Agg')  # Use non-interactive backend for headless environments
 import matplotlib.pyplot as plt
 import seaborn as sns
 from umap import UMAP
-import pandas as pd
 from typing import Dict, List, Tuple, Optional
 import argparse
 import warnings
+
+from utils.helper_paths import DATA_PATH, FIGURES_PATH
+from utils.torch_utilities import create_directory
 warnings.filterwarnings('ignore')
 
 # Set style
@@ -34,18 +31,18 @@ class ECGDataLoader:
     
     def __init__(self):
         self.dataset_configs = {
-            'Ours': {
-                'path': '../data/interim/ECG/1000/10/5/windowed_data.h5',
+            'Source [van der Mee et al. (2021)]': {
+                'path': os.path.join(DATA_PATH, 'interim/ECG/500/10/5/windowed_data.h5'),
                 'color': '#57B4BA',  # Blue
-                'sampling_rate': 1_000
+                'sampling_rate': 500
             },
             'WESAD': {
-                'path': '../data/interim/WESAD/ECG/700/10/5/windowed_data.h5',
+                'path': os.path.join(DATA_PATH, 'interim/WESAD/ECG/500/10/5/windowed_data.h5'),
                 'color': '#015551',  # Orange
-                'sampling_rate': 700
+                'sampling_rate': 500
             },
-            'STRESSID': {
-                'path': '../data/interim/STRESSID/ECG/500/10/5/windowed_data.h5',
+            'StressID': {
+                'path': os.path.join(DATA_PATH, 'interim/STRESSID/ECG/500/10/5/windowed_data.h5'),
                 'color': '#FE4F2D',  # Green
                 'sampling_rate': 500
             }
@@ -268,7 +265,6 @@ class ECGVisualizer:
                 axes.scatter(embedding[mask, 0], embedding[mask, 1],
                               c=colors[i], label=dataset, alpha=0.7, s=8)
 
-            # axes[0].set_title('UMAP Embedding - Colored by Dataset', fontsize=14)
             plt.xticks(fontsize=20)
             plt.yticks(fontsize=20)
             axes.set_xlabel('UMAP 1', fontsize=20)
@@ -276,34 +272,8 @@ class ECGVisualizer:
             legend = axes.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
                       fontsize=20, markerscale=4)
             legend.get_frame().set_facecolor('white')
-            # legend.get_frame().set_edgecolor('black')
-            # legend.get_frame().set_linewidth(1.0)
             axes.grid(True, alpha=0.7)
 
-            # # Plot 2: Color by dataset with stress distinction
-            # for i, dataset in enumerate(unique_datasets):
-            #     dataset_mask = dataset_labels == dataset
-            #     stress_mask = dataset_mask & (stress_labels == 1)
-            #     baseline_mask = dataset_mask & (stress_labels == 0)
-            #
-            #     # Plot baseline as lighter, hollow circles
-            #     if np.any(baseline_mask):
-            #         axes[1].scatter(embedding[baseline_mask, 0], embedding[baseline_mask, 1],
-            #                       c='white', edgecolors=colors[i], label=f'{dataset} - Baseline',
-            #                       alpha=0.8, s=10, linewidths=1.2)
-            #
-            #     # Plot stress as solid, darker circles
-            #     if np.any(stress_mask):
-            #         axes[1].scatter(embedding[stress_mask, 0], embedding[stress_mask, 1],
-            #                       c=colors[i], label=f'{dataset} - Stress',
-            #                       alpha=0.8, s=10)
-            #
-            # # axes[1].set_title('UMAP Embedding - Dataset + Stress/Baseline', fontsize=14)
-            # axes[1].set_xlabel('UMAP 1', fontsize=12)
-            # axes[1].set_ylabel('UMAP 2', fontsize=12)
-            # axes[1].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=11, markerscale=1.5)
-            # axes[1].grid(True, alpha=0.3)
-            #
             # Improve overall appearance
             axes.spines['top'].set_visible(False)
             axes.spines['right'].set_visible(False)
@@ -313,7 +283,7 @@ class ECGVisualizer:
         return fig
 
 def main():
-    """Main function to run the visualization."""
+    """Main function to run the UMAP visualization."""
     parser = argparse.ArgumentParser(description='Visualize ECG data using UMAP')
     parser.add_argument('--samples-per-participant', type=int, default=100,
                        help='Number of samples to take per participant (None for all)')
@@ -344,6 +314,7 @@ def main():
         focus_mental_stress=args.focus_mental_stress,
         samples_per_participant=args.samples_per_participant
     )
+    create_directory(FIGURES_PATH)
     
     if not datasets:
         print("No datasets loaded successfully!")
@@ -360,7 +331,7 @@ def main():
     print("\nCreating raw ECG plots...")
     fig_raw = visualizer.plot_raw_ecg_samples()
     if args.save_plots:
-        fig_raw.savefig('ecg_raw_signals.png', dpi=500, bbox_inches='tight')
+        fig_raw.savefig(os.path.join(FIGURES_PATH,'ecg_raw_signals.png'), dpi=500, bbox_inches='tight')
         print("Saved raw ECG plot to ecg_raw_signals.png")
     
     # Create UMAP embedding
@@ -375,7 +346,7 @@ def main():
     print("\nCreating UMAP plots...")
     fig_umap = visualizer.plot_umap_results(embedding, dataset_labels, stress_labels)
     if args.save_plots:
-        fig_umap.savefig('ecg_umap_embedding.png', dpi=300, bbox_inches='tight')
+        fig_umap.savefig(os.path.join(FIGURES_PATH, 'ecg_umap_embedding.png'), dpi=500, bbox_inches='tight')
         print("Saved UMAP plot to ecg_umap_embedding.png")
     
     print("\nVisualization complete!")
