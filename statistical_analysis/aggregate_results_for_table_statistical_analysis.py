@@ -7,12 +7,15 @@ mean ± std dev and std error for AUROC and PR-AUC metrics.
 
 import os
 import json
+import warnings
+
 import pandas as pd
 import numpy as np
 from pathlib import Path
 from typing import Dict, List
 from scipy import stats
-import warnings
+from utils.helper_paths import RESULTS_PATH
+
 warnings.filterwarnings("ignore")
 
 
@@ -57,17 +60,7 @@ def collect_results(results_dir: str) -> pd.DataFrame:
     }
     
     print("Collecting results...")
-    
-    def find_result_files(base_path: Path, expected_depth: int = 0) -> List[Path]:
-        """Recursively find test_results.json files at any depth."""
-        result_files = []
-        if base_path.is_file() and base_path.name == "test_results.json":
-            result_files.append(base_path)
-        elif base_path.is_dir():
-            for child in base_path.iterdir():
-                result_files.extend(find_result_files(child, expected_depth + 1))
-        return result_files
-    
+
     # Collect Supervised results
     supervised_path = results_path / "ECG" / "Supervised"
     if supervised_path.exists():
@@ -241,83 +234,6 @@ def calculate_statistics(df: pd.DataFrame) -> pd.DataFrame:
     
     return pd.DataFrame(stats_results)
 
-def format_for_latex(stats_df: pd.DataFrame) -> None:
-    """Format and print results for LaTeX table integration."""
-    
-    print("\n" + "="*80)
-    print("RESULTS FORMATTED FOR LATEX TABLE")
-    print("="*80)
-    
-    # Define the label fractions we want in the table
-    target_fractions = [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0]
-    
-    for frac in target_fractions:
-        frac_data = stats_df[stats_df['label_fraction'] == frac]
-        if len(frac_data) == 0:
-            continue
-            
-        print(f"\n{'='*60}")
-        print(f"LABEL FRACTION: {frac*100:.1f}%")
-        print(f"{'='*60}")
-        
-        # Get all methods for this fraction
-        supervised_data = frac_data[frac_data['method_type'] == 'Supervised'].sort_values('model')
-        ssl_data = frac_data[frac_data['method_type'] == 'SSL']
-        features_data = frac_data[frac_data['method_type'] == 'Features']
-        
-        # Print table header
-        print(f"{'Method':<25} {'AUROC':<15} {'PR-AUC':<15} {'Seeds':<8}")
-        print("-" * 65)
-        
-        # Print supervised methods
-        if len(supervised_data) > 0:
-            print("SUPERVISED:")
-            for _, row in supervised_data.iterrows():
-                auroc_str = f"{row['auroc_mean']:.1f}±{row['auroc_std']:.2f}"
-                pr_auc_str = f"{row['pr_auc_mean']:.1f}±{row['pr_auc_std']:.2f}"
-                print(f"  {row['model']:<23} {auroc_str:<15} {pr_auc_str:<15} {row['n_seeds']:<8}")
-        
-        # Print features methods
-        if len(features_data) > 0:
-            print("\nFEATURES:")
-            for _, row in features_data.iterrows():
-                auroc_str = f"{row['auroc_mean']:.1f}±{row['auroc_std']:.2f}"
-                pr_auc_str = f"{row['pr_auc_mean']:.1f}±{row['pr_auc_std']:.2f}"
-                print(f"  {row['model']:<23} {auroc_str:<15} {pr_auc_str:<15} {row['n_seeds']:<8}")
-        
-        # Print SSL methods organized by base method
-        if len(ssl_data) > 0:
-            print("\nSSL METHODS:")
-            
-            # Group by base method (before S3)
-            ssl_methods = {}
-            for _, row in ssl_data.iterrows():
-                base_method = row['model'].replace('_S3', '')
-                if base_method not in ssl_methods:
-                    ssl_methods[base_method] = {'base': None, 's3': None}
-                
-                if row['model'].endswith('_S3'):
-                    ssl_methods[base_method]['s3'] = row
-                else:
-                    ssl_methods[base_method]['base'] = row
-            
-            # Sort methods for consistent output
-            for base_method in sorted(ssl_methods.keys()):
-                variants = ssl_methods[base_method]
-                base_row = variants['base']
-                s3_row = variants['s3']
-                
-                if base_row is not None:
-                    auroc_str = f"{base_row['auroc_mean']:.1f}±{base_row['auroc_std']:.2f}"
-                    pr_auc_str = f"{base_row['pr_auc_mean']:.1f}±{base_row['pr_auc_std']:.2f}"
-                    print(f"  {base_method:<23} {auroc_str:<15} {pr_auc_str:<15} {base_row['n_seeds']:<8}")
-                
-                if s3_row is not None:
-                    auroc_str = f"{s3_row['auroc_mean']:.1f}±{s3_row['auroc_std']:.2f}"
-                    pr_auc_str = f"{s3_row['pr_auc_mean']:.1f}±{s3_row['pr_auc_std']:.2f}"
-                    print(f"  {base_method}_S3{'':<23} {auroc_str:<15} {pr_auc_str:<15} {s3_row['n_seeds']:<8}")
-        
-        print()  # Empty line after each fraction
 
 def wilcoxon_signed_rank_test(df: pd.DataFrame, stats_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -570,17 +486,16 @@ def export_to_csv(stats_df: pd.DataFrame, output_path: str) -> None:
 
 def main():
     """Main function to run the aggregation."""
-    results_dir = "results"
     output_csv = "ecg_ssl_aggregated_results.csv"
     
-    if not os.path.exists(results_dir):
-        print(f"Results directory '{results_dir}' not found!")
+    if not os.path.exists(RESULTS_PATH):
+        print(f"Results directory '{RESULTS_PATH}' not found!")
         return
     
     print("Starting ECG SSL results aggregation...")
     
     # Collect all results
-    df = collect_results(results_dir)
+    df = collect_results(RESULTS_PATH)
     
     if len(df) == 0:
         print("No results found!")
@@ -593,9 +508,6 @@ def main():
     # Calculate statistics
     print("\nCalculating statistics...")
     stats_df = calculate_statistics(df)
-    
-    # Format for LaTeX
-    format_for_latex(stats_df)
 
     # Perform Wilcoxon signed-rank tests
     print("\n" + "="*80)
@@ -609,7 +521,9 @@ def main():
     # Export Wilcoxon test results to separate CSV
     if len(wilcoxon_results_df) > 0:
         wilcoxon_output_csv = "ecg_ssl_wilcoxon_test_results.csv"
-        wilcoxon_results_df.to_csv(wilcoxon_output_csv, index=False, float_format='%.4f')
+        wilcoxon_results_df.to_csv(
+            os.path.join(RESULTS_PATH, wilcoxon_output_csv), index=False, float_format='%.4f'
+        )
         print(f"\nWilcoxon test results exported to: {wilcoxon_output_csv}")
 
     print(f"\n{'='*80}")
@@ -621,7 +535,6 @@ def main():
     if len(wilcoxon_results_df) > 0:
         print(f"Wilcoxon test results saved to: ecg_ssl_wilcoxon_test_results.csv")
         print(f"Total statistical tests performed: {len(wilcoxon_results_df)}")
-    print("\nYou can now copy the formatted results above into your LaTeX table!")
 
 if __name__ == "__main__":
     main()
