@@ -1,9 +1,11 @@
+import os
 import json
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-from utils.helper_paths import RESULTS_PATH
+from utils.helper_paths import RESULTS_PATH, FIGURES_PATH
+from utils.torch_utilities import create_directory
 from pathlib import Path
 
 
@@ -640,7 +642,7 @@ def plot_transfer_learning_results(df, dataset_name, metric="auroc", save_path=N
     return fig, ax
 
 
-def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_participant_count=False, 
+def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_participant_count=False,
                                 total_participants=101, use_standard_error=False):
     """Create an excellent plot of AUROC vs Label Fraction with improved error visualization
     
@@ -789,11 +791,11 @@ def plot_metric_vs_label_fraction(df, metric="auroc", save_path=None, use_partic
             ax.set_xscale('log')
             ax.set_xlim(0.8, 120)
             # Customize x-axis ticks for percentages
-            x_ticks = [1, 5, 10, 25, 50, 100]
+            x_ticks = [1, 2.5, 5, 10, 25, 50, 100]
             ax.set_xticks(x_ticks)
             ax.set_xticklabels([f'{x}%' for x in x_ticks])
 
-        y_name = 'AUROC' if metric == "auroc" else "PR-AUC"
+        y_name = 'AUROC' if metric == "auroc" else "AUPRC"
         ax.set_ylabel(y_name, fontsize=20)
         # ax.set_title('ECG Classification Performance vs Label Fraction', fontsize=16, fontweight='bold', pad=20)
 
@@ -1159,7 +1161,7 @@ def plot_feature_vs_ssl_comparison(df, metric="auroc", save_path=None, use_parti
             ax.set_xticks(x_ticks)
             ax.set_xticklabels([f'{x}%' for x in x_ticks])
 
-        y_name = 'AUROC' if metric == "auroc" else "PR-AUC"
+        y_name = 'AUROC' if metric == "auroc" else "AUPRC"
         ax.set_ylabel(y_name, fontsize=20)
 
         # Set y-axis limits and ticks
@@ -1553,7 +1555,7 @@ def plot_fine_tuned_vs_pretrained_comparison(
         ax.set_xticks(x_ticks)
         ax.set_xticklabels([f'{x}%' for x in x_ticks])
 
-    y_name = 'AUROC' if metric == "auroc" else "PR-AUC"
+    y_name = 'AUROC' if metric == "auroc" else "AUPRC"
     ax.set_ylabel(y_name, fontsize=14, fontweight='bold')
     ax.set_title(f'{dataset_name}: Fine-tuned vs Pre-trained Encoders - {y_name}', fontsize=16, fontweight='bold', pad=20)
 
@@ -1609,11 +1611,7 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
         include_features: If True, include feature-engineered methods in the plot (default: True)
     """
     
-    # Set up the plotting style
-    # plt.style.use('default')
-    # sns.set_palette("husl")
 
-    # fig, ax = plt.subplots(figsize=(12, 8))
     with plt.style.context(['ieee']):
         fig, ax = plt.subplots(figsize=(10, 8))  # Wider to accommodate right labels
         ax.grid(axis='y', linestyle='--', color='0.35', linewidth=0.7, alpha=0.7)
@@ -1644,8 +1642,6 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
             'Feature-engineered (Logistic Regression, 10s/5s)': {'color': '0.35', 'marker': 'x', 'linestyle': 'dotted', 'linewidth': 1.5},
             'Feature-engineered (Logistic Regression, 30s/10s)': {'color': '#E69F00', 'marker': 'o', 'linestyle': '--', 'linewidth': 2},
 
-            # "#0E9FEB"
-            # "#005377"
 
             # TSTCC (regular) - Light Blue
             'TSTCC (Logistic Regression, 10s/5s)': {'color': "#0E9FEB", 'marker': 'v', 'linestyle': '-', 'linewidth': 2},
@@ -1703,16 +1699,11 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
             'SimCLR_TSTCC_Encoder+S3 (Linear, 10s/5s)': {'color': '#CC3333', 'marker': '+', 'linestyle': '--', 'linewidth': 2},
         }
 
-        # #56B4E9
-        # S3 #009E73"
-
         # Plot each method
         for method in grouped['method_label'].unique():
             method_data = grouped[grouped['method_label'] == method].sort_values('label_fraction')
 
             # Create display name for legend (replace _S3 with +S3 for display)
-            # if "S3" in method:
-            #     method.replace("_S3","+S3")
             display_method = method.replace("_S3", "+S3") if "_S3" in method else method
 
             # Use display name for style lookup
@@ -1770,7 +1761,7 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
             ax.set_xticks(x_ticks)
             ax.set_xticklabels([f'{x}%' for x in x_ticks])
 
-        y_name = 'AUROC' if metric == "auroc" else "PR-AUC"
+        y_name = 'AUROC' if metric == "auroc" else "AUPRC"
         ax.set_ylabel(y_name, fontsize=20)
         # ax.set_title(f'SSL Methods Comparison: {y_name} vs Label Fraction', fontsize=16, fontweight='bold', pad=20)
 
@@ -1779,19 +1770,8 @@ def plot_ssl_comparison(df, metric="auroc", save_path=None, use_participant_coun
         ax.set_yticks(np.arange(0.5, 1.05, 0.1))
 
         # Add grid
-        # ax.grid(False)
         ax.set_axisbelow(True)
 
-        # Add horizontal line at random baseline
-        # if metric == "auroc":
-        #     ax.axhline(y=0.5, color='0.45', linestyle='solid', alpha=0.7, linewidth=2, label="Random Baseline")
-        # if metric == "pr_auc":
-        #     ax.axhline(y=0.5736, color='0.45', linestyle='solid', alpha=0.7, linewidth=2, label="Random Baseline")
-
-        # Customize legend
-        error_type = "Standard Error" if use_standard_error else "Standard Deviation"
-        # ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
-        #                    fontsize=10, title=f'SSL Methods (±{error_type})', title_fontsize=11)
         ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False,
                            fontsize=20, ncols=2)
 
@@ -2088,9 +2068,9 @@ def plot_zero_shot_results(
 def main():
     """Main function to load data and create plots"""
 
-    # Set the base path (adjust this to your actual path)
-    base_path = RESULTS_PATH  # Uses the RESULTS_PATH from utils.helper_paths
-    use_participant_count = True
+    base_path = RESULTS_PATH
+    use_participant_count = False
+    create_directory(FIGURES_PATH)
 
     print("Loading results from folder structure...")
     df = load_results_from_structure(base_path)
@@ -2112,15 +2092,19 @@ def main():
 
     # Create the plot
     print("\nCreating plot...")
-    # plot_metric_vs_label_fraction(df, save_path='ecg_auroc_vs_label_fraction.png', use_participant_count=use_participant_count)
-    # plot_metric_vs_label_fraction(df, metric="pr_auc", save_path='ecg_pr_auc_vs_label_fraction.png', use_participant_count=use_participant_count)
-    #
+
     # Also create plots with standard error
     plot_metric_vs_label_fraction(
-        df, save_path='ecg_auroc_vs_label_fraction_stderr.png', use_participant_count=use_participant_count, use_standard_error=True)
+        df,
+        save_path=os.path.join(FIGURES_PATH,'ecg_auroc_vs_label_fraction_stderr.png'),
+        use_participant_count=use_participant_count,
+        use_standard_error=True)
 
     plot_metric_vs_label_fraction(
-        df, metric="pr_auc", save_path='ecg_pr_auc_vs_label_fraction_stderr.png', use_participant_count=use_participant_count,
+        df,
+        metric="pr_auc",
+        save_path=os.path.join(FIGURES_PATH,'ecg_pr_auc_vs_label_fraction_stderr.png'),
+        use_participant_count=use_participant_count,
         use_standard_error=True
     )
 
@@ -2145,7 +2129,7 @@ def main():
         plot_ssl_comparison(
             ssl_comparison_df,
             metric="auroc",
-            save_path='ssl_methods_auroc_comparison.png',
+            save_path=os.path.join(FIGURES_PATH, 'ssl_methods_auroc_comparison.png'),
             use_participant_count=use_participant_count,
             use_standard_error=True,
             include_features=False,
@@ -2154,14 +2138,14 @@ def main():
         plot_ssl_comparison(
             ssl_comparison_df,
             metric="pr_auc",
-            save_path='ssl_methods_pr_auc_comparison.png',
+            save_path=os.path.join(FIGURES_PATH, 'ssl_methods_pr_auc_comparison.png'),
             use_participant_count=use_participant_count,
             use_standard_error=True,
             include_features=False,
         )
 
         # Save SSL comparison data to CSV
-        ssl_comparison_df.to_csv('ssl_methods_comparison_results.csv', index=False)
+        ssl_comparison_df.to_csv(os.path.join(RESULTS_PATH, 'ssl_methods_comparison_results.csv'), index=False)
         print("SSL comparison results saved to 'ssl_methods_comparison_results.csv'")
     else:
         print("No SSL comparison results found!")
@@ -2180,18 +2164,18 @@ def main():
         plot_feature_vs_ssl_comparison(
             comparison_df,
             metric="auroc",
-            save_path='feature_vs_ssl_auroc_comparison.png',
+            save_path=os.path.join(FIGURES_PATH, 'feature_vs_ssl_auroc_comparison.png'),
             use_participant_count=use_participant_count
         )
         plot_feature_vs_ssl_comparison(
             comparison_df,
             metric="pr_auc",
-            save_path='feature_vs_ssl_pr_auc_comparison.png',
+            save_path=os.path.join(FIGURES_PATH, 'feature_vs_ssl_pr_auc_comparison.png'),
             use_participant_count=use_participant_count
         )
 
         # Save comparison data to CSV
-        comparison_df.to_csv('feature_vs_ssl_comparison_results.csv', index=False)
+        comparison_df.to_csv(os.path.join(RESULTS_PATH, 'feature_vs_ssl_comparison_results.csv'), index=False)
         print("Comparison results saved to 'feature_vs_ssl_comparison_results.csv'")
     else:
         print("No feature vs SSL comparison results found!")
