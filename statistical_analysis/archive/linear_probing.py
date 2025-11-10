@@ -238,12 +238,12 @@ def linear_probe_ecg_features_participant_based(
 
 def main(
         fs: float=1000,
-        window_size: int =30,
-        step_size: int=10,
-        window_size_tstcc:int=30,
-        step_size_tstcc:int=10,
+        window_size: int =10,
+        step_size: int=5,
+        window_size_tstcc:int=10,
+        step_size_tstcc:int=5,
         seed: int=42,
-        train_ratio_encoder: float = 0.75,
+        train_ratio_encoder: float = 1.0,
         model_name: str = "TSTCC",
         tcc_epochs: int=40,
         tcc_batch_size: int=128,
@@ -274,6 +274,17 @@ def main(
         DATA_PATH, "interim", "ECG_features", str(fs), str(window_size), str(step_size), 'windowed_data.h5'
     )
 
+    embedding_data_path = os.path.join(
+        DATA_PATH, "embeddings", "ECG", str(fs), "TSTCC", str(seed), str(window_size), str(step_size),
+        "x_y_groups_embedding.npz"
+    )
+
+    # Load embeddings from NPZ file
+    data = np.load(embedding_data_path, allow_pickle=True)
+    embeddings = data['array1']  # X embeddings
+    y = data['array_2']  # y labels
+    groups = data['array_3']
+
     X_features, y_features, groups, feature_names = load_processed_data(
         window_data_path_features, label_map=label_map, domain_features=True
     )
@@ -289,6 +300,34 @@ def main(
         y_features = y_features[valid_rows]
         groups = groups[valid_rows]
         X_features = X_features_clean
+
+    print(f"TSTCC embeddings shape: {embeddings.shape}")
+    print(f"ECG features shape: {X_features.shape}")
+    print(f"Number of feature names: {len(feature_names)}")
+
+    # Linear CKA
+    print(f"Linear CKA Analysis")
+    # We need to remove the same rows for which we have missing value for the ecg features
+    train_repr_cka = embeddings[valid_rows]
+
+    # Ensure we have matching samples between features and embeddings
+    min_samples = min(len(X_features), len(train_repr_cka))
+    X_features_matched = X_features[:min_samples]
+    train_repr_matched = embeddings[:min_samples]
+
+    cka_result = cka(train_repr_matched, X_features_matched)
+    print(f"CKA_result: {cka_result}")
+
+
+
+    # Ensure we have matching samples between features and embeddings
+    min_samples = min(len(X_features), len(embeddings))
+    X_features_matched = X_features[:min_samples]
+    train_repr_matched = embeddings[:min_samples]
+
+
+
+
 
     # Raw ECG feature data path
     window_data_path = os.path.join(
@@ -338,6 +377,10 @@ def main(
         tc_head.load_state_dict(state["tc_head"])
 
     # Set the model to eval mode
+    # Load here the embeddings
+    # @data/embeddings/ECG/1000/TSTCC/42/10/5/x_y_groups_embedding.npz
+    #ToDo: Load here this instead of the code above
+
     model.eval()
     tc_head.eval()
 

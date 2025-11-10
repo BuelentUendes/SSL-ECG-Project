@@ -5,6 +5,7 @@ os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 import os
 import random
+import time
 import warnings
 import numpy as np
 import h5py
@@ -43,6 +44,12 @@ from models.supervised import LinearClassifier, MLPClassifier
 import warnings
 
 warnings.filterwarnings('ignore')
+
+def run_time(start_time, end_time):
+    elapsed_time = end_time - start_time
+    elapsed_mins = int(elapsed_time / 60)
+    elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
+    return elapsed_mins, elapsed_secs
 
 
 # MLflow helpers
@@ -964,8 +971,12 @@ def run_logistic_regression_with_gridsearch(
             print("Running GridSearchCV...")
 
         # Fit search (this does CV internally)
+        # Get the time here:
+        fit_start_time = time.time()
         search.fit(X_train, y_train, groups=groups_train)
-
+        # Calculate runtime to fit lr including the hyperparameter tuning
+        fit_runtime = time.time() - fit_start_time
+        print(f"Run time: {fit_runtime} seconds")
         print(f"Best parameters: {search.best_params_}")
         print(f"Best CV score {scoring_metric.capitalize()}: {search.best_score_:.4f}")
 
@@ -987,7 +998,10 @@ def run_logistic_regression_with_gridsearch(
         elif classifier_model == "xgboost":
             best_model = xgb.XGBClassifier(**model_default_param_grid[classifier_model])
 
+        fit_start_time = time.time()
         best_model.fit(X_train, y_train)
+        # Calculate runtime to fit lr including the hyperparameter tuning
+        fit_runtime = time.time() - fit_start_time
 
         best_params =  model_default_param_grid[classifier_model]
         best_cv_score = None
@@ -1025,7 +1039,8 @@ def run_logistic_regression_with_gridsearch(
             'pr_auc': test_pr_auc
         },
         'model': best_model,
-        'scaler': scaler
+        'scaler': scaler,
+        'runtime (seconds)': fit_runtime,
     }
 
 

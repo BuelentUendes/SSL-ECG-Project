@@ -256,7 +256,7 @@ def process_model_results(results, model_type, all_results, summary_stats, aggre
             }
         ])
 
-def main(base_path, transfer_path_approach, models_to_compare, is_zero_shot=False, include_features=False):
+def main(base_path, transfer_path_approach, models_to_compare, is_zero_shot=False, include_features=False, include_lp_ft=False):
     all_results = []
     summary_stats = []
     aggregated_results = {}  # For JSON output similar to averaged_zero_shot_results
@@ -289,14 +289,80 @@ def main(base_path, transfer_path_approach, models_to_compare, is_zero_shot=Fals
             (30, 10),  # window_size=30, step_size=10
             (30, 15)   # window_size=30, step_size=15 (if available)
         ]
-        
+
         for window_size, step_size in feature_configs:
             feature_results = load_feature_results(base_path, dataset_name, window_size, step_size, seeds, label_fraction=1.0)
-            
+
             if feature_results:
                 feature_model_name = f"feature_engineered_logistic_regression_{window_size}_{step_size}"
                 process_model_results(feature_results, feature_model_name, all_results, summary_stats, aggregated_results, is_zero_shot)
-    
+
+    # Process LP+FT results if requested (separate method names with _lp_ft suffix)
+    if include_lp_ft and not is_zero_shot:
+        print("\n=== LP+FT Results ===")
+        for model_type in models_to_compare:
+            # Special handling for CNN to detect both classifier heads
+            if model_type == 'cnn':
+                # Check what classifier heads are available for CNN LP+FT
+                classifier_heads = ['mlp', 'logistic_regression']
+                for classifier_head in classifier_heads:
+                    lp_ft_results = []
+                    for seed in seeds:
+                        file_path = os.path.join(base_path, transfer_path_approach, 'cnn', str(seed), '1.0',
+                                               '10', '5', classifier_head, 'test_results_lp_ft.json')
+                        if os.path.exists(file_path):
+                            try:
+                                with open(file_path, 'r') as f:
+                                    data = json.load(f)
+                                    test_metrics = data['test_metrics']
+                                    lp_ft_results.append({
+                                        'seed': seed,
+                                        'auroc': test_metrics['auroc'],
+                                        'pr_auc': test_metrics['pr_auc']
+                                    })
+                            except (json.JSONDecodeError, KeyError) as e:
+                                print(f"Error loading LP+FT results from {file_path}: {e}")
+                        else:
+                            print(f"Missing LP+FT file: {file_path}")
+
+                    if lp_ft_results:
+                        # Process with _lp_ft suffix and classifier head name
+                        lp_ft_model_name = f"cnn_{classifier_head}_lp_ft"
+                        process_model_results(lp_ft_results, lp_ft_model_name, all_results, summary_stats, aggregated_results, is_zero_shot)
+            else:
+                # Load test_results_lp_ft.json for non-CNN models
+                lp_ft_results = []
+                for seed in seeds:
+                    if model_type in ['TSTCC', 'TSTCC_S3']:
+                        file_path = os.path.join(base_path, transfer_path_approach, model_type,
+                                               'logistic_regression', str(seed), '1.0',
+                                               '10', '5', 'test_results_lp_ft.json')
+                    else:
+                        # Generic path for other models
+                        file_path = os.path.join(base_path, transfer_path_approach, model_type,
+                                               'logistic_regression', str(seed), '1.0',
+                                               '10', '5', 'test_results_lp_ft.json')
+
+                    if os.path.exists(file_path):
+                        try:
+                            with open(file_path, 'r') as f:
+                                data = json.load(f)
+                                test_metrics = data['test_metrics']
+                                lp_ft_results.append({
+                                    'seed': seed,
+                                    'auroc': test_metrics['auroc'],
+                                    'pr_auc': test_metrics['pr_auc']
+                                })
+                        except (json.JSONDecodeError, KeyError) as e:
+                            print(f"Error loading LP+FT results from {file_path}: {e}")
+                    else:
+                        print(f"Missing LP+FT file: {file_path}")
+
+                if lp_ft_results:
+                    # Process with _lp_ft suffix to distinguish from regular results
+                    lp_ft_model_name = f"{model_type}_lp_ft"
+                    process_model_results(lp_ft_results, lp_ft_model_name, all_results, summary_stats, aggregated_results, is_zero_shot)
+
     # Save individual results
     df_individual = pd.DataFrame(all_results)
     suffix = '_zero_shot' if is_zero_shot else ''
@@ -321,15 +387,18 @@ def main(base_path, transfer_path_approach, models_to_compare, is_zero_shot=Fals
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Get summary results for transfer learning results.")
     parser.add_argument("--dataset", default="wesad", type=str, choices=("wesad", "stressid"))
-    parser.add_argument("--fine_tune_strategy", type=str, default="head_only",
+    parser.add_argument("--fine_tune_strategy", type=str, default="full",
                         choices=("head_only", "full", "zero_shot"))
+    parser.add_argument("--include_lp_ft", action="store_true", default=True,
+                        help="Include LP+FT (Linear Probing + Fine-Tuning) results from test_results_lp_ft.json")
 
     args = parser.parse_args()
 
     dataset_name = "WESAD" if args.dataset == "wesad" else "StressID"
     is_zero_shot = args.fine_tune_strategy == "zero_shot"
     include_features = args.fine_tune_strategy == "full"  # Include features only for 'full' option
-    
+    include_lp_ft = args.include_lp_ft
+
     if is_zero_shot:
         transfer_path_approach = "zero_shot_performance"
         # For zero shot, include feature engineered models with different window/step sizes
@@ -343,8 +412,11 @@ if __name__ == "__main__":
         print(f"Label fraction: 1.0, Window size: 10/5")
         if include_features:
             print("Including feature-engineered results...")
+        if include_lp_ft:
+            print("Including LP+FT results...")
 
     base_path = os.path.join(RESULTS_PATH, "Transfer_learning", dataset_name)
     print()
 
-    main(base_path, transfer_path_approach, models_to_compare, is_zero_shot=is_zero_shot, include_features=include_features)
+    main(base_path, transfer_path_approach, models_to_compare, is_zero_shot=is_zero_shot,
+         include_features=include_features, include_lp_ft=include_lp_ft)
