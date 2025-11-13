@@ -48,6 +48,12 @@ pip3 install .
 
 ├── graphical_pictures/        # Contains the graphical figure in pdf and png format
 
+├── STRESSID_transfer_learning # Contains scripts for the transfer learning to STRESSID
+
+├── WESAD_transfer_learning    # Contains scripts for the transfer learning to WESAD
+
+├── graphical_pictures/        # Contains the graphical figure in pdf and png format
+
 ├── utils/                     # Utilities directories
 │   ├── __init__.py            # Init file  
 │   ├── helper_paths.py        # Paths 
