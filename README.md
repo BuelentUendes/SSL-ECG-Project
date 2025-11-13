@@ -112,9 +112,14 @@ The preprocessing pipeline segments, cleans, normalizes, and windows the raw ECG
 conda activate ECG-Project
 ```
 
-### 2. Run the preprocessing pipeline
+### 2. Start the MLflow tracking server
 ```bash
-python preprocess_flow.py run
+mlflow server --host 127.0.0.1 --port 5000
+```
+
+### 3. Run the preprocessing pipeline
+```bash
+python preprocess_no_flow.py run
 ```
 
 This will:
