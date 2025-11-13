@@ -69,6 +69,12 @@ pip3 install .
 │   ├── interim/               # Intermediate transformation outputs
 │   └── processed/             # Final input data used for modeling
 
+├── domain_specific_ml/        # File directory for feature engineering
+│   ├── archive/                       # Archive files
+│   ├── feature_extraction.py          # Extraction of the features
+│   ├── train_simple_classifiers.py    # Logistic regression with features
+│   └── train_simple_classifiers.sh    # Bash script for training and zero-shot evaluation
+
 ├── preprocessing_pipeline/    # Metaflow pipeline to preprocess raw ECG data
 │   ├── preprocess_no_flow.py  # Main preprocessing file
 │   ├── downsample.py          # Script to downsample the WESAD and van der Mee dataset to the same 500 Hz
