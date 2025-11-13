@@ -62,3 +62,4 @@ dependencies:
       - fastavro
       - xgboost
       - s3-timeseries
+      - umap-learn

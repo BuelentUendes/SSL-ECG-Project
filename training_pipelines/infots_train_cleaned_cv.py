@@ -23,7 +23,6 @@ from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
 from models.infots import (
     InfoTS,
-    optimize_infots_hyperparameters,
 )
 
 
