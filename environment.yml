@@ -19,8 +19,6 @@ dependencies:
   - bottleneck
   - mne
   - pyedflib
-  - pyarrow
-  - fastparquet
   - torchinfo
   - pip:
       - torch --index-url https://download.pytorch.org/whl/cu126
