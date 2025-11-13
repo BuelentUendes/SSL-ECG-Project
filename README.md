@@ -21,10 +21,7 @@ The following figure illustrates the overall experimental setup:
 - [Running the Preprocessing Pipeline](#running-the-preprocessing-pipeline)
 - [Running the Training Pipelines (Locally)](#running-the-training-pipelines-locally)
   - [Running Locally](#running-the-training-pipelines-locally)
-  - [Running on DAS6 Cluster](#running-the-training-pipelines-on-das6-cluster)
-    - [1. Remote Access](#2-accessing-mlflow-remotely)
-    - [2. SLURM Configuration](#3-slurm-job-configuration)
-    - [3. Job Submission](#4-launching-training-jobs)
+  - [Transfer learning results](#transfer-learning-results)
 
 ## Installation and Environment Setup
 
@@ -131,9 +128,12 @@ The final output is saved to:
 data/interim/<DATASET>/<SAMPLE_FREQUENCY>/<WINDOW SIZE>/<WINDOW_SHIFT>/windowed_data.h5
 ```
 
-## Running the Training Pipelines (Locally)
+### 3. Extract handcrafted features
+**TBA Information will be available soon**
 
-This section shows how to run supervised and self-supervised training pipelines locally using [Metaflow](https://docs.metaflow.org/).
+## Running the Training Pipelines (Locally) 
+
+This section shows how to run supervised and self-supervised training pipelines locally.
 
 ### 1. Activate the environment
 
@@ -141,54 +141,37 @@ This section shows how to run supervised and self-supervised training pipelines 
 conda activate ECG-Project
 ```
 
-### 2. Start the MLflow tracking server
-```bash
-mlflow server --host 127.0.0.1 --port 5000
-```
-
-Keep this process running in a separate terminal. The experiment runs will appear at:
-```cpp
-http://127.0.0.1:5000
-```
-
-### 3. Run a Supervised or Self-Supervised Training Pipeline
+### 2. Run a Supervised or Self-Supervised Training Pipeline
 
 From the `training_pipelines/` directory, you can run any Metaflow training script by specifying its parameters through the CLI.
 
 #### Example (Supervised)
 
 ```bash
-python supervised_training.py run \
+python3 supervised_training.py \
   --model_type "cnn" \
-  --batch_size 16 \
-  --lr 1e-5 \
-  --num_epochs 25 \
-  --patience 10 \
-  --label_fraction 0.01
 ```
-
 Available supervised models: cnn, tcn, transformer.
 
 #### Example (Self-Supervised)
 ```bash
-python ts2vec_train.py run \
-  --ts2vec_epochs 50 \
-  --ts2vec_lr 0.001 \
-  --ts2vec_batch_size 8 \
-  --classifier_epochs 25 \
-  --classifier_lr 0.0001 \
-  --label_fraction 0.01
+python3 tstcc_train_cleaned_cv.py 
 ```
-
 The corresponding flow will:
-- Pretrain a self-supervised encoder (e.g., TS2Vec, TSTCC, SimCLR) and save it to mlflow.
+- Pretrain a self-supervised encoder (e.g., TS2Vec, TSTCC, SimCLR, InfoTS) 
 - Freeze the encoder.
 - Extract latent representations.
-- Train a downstream classifier (linear or MLP) with (limited) labeled data.
+- Train a downstream classifier (linear) with (limited) labeled data.
 - Evaluate the classifier on test set.
-- Save metrics to mlflow. 
 
-Replace the script name (ts2vec_train.py, simclr_train.py, tstcc_train.py, etc.) to run different SSL methods. Each script exposes model-specific CLI parameters. All training runs are automatically tracked with MLflow.
+Replace the script name (ts2vec_train_cleaned_cv.py, simclr_train_cleaned_cv.py, infots_train_cleaned_cv.py) to run different SSL methods. 
+Each script has several different model-specific CLI parameters.
+
+## Transfer learning results
+**TBA: Information will be available very soon!**
+
+<!-- 
+MULTILINE COMMENT
 
 ## Running the Training Pipelines on DAS6 Cluster
 
@@ -253,6 +236,8 @@ done
 ```
 
 Logs will be written to `ecg_train.out` and `ecg_train.err` in the current working directory and everything will be tracked in MLflow.
+  -->
+
 
 ### Acknowledgements
 
