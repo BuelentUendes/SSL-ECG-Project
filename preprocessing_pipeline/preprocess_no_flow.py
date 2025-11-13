@@ -4,7 +4,6 @@ import argparse
 
 from common import (
     process_ecg_data,
-    process_save_cleaned_data,
     normalize_cleaned_data,
     segment_data_into_windows,
 )
