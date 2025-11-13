@@ -45,6 +45,26 @@ conda activate ECG-Project
 ├── README.md                  # Project overview and usage guide
 ├── environment.yml            # Conda environment definition
 ├── requirements.txt           # Optional pip requirements
+├── setup.py                   # Python config file for setuptools, needed for the sia package
+
+├── sia/                       # A module that facilitates window segmentation and feature engineering of standard ECG-based features  
+
+├── graphical_pictures/        # Contains the graphical figure in pdf and png format
+
+├── utils/                     # Utilities directories
+│   ├── __init__.py            # Init file  
+│   ├── helper_paths.py        # Paths 
+│   ├── torch_utilities.py     # Helper functions (training loop, metrics, etc.)
+
+├── create_figures/            # Python scripts to create figures
+│   ├── create_figure_results  
+│   ├── create_runtime_analysis_plot.py     
+│   ├── data_visualization.py  # Script to create the UMAP visualization of the datasets
+
+├── statistical_analysis/      # Python scripts to analyze the results
+│   ├── archive/               # Archived files for additional analysis (can be ignored)
+│   ├── aggregate_results_for_table_statistical_analysis.py     
+│   ├── aggregate_results_transfer_learning.py  
 
 ├── data/                      # Data directories
 │   ├── raw/                   # Original datasets
@@ -61,58 +81,40 @@ conda activate ECG-Project
 │   ├── supervised.py          # CNN, TCN, Transformer and Linear and MLP classifiers
 │   ├── simclr.py              # SimCLR encoder + projection head
 │   ├── ts2vec.py              # TS2Vec architecture
-│   ├── ts2vec_soft.py         # Soft TS2Vec variant
 │   ├── tstcc.py               # TSTCC architecture
-│   ├── tstcc_soft.py          # TSTCC soft variant
+│   ├── infots.py              # InfoTS architecture  
 │   └── __init__.py
 
-├── training_pipelines/       # Metaflow training flows (supervised and SSL)
-│   ├── supervised_training.py
-│   ├── simclr_train.py
-│   ├── ts2vec_train.py
-│   ├── ts2vec_soft_train.py
-│   ├── tstcc_train.py
-│   ├── tstcc_soft_train.py
-│   ├── sophisticated_baseline.py
-│   ├── torch_utilities.py     # Helper functions (training loop, metrics, etc.)
-│   ├── train.sh               # SLURM job script
+├── training_pipelines/        # Training pipelines for training the models
+│   ├── infots_train_cleaned_cv.py
+│   ├── supervised_train_cleaned_cv.py
+│   ├── simclr_train_cleaned_cv.py
+│   ├── ts2vec_train_cleaned_cv.py
+│   ├── tstcc_train_cleaned_cv.py
+│   ├── sophisticated_baseline_cleaned_cv.py
+│   ├── slurm_jobs/            # SLURM job directory
+│       ├── ...                # Individual slurm files for training on a cluster
+│   ├── bash_scripts/          # Bash scripts
+│       ├── ...                # Individual bash scripts to run specific models
 │   └── models -> ../models    # Symlink for shared access
-
-├── evaluation_results/        # Metric aggregation and statistical tests
-│   ├── collect_metrics_mlflow.py
-│   ├── confidence_intervals.py
-│   ├── mann_whitney_tests.py
-│   └── table_results.py
-
-├── visualization/             # Analysis and result plotting
-│   ├── plot_ci.py
-│   └── plot_label_efficiency.py
+│   └── archive                # Unused files (can be ignored)
 
 ├── results/                   # Generated results and figures
-├── PPG_transfer_learning/     # Experimental PPG transfer scripts
-│   ├── ppg_preprocessing.py
-│   ├── ppg_ts2vecsoft_train.py
-│   ├── ppg_inspect.py
-│   └── models -> ../models    # Shared model access
+├── figures/                   # Generated figures of the results
 
 └── LICENSE                    # License file
 ```
 
 ## Running the Preprocessing Pipeline
 
-The preprocessing pipeline segments, cleans, normalizes, and windows the raw ECG data using a Metaflow pipeline.
+The preprocessing pipeline segments, cleans, normalizes, and windows the raw ECG data.
 
 ### 1. Activate the environment
 ```bash
 conda activate ECG-Project
 ```
 
-### 2. Start the MLflow tracking server
-```bash
-mlflow server --host 127.0.0.1 --port 5000
-```
-
-### 3. Run the preprocessing pipeline
+### 2. Run the preprocessing pipeline
 ```bash
 python preprocess_flow.py run
 ```
