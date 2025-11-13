@@ -22,20 +22,20 @@ The following figure illustrates the overall experimental setup:
 - [Running the Training Pipelines (Locally)](#running-the-training-pipelines-locally)
   - [Running Locally](#running-the-training-pipelines-locally)
   - [Running on DAS6 Cluster](#running-the-training-pipelines-on-das6-cluster)
-    - [1. MLflow Server Setup](#1-activate-environment-and-launch-mlflow-on-das6)
-    - [2. Remote Access](#2-accessing-mlflow-remotely)
-    - [3. SLURM Configuration](#3-slurm-job-configuration)
-    - [4. Job Submission](#4-launching-training-jobs)
+    - [1. Remote Access](#2-accessing-mlflow-remotely)
+    - [2. SLURM Configuration](#3-slurm-job-configuration)
+    - [3. Job Submission](#4-launching-training-jobs)
 
 ## Installation and Environment Setup
 
 This project uses a Conda environment with Python 3.11 and additional dependencies managed via `pip`.
 
-### Create the environment
+### Create the environment and install modules
 
 ```bash
 conda env create -f environment.yml
 conda activate ECG-Project
+pip3 install . 
 ```
 
 ## Project Structure
@@ -73,7 +73,8 @@ conda activate ECG-Project
 │   └── processed/             # Final input data used for modeling
 
 ├── preprocessing_pipeline/    # Metaflow pipeline to preprocess raw ECG data
-│   ├── preprocess_flow.py     # Main flow file
+│   ├── preprocess_no_flow.py  # Main preprocessing file
+│   ├── downsample.py          # Script to downsample the WESAD and van der Mee dataset to the same 500 Hz
 │   ├── config.py              # Data configuration
 │   └── common.py              # Cleaning and Preprocessing functions
 
@@ -127,7 +128,7 @@ This will:
 
 The final output is saved to:
 ```bash
-data/interim/windowed_data.h5
+data/interim/<DATASET>/<SAMPLE_FREQUENCY>/<WINDOW SIZE>/<WINDOW_SHIFT>/windowed_data.h5
 ```
 
 ## Running the Training Pipelines (Locally)
