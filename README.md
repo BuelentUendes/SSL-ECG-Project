@@ -124,6 +124,28 @@ pip3 install .
 └── LICENSE                    # License file
 ```
 
+## Data folder structure
+
+As outlined above, the scripts expect the raw data in the following structure
+
+```text
+├── data/                      # Data directories
+│   ├── raw/                   # Original datasets
+│       ├── Raw ECG project/         # van der Mee dataset
+│           ├── 1000/
+│               ├── <PARTICIPANTS.edf files> # Original edf files from each participant
+
+│       ├── STRESSID/                # StressID subfolder
+│           ├── physiological/
+│               ├── <PARTICIPANTS subfolder>/
+
+│       ├── WESAD/                   # WESAD subfolder
+│           ├── S2/...                # Participant S2
+│           ├── S3/...                # Participant S3
+│           ├── etc./...                # Participant S3
+
+```
+
 ## Running the Preprocessing Pipeline
 
 The preprocessing pipeline segments, cleans, normalizes, and windows the raw ECG data.
