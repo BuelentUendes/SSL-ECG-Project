@@ -131,7 +131,7 @@ mlflow server --host 127.0.0.1 --port 5000
 
 ### 3. Run the preprocessing pipeline
 ```bash
-python3 preprocess_no_flow.py
+python3 preprocessing_pipeline/preprocess_no_flow.py
 ```
 
 This will:
@@ -144,6 +144,22 @@ The final output is saved to:
 ```bash
 data/interim/<DATASET>/<SAMPLE_FREQUENCY>/<WINDOW SIZE>/<WINDOW_SHIFT>/windowed_data.h5
 ```
+
+Note: For the transfer learning results, we downsampled the dataset by van der Mee first to 500 Hz, and re-ran the above pipeline.
+To downsample the dataset, run:
+
+```bash
+python3 preprocessing_pipeline/downsamle_ecg.py
+```
+
+#### Preprocessing StressID and WESAD
+
+
+
+To preprocess the two external datasets, one needs to navigate to their respective 
+folders, i.e., STRESSID_transfer_learning and WESAD_transfer_learning.
+
+
 
 ### 3. Extract handcrafted features
 To extract the features used in this study, navigate to:
