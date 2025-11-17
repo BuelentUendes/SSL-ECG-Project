@@ -210,6 +210,10 @@ python3 train_simple_classifiers.py --zero_shot_evaluation --zero_shot_dataset "
 ```
 For the StressID, one can run the same command, replacing "wesad" with "stressid" and fs set to 500
 
+### Linear Probing
+**TBA: Information will be available very soon!**
+
+### Linear Probing + Fine-Tuning
 **TBA: Information will be available very soon!**
 
 <!-- 
