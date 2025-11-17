@@ -146,7 +146,19 @@ data/interim/<DATASET>/<SAMPLE_FREQUENCY>/<WINDOW SIZE>/<WINDOW_SHIFT>/windowed_
 ```
 
 ### 3. Extract handcrafted features
-**TBA Information will be available soon**
+To extract the features used in this study, navigate to:
+
+```bash
+cd domain_specific_ml
+```
+To extract the features for the 10s and 5s window overlap run:
+
+```bash
+python3 feature_extraction.py --window_size 10 --window_shift 5 --dataset ours
+```
+
+Via CLI one can adjust the dataset, as well as the window size (30s) and window shift (5s). Note:
+When window size 10s is selected, 25 features will be extracted as opposed to 55 features for the longer time window.
 
 ## Running the Training Pipelines (Locally) 
 
