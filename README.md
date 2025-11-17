@@ -256,10 +256,51 @@ python3 train_simple_classifiers.py --zero_shot_evaluation --zero_shot_dataset "
 ```
 For the StressID, one can run the same command, replacing "wesad" with "stressid" and fs set to 500
 
-### Linear Probing
+#### Supervised Encoder
+
+For the supervised encoder (cnn), one can obtain the zeros-shot, linear probing and LP+FT results in the following manner:
+Navigate to the training_pipelines:
+
+```bash
+cd training_pipelines
+```
+
+To obtain the zero-shot transfer (for WESAD, replace "wesad" with "stressid" for StressID)
+
+**Zero-shot**
+```bash
+python3 supervised_training_cleaned_cv.py --zero_shot_evaluation --zero_shot_dataset "wesad"
+```
+
+### Linear Probing (LP)
 **TBA: Information will be available very soon!**
 
-### Linear Probing + Fine-Tuning
+#### CNN
+For the LP results for the CNN, one can obtain the results for WESAD via 
+```bash
+cd training_pipelines
+python3 supervised_training_cleaned_cv.py --use_pretrained_encoder --dataset "wesad" --fs 700
+```
+For StressID
+```bash
+cd training_pipelines
+python3 supervised_training_cleaned_cv.py --use_pretrained_encoder --dataset "stressid" --fs 500
+```
+
+### Linear Probing + Fine-Tuning (LP+FT)
+
+#### CNN
+For the LP results for the CNN, one can obtain the results for WESAD via 
+```bash
+cd training_pipelines
+python3 supervised_training_cleaned_cv.py --use_pretrained_encoder --fine_tune_encoder --dataset "wesad" --fs 700
+```
+For StressID
+```bash
+cd training_pipelines
+python3 supervised_training_cleaned_cv.py --use_pretrained_encoder --fine_tune_encoder --dataset "stressid" --fs 500
+```
+
 **TBA: Information will be available very soon!**
 
 <!-- 
