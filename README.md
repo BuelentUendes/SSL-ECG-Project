@@ -284,7 +284,6 @@ python3 tstcc_train_cleaned_cv.py --zero_shot_evaluation --zero_shot_dataset "st
 For the S3 version, one needs to use the --use_s3_layers option.
 
 ### Linear Probing (LP)
-**TBA: Information will be available very soon!**
 
 #### CNN
 For the LP results for the CNN, one can obtain the results for WESAD via 
@@ -297,6 +296,21 @@ For StressID
 cd training_pipelines
 python3 supervised_training_cleaned_cv.py --use_pretrained_encoder --dataset "stressid" --fs 500
 ```
+#### TS-TCC
+
+**WESAD**
+```bash
+cd WESAD_transfer_learning
+python3 tstcc_train_cleaned_cv.py --use_pretrained_encoder 
+```
+
+**StressID**
+```bash
+cd WESAD_transfer_learning
+python3 tstcc_train_cleaned_cv.py --use_pretrained_encoder 
+```
+
+For both results, using the --use_s3_layers will get the results for the S3 augmented version.
 
 ### Linear Probing + Fine-Tuning (LP+FT)
 
@@ -312,7 +326,24 @@ cd training_pipelines
 python3 supervised_training_cleaned_cv.py --use_pretrained_encoder --fine_tune_encoder --dataset "stressid" --fs 500
 ```
 
-**TBA: Information will be available very soon!**
+#### TS-TCC (and TS-TCC+S3)
+**WESAD**
+```bash
+cd WESAD_transfer_learning
+python3 tstcc_train_cleaned_cv.py --use_pretrained_encoder --fine_tune_encoder
+```
+
+**StressID**
+```bash
+cd WESAD_transfer_learning
+python3 tstcc_train_cleaned_cv.py --use_pretrained_encoder --fine_tune_encoder
+```
+For both results, using the --use_s3_layers will get the results for the S3 augmented version.
+
+#### Trained from scratch baselines
+
+
+
 
 <!-- 
 MULTILINE COMMENT
