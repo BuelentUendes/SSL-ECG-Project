@@ -135,7 +135,7 @@ if __name__ == "__main__":
         "--desired_sampling_rate",
         type=int,
         help="Desired sampling rate for downsampling in Hz.",
-        default=64
+        default=500
     )
 
     parser.add_argument(
