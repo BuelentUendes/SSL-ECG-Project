@@ -18,6 +18,7 @@ The following figure illustrates the overall experimental setup:
 
 - [Installation and Environment Setup](#installation-and-environment-setup)
 - [Project Structure](#project-structure)
+- [Data folder structure](#Data folder structure)
 - [Running the Preprocessing Pipeline](#running-the-preprocessing-pipeline)
 - [Running the Training Pipelines (Locally)](#running-the-training-pipelines-locally)
   - [Running Locally](#running-the-training-pipelines-locally)
