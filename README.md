@@ -197,6 +197,19 @@ Replace the script name (ts2vec_train_cleaned_cv.py, simclr_train_cleaned_cv.py,
 Each script has several different model-specific CLI parameters.
 
 ## Transfer learning results
+
+### Zero-shot transfer
+
+#### Feature-engineered baseline
+For the zero-shot transfer results for the logistic regression run the following:
+
+```bash
+cd domain_specific_ml
+mlflow server --host 127.0.0.1 --port 5000
+python3 train_simple_classifiers.py --zero_shot_evaluation --zero_shot_dataset "wesad" --fs 700
+```
+For the StressID, one can run the same command, replacing "wesad" with "stressid" and fs set to 500
+
 **TBA: Information will be available very soon!**
 
 <!-- 
