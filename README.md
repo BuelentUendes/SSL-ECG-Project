@@ -149,7 +149,7 @@ Note: For the transfer learning results, we downsampled the dataset by van der M
 To downsample the dataset to 500, run
 
 ```bash
-python3 preprocessing_pipeline/downsamle_ecg.py --desired_sampling_rate 500
+python3 preprocessing_pipeline/downsample_ecg.py --desired_sampling_rate 500
 ```
 
 where one can replace the desired_sampling_rate to 700 for the WESAD dataset, respectively.
