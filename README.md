@@ -166,15 +166,18 @@ where one can replace the desired_sampling_rate to 700 for the WESAD dataset, re
 #### Preprocessing StressID and WESAD
 
 To preprocess the two external datasets, one needs to navigate to their respective 
-folders within the preprocessing_pipeline folder, i.e.,
+folders within the preprocessing_pipeline folder and run the respective preprocessing scripts, i.e., 
 
 **Stress ID**
 ```bash
 cd preprocessing_pipeline/stress_id
+python3 stressid_preprocessing_preprocessing_pipeline.py
 ```
 **WESAD**
 ```bash
 cd preprocessing_pipeline/wesad
+python3 wesad_preprocessing_raw_data.py
+python3 wesad_preprocessing_pipeline.py
 ```
 
 ### 3. Extract handcrafted features
