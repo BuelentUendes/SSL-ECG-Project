@@ -146,11 +146,13 @@ data/interim/<DATASET>/<SAMPLE_FREQUENCY>/<WINDOW SIZE>/<WINDOW_SHIFT>/windowed_
 ```
 
 Note: For the transfer learning results, we downsampled the dataset by van der Mee first to 500 Hz, and re-ran the above pipeline.
-To downsample the dataset, run:
+To downsample the dataset to 500, run
 
 ```bash
-python3 preprocessing_pipeline/downsamle_ecg.py
+python3 preprocessing_pipeline/downsamle_ecg.py --desired_sampling_rate 500
 ```
+
+where one can replace the desired_sampling_rate to 700 for the WESAD dataset, respectively.
 
 #### Preprocessing StressID and WESAD
 
