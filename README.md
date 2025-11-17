@@ -154,12 +154,17 @@ python3 preprocessing_pipeline/downsamle_ecg.py
 
 #### Preprocessing StressID and WESAD
 
-
-
 To preprocess the two external datasets, one needs to navigate to their respective 
-folders, i.e., STRESSID_transfer_learning and WESAD_transfer_learning.
+folders within the preprocessing_pipeline folder, i.e.,
 
-
+**Stress ID**
+```bash
+cd preprocessing_pipeline/stress_id
+```
+**WESAD**
+```bash
+cd preprocessing_pipeline/wesad
+```
 
 ### 3. Extract handcrafted features
 To extract the features used in this study, navigate to:
@@ -175,6 +180,17 @@ python3 feature_extraction.py --window_size 10 --window_shift 5 --dataset ours
 
 Via CLI one can adjust the dataset, as well as the window size (30s) and window shift (5s). Note:
 When window size 10s is selected, 25 features will be extracted as opposed to 55 features for the longer time window.
+
+To extract the feature-engineered baselines for WESAD and StressID, one needs to run
+
+**WESAD**
+```bash
+python3 feature_extraction.py --window_size 10 --window_shift 5 --dataset "wesad" --sample_frequency 700
+```
+**StressID**
+```bash
+python3 feature_extraction.py --window_size 10 --window_shift 5 --dataset "stressid" --sample_frequency 500
+```
 
 ## Running the Training Pipelines (Locally) 
 
