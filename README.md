@@ -341,7 +341,50 @@ python3 tstcc_train_cleaned_cv.py --use_pretrained_encoder --fine_tune_encoder
 For both results, using the --use_s3_layers will get the results for the S3 augmented version.
 
 ### Trained from scratch baselines
-**TBD**
+
+#### Logistic Regression
+To obtain the from scratch baselines for the logistic regression, one can obtain results for WESAD
+
+```bash
+cd WESAD_transfer_learning
+python3 train_simple_classifiers.py --window_size 10 --step_size 5
+```
+and for StressID
+
+```bash
+cd stressid_transfer_learning
+python3 train_simple_classifiers.py --window_size 10 --step_size 5
+```
+#### CNN
+To obtain the from scratch results for CNN, one can run the following:
+
+**WESAD**
+```bash
+cd training_pipelines
+python3 supervised_training_cleaned_cv.py --dataset "wesad" --fs 700
+```
+**StressID**
+```bash
+cd training_pipelines
+python3 supervised_training_cleaned_cv.py --dataset "stressid" --fs 500
+```
+
+#### TS-TCC (and TS-TCC+S3)
+To obtain the from scratch results for TS-TCC, one can run the following:
+
+**WESAD**
+```bash
+cd WESAD_transfer_learning
+python3 tstcc_train_cleaned_cv.py 
+```
+**StressID**
+```bash
+cd STRESSID_transfer_learning
+python3 tstcc_train_cleaned_cv.py 
+```
+
+To use the S3 augmented version, one needs to add the --use_s3_layers flag to each of the above command line commands.
+
 
 <!-- 
 MULTILINE COMMENT
