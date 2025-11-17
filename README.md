@@ -296,7 +296,7 @@ For StressID
 cd training_pipelines
 python3 supervised_training_cleaned_cv.py --use_pretrained_encoder --dataset "stressid" --fs 500
 ```
-#### TS-TCC
+#### TS-TCC (and TS-TCC+S3)
 
 **WESAD**
 ```bash
@@ -340,10 +340,8 @@ python3 tstcc_train_cleaned_cv.py --use_pretrained_encoder --fine_tune_encoder
 ```
 For both results, using the --use_s3_layers will get the results for the S3 augmented version.
 
-#### Trained from scratch baselines
-
-
-
+### Trained from scratch baselines
+**TBD**
 
 <!-- 
 MULTILINE COMMENT
