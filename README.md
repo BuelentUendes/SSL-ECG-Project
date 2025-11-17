@@ -131,7 +131,7 @@ mlflow server --host 127.0.0.1 --port 5000
 
 ### 3. Run the preprocessing pipeline
 ```bash
-python preprocess_no_flow.py run
+python3 preprocess_no_flow.py
 ```
 
 This will:
