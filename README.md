@@ -86,6 +86,15 @@ pip3 install .
 │   ├── downsample.py          # Script to downsample the WESAD and van der Mee dataset to the same 500 Hz
 │   ├── config.py              # Data configuration
 │   └── common.py              # Cleaning and Preprocessing functions
+│   ├── wesad/                 # WESAD preprocessing pipeline
+│       ├── common.py
+│       ├── config.py
+│       ├── wesad_preprocessing_pipeline.py
+│       ├── wesad_preprocessing_raw_data.py                                                         
+│   ├── stress_id/             # StressID preprocessing pipeline
+│       ├── common.py                
+│       ├── config.py
+│       ├── stressid_preprocessing_pipeline.py
 
 ├── models/                    # Core model definitions
 │   ├── supervised.py          # CNN, TCN, Transformer and Linear and MLP classifiers
