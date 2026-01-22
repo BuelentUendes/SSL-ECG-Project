@@ -480,4 +480,4 @@ Logs will be written to `ecg_train.out` and `ecg_train.err` in the current worki
 
 ### Acknowledgements
 
-This work is funded by [Stress in Action](www.stress-in-action.nl). The research project [Stress in Action]( www.stress-in-action.nl) is financially supported by the Dutch Research Council and the Dutch Ministry of Education, Culture and Science (NWO gravitation grant number 024.005.010).
+This work is funded by [Stress in Action](https://stress-in-action.nl/). The research project [Stress in Action](https://stress-in-action.nl/) is financially supported by the Dutch Research Council and the Dutch Ministry of Education, Culture and Science (NWO gravitation grant number 024.005.010).
