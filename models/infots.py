@@ -22,6 +22,7 @@ from tqdm import tqdm
 
 # Mixed precision training
 from torch.cuda.amp import autocast, GradScaler
+import tsaug
 
 from utils.helper_paths import RESULTS_PATH
 
@@ -221,14 +222,14 @@ class InfoTSAugmentation(nn.Module):
         self.aug_p2 = aug_p2
 
     def _create_augmentations(self):
-        """Create ECG-specific augmentations"""
+        """Create augmentations as as defined in the InfoTS paper"""
         return [
-            lambda x: self._jitter(x, 0.001),
-            lambda x: self._scaling(x, 0.001), 
-            lambda x: self._time_warp(x),
+            lambda x: self._jitter(x, 0.3), #0.001 is uesd by TS-TCC
+            lambda x: self._scaling(x, 0.5), #0.001 is used by TS-TCC
+            lambda x: self._cutout(x), # 10% of the area will be replaced with 0
+            lambda x: self._time_warp(x), # random changes the speed of the timeline
             lambda x: self._window_slice(x), #Window slice and subsequence are basically the same, as I do need to pad it anyways
-            # lambda x: self._subsequence(x),
-            lambda x: self._cutout(x),
+            lambda x: self._subsequence(x),
             lambda x: self._window_warp(x)
         ]
 
@@ -241,20 +242,30 @@ class InfoTSAugmentation(nn.Module):
         factor = torch.normal(2.0, sigma, size=(x.size(0), 1, x.size(2))).to(x.device)
         return x * factor
 
-    def _time_warp(self, x, sigma=0.2):
-        """Simple time warping by interpolation"""
-        orig_steps = torch.arange(x.size(1), dtype=torch.float32).to(x.device)
-        random_warps = torch.normal(1.0, sigma, size=(x.size(0), 1)).to(x.device)
-        warped_steps = orig_steps * random_warps
-        warped_steps = torch.clamp(warped_steps, 0, x.size(1) - 1)
-        
-        # Simple linear interpolation
-        indices = warped_steps.long()
-        weights = warped_steps - indices.float()
-        indices_next = torch.clamp(indices + 1, max=x.size(1) - 1)
-        
-        warped = x[:, indices] * (1 - weights).unsqueeze(-1) + x[:, indices_next] * weights.unsqueeze(-1)
-        return warped
+    def _totensor(x):
+        return torch.from_numpy(x).type(torch.FloatTensor).cuda()
+
+    def _time_warp(self, x):
+        warp_transform = tsaug.TimeWarp(n_speed_change=100, max_speed_ratio=10)
+        x_np = x.cpu().detach().numpy()
+        x_tran = warp_transform.transform.augment(x_np)
+
+        return self._totensor(x_tran.astype(np.float32))
+
+    # def _time_warp(self, x, sigma=0.2):
+    #     """Simple time warping by interpolation"""
+    #     orig_steps = torch.arange(x.size(1), dtype=torch.float32).to(x.device)
+    #     random_warps = torch.normal(1.0, sigma, size=(x.size(0), 1)).to(x.device)
+    #     warped_steps = orig_steps * random_warps
+    #     warped_steps = torch.clamp(warped_steps, 0, x.size(1) - 1)
+    #
+    #     # Simple linear interpolation
+    #     indices = warped_steps.long()
+    #     weights = warped_steps - indices.float()
+    #     indices_next = torch.clamp(indices + 1, max=x.size(1) - 1)
+    #
+    #     warped = x[:, indices] * (1 - weights).unsqueeze(-1) + x[:, indices_next] * weights.unsqueeze(-1)
+    #     return warped
 
     def _window_slice(self, x, reduce_ratio=0.5):
         """Randomly slice a window and pad to original length"""
@@ -272,21 +283,37 @@ class InfoTSAugmentation(nn.Module):
         padded = F.pad(sliced, (0, 0, pad_left, pad_right), mode='constant', value=0)
         return padded
 
-    def _subsequence(self, x, reduce_ratio=0.95):
-        """Extract random subsequence and pad to original length"""
-        original_len = x.size(1)
-        target_len = int(original_len * reduce_ratio)
-        start = torch.randint(0, original_len - target_len + 1, (1,)).item()
-        
-        # Extract subsequence and pad back to original length
-        subseq = x[:, start:start + target_len]
-        pad_len = original_len - target_len
-        pad_left = pad_len // 2
-        pad_right = pad_len - pad_left
-        
-        # Pad with zero values to maintain signal characteristics
-        padded = F.pad(subseq, (0, 0, pad_left, pad_right), mode='constant', value=0)
-        return padded
+    def _subsequence(self, x):
+        """Extract random subsequence and zero out the rest"""
+        ts = x
+        seq_len = ts.shape[1]
+        ts_l = x.size(1)
+        crop_l = np.random.randint(low=2, high=ts_l + 1)
+        new_ts = ts.clone()
+        start = np.random.randint(ts_l - crop_l + 1)
+        end = start + crop_l
+        start = max(0, start)
+        end = min(end, seq_len)
+        new_ts[:, :start, :] = 0.0
+        new_ts[:, end:, :] = 0.0
+        return new_ts
+
+    # This needs to be replaced
+    # def _subsequence(self, x, reduce_ratio=0.95):
+    #     """Extract random subsequence and pad to original length"""
+    #     original_len = x.size(1)
+    #     target_len = int(original_len * reduce_ratio)
+    #     start = torch.randint(0, original_len - target_len + 1, (1,)).item()
+    #
+    #     # Extract subsequence and pad back to original length
+    #     subseq = x[:, start:start + target_len]
+    #     pad_len = original_len - target_len
+    #     pad_left = pad_len // 2
+    #     pad_right = pad_len - pad_left
+    #
+    #     # Pad with zero values to maintain signal characteristics
+    #     padded = F.pad(subseq, (0, 0, pad_left, pad_right), mode='constant', value=0)
+    #     return padded
 
     def _cutout(self, x, area_ratio=0.1):
         """Randomly mask part of the signal"""
