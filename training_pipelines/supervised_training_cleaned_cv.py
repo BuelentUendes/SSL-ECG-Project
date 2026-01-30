@@ -7,6 +7,7 @@ import copy
 import json
 import gc
 import argparse
+import time
 
 import numpy as np
 import torch
@@ -51,6 +52,7 @@ def run_supervised_model_with_cv_and_test(
         initial_num_segments: int = 2,
         num_s3_layers: int = 2,
         segment_multiplier: int = 2,
+        results_save_path: str = RESULTS_PATH,
 ):
     """Run CV for Supervised model  then train final model and test."""
 
@@ -247,11 +249,17 @@ def run_supervised_model_with_cv_and_test(
     non_blocking_bool = torch.cuda.is_available()
     loss_fn = torch.nn.BCEWithLogitsLoss()
 
+    # Save the memory consumption and runtimes per model here as well
+    epoch_peak_memory = {}
+    epoch_runtimes = {}
+
     # Train final model
     for idx, epoch in enumerate(range(classifier_epochs), start=1):
         print()
         print(f"Final training: Epoch {idx} / {classifier_epochs}", end="\r")
         final_model.train()
+        epoch_start_time = time.time()
+
         for X_batch, y_batch in tr_loader:
             X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
             y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
@@ -262,6 +270,15 @@ def run_supervised_model_with_cv_and_test(
             if epoch % 5 == 0:
                 print(f"The loss is {loss}")
             optimizer.step()
+
+        # Calculate epoch runtime
+        epoch_runtime = time.time() - epoch_start_time
+        epoch_runtimes[f"{epoch}"] = epoch_runtime
+
+        # Log memory usage for CUDA
+        if torch.cuda.is_available():
+            epoch_peak_memory[f"{epoch}"] = torch.cuda.max_memory_allocated() / (1024 ** 3)
+            print(f"Peak memory allocated during epoch {epoch}: {torch.cuda.max_memory_allocated() / (1024 ** 3):.2f} GB")
 
     # Test evaluation
     final_model.eval()
@@ -294,6 +311,17 @@ def run_supervised_model_with_cv_and_test(
     print(f"Test AUROC: {test_auroc:.4f}")
     print(f"Test F1: {test_f1:.4f}")
     print(f"Test PR-AUC: {test_pr_auc:.4f}")
+
+    # Save the results for peak memory time
+    run_time_save_name = "runtime_per_epoch.json"
+    peak_memory_save_name = "peak_memory_consumption_epochs.json"
+
+    with open(os.path.join(results_save_path, run_time_save_name), "w") as f:
+        json.dump(epoch_runtimes, f, indent=2)
+
+    if torch.cuda.is_available():
+        with open(os.path.join(results_save_path, peak_memory_save_name), "w") as f:
+            json.dump(epoch_peak_memory, f, indent=2)
 
     return {
         'best_params': best_params,
@@ -534,6 +562,12 @@ def main(
     )
     y = y.astype(np.float32)
 
+    # Here we can now check class distribution
+    class_1_overall = np.mean(y)
+    class_0_overall = 1-class_1_overall
+
+    print(f"The total number of segments is: {len(y)}, class 1: {class_1_overall}, class 0: {class_0_overall}")
+
     # train/val/test split
     # Split by participant to get train/test split
     train_idx, train_p, test_idx, test_p = split_indices_by_participant_groups(
@@ -583,6 +617,7 @@ def main(
             classifier_lr=lr, pin_memory=pin_memory, scoring_metric=scoring_metric,
             use_s3_layers=use_s3_layers, initial_num_segments=initial_num_segments,
             num_s3_layers=num_s3_layers, segment_multiplier=segment_multiplier,
+            results_save_path=results_save_path
         )
 
         # Save the results:
