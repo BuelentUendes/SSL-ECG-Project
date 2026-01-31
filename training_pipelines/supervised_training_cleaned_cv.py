@@ -46,8 +46,13 @@ from models.supervised import (
 
 def run_supervised_model_with_cv_and_test(
         model_type, X_train, y_train, groups_train, X_test, y_test,
-        cv_splitter, device, classifier_epochs=25, classifier_batch_size=32,
-        classifier_lr=1e-4, pin_memory=False, scoring_metric="roc_auc",
+        cv_splitter,
+        device,
+        classifier_epochs=25,
+        classifier_batch_size=32,
+        disable_hyperparameter_tuning=False,
+        pin_memory=False,
+        scoring_metric="roc_auc",
         use_s3_layers: bool = False,
         initial_num_segments: int = 2,
         num_s3_layers: int = 2,
@@ -73,144 +78,146 @@ def run_supervised_model_with_cv_and_test(
 
     print(f"Running manual CV for supervised model {model_type} hyperparameters...")
 
-    if cv_splitter is None:
-        print("cv_splitter is None (single participant). Using default best parameters...")
-        print(f"Default parameters: {default_best_params}")
+    if not disable_hyperparameter_tuning:
+        if cv_splitter is None:
+            print("cv_splitter is None (single participant). Using default best parameters...")
+            print(f"Default parameters: {default_best_params}")
 
-        best_params = default_best_params
-        best_cv_score = 0.0
+            best_params = default_best_params
+            best_cv_score = 0.0
 
-    else:
-        for lr in lr_rates:
-            for dropout_rate in dropout_rates:
-                print(f"Testing lr={lr}, dropout={dropout_rate}")
+        else:
+            for lr in lr_rates:
+                for dropout_rate in dropout_rates:
+                    print(f"Testing lr={lr}, dropout={dropout_rate}")
 
-                fold_scores = []
+                    fold_scores = []
 
-                # Run CV for this parameter combination
-                for fold, (train_idx, val_idx) in enumerate(cv_splitter.split(X_train, y_train, groups_train), 1):
-                    X_fold_train, X_fold_val = X_train[train_idx], X_train[val_idx]
-                    y_fold_train, y_fold_val = y_train[train_idx], y_train[val_idx]
+                    # Run CV for this parameter combination
+                    for fold, (train_idx, val_idx) in enumerate(cv_splitter.split(X_train, y_train, groups_train), 1):
+                        X_fold_train, X_fold_val = X_train[train_idx], X_train[val_idx]
+                        y_fold_train, y_fold_val = y_train[train_idx], y_train[val_idx]
 
-                    # model
-                    if model_type.lower() == "cnn":
-                        model = Improved1DCNN_v2(
-                            dropout=dropout_rate,
-                            use_s3_layers=use_s3_layers,
-                            initial_num_segments=initial_num_segments,
-                            num_s3_layers=num_s3_layers,
-                            segment_multiplier=segment_multiplier,
+                        # model
+                        if model_type.lower() == "cnn":
+                            model = Improved1DCNN_v2(
+                                dropout=dropout_rate,
+                                use_s3_layers=use_s3_layers,
+                                initial_num_segments=initial_num_segments,
+                                num_s3_layers=num_s3_layers,
+                                segment_multiplier=segment_multiplier,
+                            )
+                        elif model_type.lower() == "tcn":
+                            model = TCNClassifier(
+                                dropout=dropout_rate,
+                                use_s3_layers=use_s3_layers,
+                                initial_num_segments=initial_num_segments,
+                                num_s3_layers=num_s3_layers,
+                                segment_multiplier=segment_multiplier,
+                            )
+                        elif model_type.lower() == "deep_ecg_net":
+                            model = DeepECGNet(
+                                dropout_rate=dropout_rate,
+                                use_s3_layers = use_s3_layers,
+                                initial_num_segments = initial_num_segments,
+                                num_s3_layers = num_s3_layers,
+                                segment_multiplier = segment_multiplier,
+                            )
+                        elif model_type.lower() == "patchtst":
+                            model = PatchTSTECGClassifier(dropout=dropout_rate)
+                        elif model_type.lower() == "moment":
+                            model = MomentFMClassifier(dropout=dropout_rate)
+                        else:
+                            model = TransformerECGClassifier(dropout=dropout_rate)
+
+                        model = model.to(device)
+
+                        optimizer = optim.AdamW(model.parameters(), lr=lr)
+                        loss_fn = torch.nn.BCEWithLogitsLoss()
+
+                        # Create proper datasets for supervised models (not SSL representations)
+                        tr_ds = PhysiologicalDataset(X_fold_train, y_fold_train)
+                        val_ds = PhysiologicalDataset(X_fold_val, y_fold_val)
+                        tr_loader = DataLoader(
+                            tr_ds, batch_size=classifier_batch_size, shuffle=True,
+                            drop_last=True, pin_memory=pin_memory, num_workers=num_workers
                         )
-                    elif model_type.lower() == "tcn":
-                        model = TCNClassifier(
-                            dropout=dropout_rate,
-                            use_s3_layers=use_s3_layers,
-                            initial_num_segments=initial_num_segments,
-                            num_s3_layers=num_s3_layers,
-                            segment_multiplier=segment_multiplier,
+                        val_loader = DataLoader(
+                            val_ds, batch_size=classifier_batch_size, shuffle=False,
+                            drop_last=False, pin_memory=pin_memory, num_workers=num_workers
                         )
-                    elif model_type.lower() == "deep_ecg_net":
-                        model = DeepECGNet(
-                            dropout_rate=dropout_rate,
-                            use_s3_layers = use_s3_layers,
-                            initial_num_segments = initial_num_segments,
-                            num_s3_layers = num_s3_layers,
-                            segment_multiplier = segment_multiplier,
-                        )
-                    elif model_type.lower() == "patchtst":
-                        model = PatchTSTECGClassifier(dropout=dropout_rate)
-                    elif model_type.lower() == "moment":
-                        model = MomentFMClassifier(dropout=dropout_rate)
-                    else:
-                        model = TransformerECGClassifier(dropout=dropout_rate)
 
-                    model = model.to(device)
+                        non_blocking_bool = torch.cuda.is_available()
 
-                    optimizer = optim.AdamW(model.parameters(), lr=lr)
-                    loss_fn = torch.nn.BCEWithLogitsLoss()
+                        # Training loop
+                        for idx, epoch in enumerate(range(classifier_epochs), 1):
+                            print(f"Fold: {fold}: Processing Epoch {idx} / {classifier_epochs}", flush=True, end="\r")
+                            model.train()
+                            for X_batch, y_batch in tr_loader:
+                                X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
+                                y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
+                                optimizer.zero_grad()
+                                logits = model(X_batch).squeeze(-1)
+                                loss = loss_fn(logits, y_batch)
+                                loss.backward()
+                                optimizer.step()
 
-                    # Create proper datasets for supervised models (not SSL representations)
-                    tr_ds = PhysiologicalDataset(X_fold_train, y_fold_train)
-                    val_ds = PhysiologicalDataset(X_fold_val, y_fold_val)
-                    tr_loader = DataLoader(
-                        tr_ds, batch_size=classifier_batch_size, shuffle=True, 
-                        drop_last=True, pin_memory=pin_memory, num_workers=num_workers
-                    )
-                    val_loader = DataLoader(
-                        val_ds, batch_size=classifier_batch_size, shuffle=False, 
-                        drop_last=False, pin_memory=pin_memory, num_workers=num_workers
-                    )
+                        # Validation evaluation
+                        model.eval()
+                        val_probs = []
+                        val_labels = []
 
-                    non_blocking_bool = torch.cuda.is_available()
+                        with torch.no_grad():
+                            for X_batch, y_batch in val_loader:
+                                X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
+                                y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
+                                logits = model(X_batch).squeeze(-1)
 
-                    # Training loop
-                    for idx, epoch in enumerate(range(classifier_epochs), 1):
-                        print(f"Fold: {fold}: Processing Epoch {idx} / {classifier_epochs}", flush=True, end="\r")
-                        model.train()
-                        for X_batch, y_batch in tr_loader:
-                            X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
-                            y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
-                            optimizer.zero_grad()
-                            logits = model(X_batch).squeeze(-1)
-                            loss = loss_fn(logits, y_batch)
-                            loss.backward()
-                            optimizer.step()
+                                # Check for NaN in logits
+                                if torch.isnan(logits).any():
+                                    print(f"NaN detected in logits! Fold {fold}, batch size: {X_batch.size()}")
+                                    print(f"Logits: {logits}")
+                                    raise ValueError("Model produced NaN logits")
 
-                    # Validation evaluation
-                    model.eval()
-                    val_probs = []
-                    val_labels = []
+                                probs = torch.sigmoid(logits)
 
-                    with torch.no_grad():
-                        for X_batch, y_batch in val_loader:
-                            X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
-                            y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
-                            logits = model(X_batch).squeeze(-1)
-                            
-                            # Check for NaN in logits
-                            if torch.isnan(logits).any():
-                                print(f"NaN detected in logits! Fold {fold}, batch size: {X_batch.size()}")
-                                print(f"Logits: {logits}")
-                                raise ValueError("Model produced NaN logits")
-                            
-                            probs = torch.sigmoid(logits)
-                            
-                            # Check for NaN in probabilities
-                            if torch.isnan(probs).any():
-                                print(f"NaN detected in probs! Fold {fold}")
-                                print(f"Probs: {probs}")
-                                raise ValueError("Sigmoid produced NaN probabilities")
-                            
-                            val_probs.extend(probs.cpu().numpy())
-                            val_labels.extend(y_batch.cpu().numpy())
+                                # Check for NaN in probabilities
+                                if torch.isnan(probs).any():
+                                    print(f"NaN detected in probs! Fold {fold}")
+                                    print(f"Probs: {probs}")
+                                    raise ValueError("Sigmoid produced NaN probabilities")
 
-                    # Calculate fold score based on selected metric
-                    if scoring_metric == "roc_auc":
-                        fold_score = roc_auc_score(val_labels, val_probs)
-                    elif scoring_metric == "average_precision":
-                        fold_score = average_precision_score(val_labels, val_probs)
-                    elif scoring_metric == "f1":
-                        val_preds = (np.array(val_probs) > 0.5).astype(int)
-                        fold_score = f1_score(val_labels, val_preds)
-                    elif scoring_metric == "balanced_accuracy":
-                        val_preds = (np.array(val_probs) > 0.5).astype(int)
-                        fold_score = balanced_accuracy_score(val_labels, val_preds)
-                    else:
-                        raise ValueError(f"Unknown scoring metric: {scoring_metric}")
-                    
-                    fold_scores.append(fold_score)
+                                val_probs.extend(probs.cpu().numpy())
+                                val_labels.extend(y_batch.cpu().numpy())
 
-                # Average CV score for this parameter combination
-                mean_cv_score = np.mean(fold_scores)
-                print()
-                print(f"  Mean CV {scoring_metric.upper()}: {mean_cv_score:.4f}")
+                        # Calculate fold score based on selected metric
+                        if scoring_metric == "roc_auc":
+                            fold_score = roc_auc_score(val_labels, val_probs)
+                        elif scoring_metric == "average_precision":
+                            fold_score = average_precision_score(val_labels, val_probs)
+                        elif scoring_metric == "f1":
+                            val_preds = (np.array(val_probs) > 0.5).astype(int)
+                            fold_score = f1_score(val_labels, val_preds)
+                        elif scoring_metric == "balanced_accuracy":
+                            val_preds = (np.array(val_probs) > 0.5).astype(int)
+                            fold_score = balanced_accuracy_score(val_labels, val_preds)
+                        else:
+                            raise ValueError(f"Unknown scoring metric: {scoring_metric}")
 
-                if mean_cv_score > best_cv_score:
-                    best_cv_score = mean_cv_score
-                    best_params = {'lr': lr, 'dropout': dropout_rate}
+                        fold_scores.append(fold_score)
 
-    print(f"\nBest parameters: {best_params}")
-    print(f"Best CV score: {best_cv_score:.4f}")
+                    # Average CV score for this parameter combination
+                    mean_cv_score = np.mean(fold_scores)
+                    print()
+                    print(f"  Mean CV {scoring_metric.upper()}: {mean_cv_score:.4f}")
+
+                    if mean_cv_score > best_cv_score:
+                        best_cv_score = mean_cv_score
+                        best_params = {'lr': lr, 'dropout': dropout_rate}
+
+        print(f"\nBest parameters: {best_params}")
+        print(f"Best CV score: {best_cv_score:.4f}")
+
 
     # Train final model with best parameters on full training set
     print("Training final model on full training set...")
@@ -455,7 +462,7 @@ def main(
         gpu: int = 0,
         seed: int = 42,
         force_retraining: bool = True,
-        lr: float = 1e-4,
+        disable_hyperparameter_tuning: bool = False,
         batch_size: int = 32,
         num_epochs: int = 25,
         k_folds: int = 5,
@@ -614,7 +621,8 @@ def main(
         results, model = run_supervised_model_with_cv_and_test(
             model_type, X_train, y_train, groups_train, X_test, y_test,
             cv_splitter, device, classifier_epochs=num_epochs, classifier_batch_size=batch_size,
-            classifier_lr=lr, pin_memory=pin_memory, scoring_metric=scoring_metric,
+            disable_hyperparameter_tuning=disable_hyperparameter_tuning,
+            pin_memory=pin_memory, scoring_metric=scoring_metric,
             use_s3_layers=use_s3_layers, initial_num_segments=initial_num_segments,
             num_s3_layers=num_s3_layers, segment_multiplier=segment_multiplier,
             results_save_path=results_save_path
@@ -797,7 +805,8 @@ if __name__ == "__main__":
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--force_retraining", action="store_true")
-    parser.add_argument("--lr", type=float, default=1e-5)
+    parser.add_argument("--disable_hyperparameter_tuning", action="store_true",
+                        help="If set, we do not use hyperparameter_tuning and we use default lr and dropout rates")
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--num_epochs", type=int, default=25)
     parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
