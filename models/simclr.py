@@ -112,7 +112,6 @@ def permutation(x, segments=[5, 10, 15, 20]):
 
     return permuted_signal
 
-
 def window_warp(x, window_ratio=0.3, scales=[0.5, 2.]):
     """Warp random windows.
     Important note: We align here the time warping with the one applied in InfoTS
@@ -152,14 +151,135 @@ def baseline_wander(x):
 def negate(x):   return -x
 def hor_flip(x): return np.ascontiguousarray(np.flip(x))
 
+#_________________________________________________________
+# These are the augmentations used from the paper:
+# Self-supervised ECG Representation learning for emotion recognition
+# https://arxiv.org/pdf/2002.03898
+# These are the recommended parameter settings
+#
+# Source code transformations: https://github.com/pritamqu/SSL-ECG/blob/master/implementation/main.py
+# Source code default values: https://github.com/pritamqu/SSL-ECG/blob/master/implementation/signal_transformation_task.py
+
+def add_noise_pritam(signal, noise_amount=0.001):
+    """Adding noise"""
+    noise = np.random.normal(0, noise_amount, signal.shape[0])
+    noised_signal = signal + noise
+    return noised_signal
+
+
+def add_noise_with_SNR_pritam(signal, noise_amount=15):
+    """
+    adding noise
+    created using: https://stackoverflow.com/a/53688043/10700812
+    """
+
+    target_snr_db = noise_amount  # 15
+    x_watts = signal ** 2  # Calculate signal power and convert to dB
+    sig_avg_watts = np.mean(x_watts)
+    sig_avg_db = 10 * np.log10(sig_avg_watts)  # Calculate noise then convert to watts
+    noise_avg_db = sig_avg_db - target_snr_db
+    noise_avg_watts = 10 ** (noise_avg_db / 10)
+    mean_noise = 0
+    noise_volts = np.random.normal(mean_noise, np.sqrt(noise_avg_watts),
+                                   len(x_watts))  # Generate an sample of white noise
+    noised_signal = signal + noise_volts  # noise added signal
+
+    return noised_signal
+
+
+def scaled_pritam(signal, factor=1.1):
+    """Scale the signal"""
+    if factor is None:
+        factor = np.random.uniform(0.8, 1.2)
+    scaled_signal = signal * factor
+    return scaled_signal
+
+def negate_pritam(signal):
+    """
+    negate the signal
+    """
+    negated_signal = signal * (-1)
+    return negated_signal
+
+
+def hor_flip_pritam(signal):
+    """
+    flipped horizontally
+    """
+    hor_flipped = np.flip(signal)
+    return hor_flipped
+
+def permute_segments_pritam(signal, pieces=20):
+    """
+    Permute signal segments
+    signal: numpy array (window length,)
+    pieces: number of segments along time
+    """
+    pieces = int(np.ceil(signal.shape[0] / (signal.shape[0] // pieces)))
+    piece_length = int(signal.shape[0] // pieces)
+
+    sequence = list(range(0, pieces))
+    np.random.shuffle(sequence)
+
+    permuted_signal = np.reshape(
+        signal[:(signal.shape[0] // pieces * pieces)],
+        (pieces, piece_length)
+    ).tolist() + [signal[(signal.shape[0] // pieces * pieces):]]
+    permuted_signal = np.asarray(permuted_signal, dtype=object)[sequence]
+    permuted_signal = np.hstack(permuted_signal)
+
+    return permuted_signal
+
+def time_warp_pritam(signal, sampling_freq=1000, pieces=9, stretch_factor=1.05, squeeze_factor=0.95):
+    """
+    Time warp augmentation from Pritam's SSL-ECG
+    signal: numpy array (window length,)
+    sampling_freq: sampling frequency
+    pieces: number of segments along time
+    stretch_factor: factor to stretch segments
+    squeeze_factor: factor to squeeze segments: In the paper, they only state 1.05 for stretch but mention small changes
+    more useful (they do 1/1.05 which is approx 0.95)
+    """
+    total_time = signal.shape[0] / sampling_freq
+    segment_time = total_time / pieces
+    sequence = list(range(0, pieces))
+    stretch = np.random.choice(sequence, math.ceil(len(sequence) / 2), replace=False)
+    squeeze = list(set(sequence).difference(set(stretch)))
+    initialize = True
+
+    for i in sequence:
+        orig_signal = signal[int(i * np.floor(segment_time * sampling_freq)):
+                           int((i + 1) * np.floor(segment_time * sampling_freq))]
+        orig_signal = orig_signal.reshape(orig_signal.shape[0], 1)
+
+        if i in stretch:
+            output_shape = int(np.ceil(orig_signal.shape[0] * stretch_factor))
+            new_signal = cv2.resize(orig_signal, (1, output_shape), interpolation=cv2.INTER_LINEAR)
+            if initialize:
+                time_warped = new_signal
+                initialize = False
+            else:
+                time_warped = np.vstack((time_warped, new_signal))
+        elif i in squeeze:
+            output_shape = int(np.ceil(orig_signal.shape[0] * squeeze_factor))
+            new_signal = cv2.resize(orig_signal, (1, output_shape), interpolation=cv2.INTER_LINEAR)
+            if initialize:
+                time_warped = new_signal
+                initialize = False
+            else:
+                time_warped = np.vstack((time_warped, new_signal))
+
+    return time_warped.flatten()
+
+#__________________________________________________________
 
 AUGS = [
-    (add_noise_with_SNR, 1/6),
-    (random_scaling,     1/6),
-    (negate,             1/6),
-    (hor_flip,           1/6),
-    (permutation,        1/6),
-    (window_warp,        1/6),
+    (add_noise_with_SNR_pritam,      1/6),
+    (scaled_pritam ,                 1/6),
+    (negate_pritam,                  1/6),
+    (hor_flip_pritam,                1/6),
+    (permute_segments_pritam,        1/6),
+    (time_warp_pritam,               1/6),
 ]
 
 funcs, probs = zip(*AUGS)
@@ -174,8 +294,9 @@ def DataTransform(signal):
     # Important:
     # Based on the paper:
     # Contrastive Self-Supervised Learning for Stress Detection from ECG Data (BioEngineering, 2022)
-    # We first do time warping and then scaling which was their proposed augmentation for WESAD.
-    # Legacy code:
+    # Here we randomly sample two augmentations; the paper argues that time warping scaling performs best
+    # But we do not see this
+
     v1 = sample_augmented(v1); v1 = sample_augmented(v1)
     v2 = sample_augmented(v2); v2 = sample_augmented(v2)
 
@@ -195,7 +316,7 @@ class ECGEncoder(nn.Module):
     def __init__(
             self,
             input_channels=1,
-            dropout=0.3, #Actually we could also apply dropout 0.35 to align it with the implementation of the TSTCC?
+            dropout=0.3, #
             window=10_000,
             use_s3_layers=False,
             **kwargs,
@@ -349,6 +470,10 @@ class SimCLR(nn.Module):
 # ----------------------------------------------------------------------
 # NT-Xent Loss
 # ----------------------------------------------------------------------
+# We follow the recommendations
+# https://docs.lightly.ai/train/stable/methods/simclr.html
+# At least 256 and temperature set to 0.1
+
 class NTXentLoss(nn.Module):
     def __init__(self, batch_size:int, T:float=0.5):
         super().__init__()
