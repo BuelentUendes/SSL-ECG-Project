@@ -475,7 +475,7 @@ class SimCLR(nn.Module):
 # At least 256 and temperature set to 0.1
 
 class NTXentLoss(nn.Module):
-    def __init__(self, batch_size:int, T:float=0.5):
+    def __init__(self, batch_size:int, T:float=0.1):
         super().__init__()
         self.B, self.T = batch_size, T
         self.register_buffer("labels", torch.arange(batch_size).repeat(2))
