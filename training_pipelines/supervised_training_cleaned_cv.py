@@ -218,6 +218,10 @@ def run_supervised_model_with_cv_and_test(
         print(f"\nBest parameters: {best_params}")
         print(f"Best CV score: {best_cv_score:.4f}")
 
+    else:
+        print(f"Hyperparameter tuning is disabled. Run with default values")
+        print(default_best_params)
+        best_params = default_best_params
 
     # Train final model with best parameters on full training set
     print("Training final model on full training set...")
