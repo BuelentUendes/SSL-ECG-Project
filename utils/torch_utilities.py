@@ -946,6 +946,11 @@ def run_logistic_regression_with_gridsearch(
         'max_iter': [10_000],
     }
 
+    computational_analysis = {
+        "runtime": "n/a",
+        "peak memory (GB)": "n/a",
+    }
+
     if not disable_hyperparameter_tuning:
         if cv_splitter is not None:
             # Create base model for search
