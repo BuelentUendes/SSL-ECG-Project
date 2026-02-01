@@ -263,7 +263,8 @@ def main(
                 X_train_all, y_train_all, groups_train_all,
                 X_test, y_test, feature_names, cv_splitter, True, seed,
                 disable_hyperparameter_tuning=disable_hyperparameter_tuning,
-                classifier_model=classifier_model
+                classifier_model=classifier_model,
+                results_save_path=results_save_path,
             )
 
     elif classifier_model == "mlp":

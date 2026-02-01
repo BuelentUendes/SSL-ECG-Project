@@ -4,6 +4,7 @@ from pathlib import Path
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 import os
+import json
 import random
 import time
 import tracemalloc # For tracking the computational costs
@@ -43,6 +44,8 @@ from mlflow.tracking import MlflowClient
 
 from models.supervised import LinearClassifier, MLPClassifier
 import warnings
+
+from utils.helper_paths import RESULTS_PATH
 
 warnings.filterwarnings('ignore')
 
@@ -879,7 +882,9 @@ def run_logistic_regression_with_gridsearch(
         disable_hyperparameter_tuning=False,
         search_type='grid',
         n_iter=50,
-        scoring_metric="roc_auc", classifier_model="logistic_regression"
+        scoring_metric="roc_auc",
+        classifier_model="logistic_regression",
+        results_save_path=RESULTS_PATH,
 ):
     """Run GridSearchCV or RandomizedSearchCV for Logistic Regression, then evaluate on test set.
     
@@ -1042,6 +1047,11 @@ def run_logistic_regression_with_gridsearch(
         best_cv_score = None
         cv_results = None
 
+        computational_analysis = {
+            "runtime": round(fit_runtime, 4),
+            "peak memory (GB)": round(peak_memory_gb,4),
+        }
+
         print(f"Peak memory allocated: {peak_memory_gb:.4f} GB")
         print(f"Run time: {fit_runtime} seconds")
 
@@ -1057,6 +1067,10 @@ def run_logistic_regression_with_gridsearch(
     test_auroc = roc_auc_score(y_test, y_test_proba)
     test_f1 = f1_score(y_test, y_test_pred)
     test_pr_auc = average_precision_score(y_test, y_test_proba)
+
+    # Save the results for peak memory time and compute requirements
+    with open(os.path.join(results_save_path, "computational_cost_analysis.json"), "w") as f:
+        json.dump(computational_analysis , f, indent=2)
 
     print(f"\n=== Test Set Results ===")
     print(f"Test Accuracy: {test_acc:.4f}")
