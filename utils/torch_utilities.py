@@ -6,6 +6,7 @@ os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 import os
 import random
 import time
+import tracemalloc # For tracking the computational costs
 import warnings
 import numpy as np
 import h5py
@@ -873,7 +874,11 @@ def safe_roc_auc(y_true, y_pred):
 
 def run_logistic_regression_with_gridsearch(
         X_train, y_train, groups_train, X_test, y_test, feature_names, cv_splitter, 
-        standardize=False, seed=42, search_type='grid', n_iter=50,
+        standardize=False,
+        seed=42,
+        disable_hyperparameter_tuning=False,
+        search_type='grid',
+        n_iter=50,
         scoring_metric="roc_auc", classifier_model="logistic_regression"
 ):
     """Run GridSearchCV or RandomizedSearchCV for Logistic Regression, then evaluate on test set.
@@ -936,76 +941,109 @@ def run_logistic_regression_with_gridsearch(
         'max_iter': [10_000],
     }
 
-    if cv_splitter is not None:
-        # Create base model for search
-        if classifier_model == "logistic_regression":
-            base_model = LogisticRegression(random_state=seed, n_jobs=-1, solver="saga")
-        elif classifier_model == "random_forest":
-            base_model = RandomForestClassifier(random_state=seed, n_jobs=-1)
-        elif classifier_model == "xgboost":
-            base_model = xgb.XGBClassifier(n_jobs=-1, objective="binary:logistic")
+    if not disable_hyperparameter_tuning:
+        if cv_splitter is not None:
+            # Create base model for search
+            if classifier_model == "logistic_regression":
+                base_model = LogisticRegression(random_state=seed, n_jobs=-1, solver="saga")
+            elif classifier_model == "random_forest":
+                base_model = RandomForestClassifier(random_state=seed, n_jobs=-1)
+            elif classifier_model == "xgboost":
+                base_model = xgb.XGBClassifier(n_jobs=-1, objective="binary:logistic")
 
-        if search_type.lower() == 'random':
-            # RandomizedSearchCV with GroupKFold
-            search = RandomizedSearchCV(
-                estimator=base_model,
-                param_distributions=param_distributions,  # Use param_distributions for random search
-                n_iter=n_iter,
-                cv=cv_splitter,
-                scoring=scoring_metric,  # Use AUROC as the scoring metric
-                n_jobs=-1,
-                verbose=3,
-                random_state=seed
-            )
-            print(f"Running RandomizedSearchCV with {n_iter} iterations...")
+            if search_type.lower() == 'random':
+                # RandomizedSearchCV with GroupKFold
+                search = RandomizedSearchCV(
+                    estimator=base_model,
+                    param_distributions=param_distributions,  # Use param_distributions for random search
+                    n_iter=n_iter,
+                    cv=cv_splitter,
+                    scoring=scoring_metric,  # Use AUROC as the scoring metric
+                    n_jobs=-1,
+                    verbose=3,
+                    random_state=seed
+                )
+                print(f"Running RandomizedSearchCV with {n_iter} iterations...")
+            else:
+                # GridSearchCV with GroupKFold (default)
+                search = GridSearchCV(
+                    estimator=base_model,
+                    param_grid=model_param_grid[classifier_model],
+                    cv=cv_splitter,
+                    scoring=scoring_metric,  # Use AUROC as the scoring metric
+                    n_jobs=-1,
+                    verbose=3,
+                )
+                print("Running GridSearchCV...")
+
+            # Fit search (this does CV internally)
+            # Get the time here:
+            tracemalloc.start()
+            fit_start_time = time.time()
+            search.fit(X_train, y_train, groups=groups_train)
+            # Calculate runtime to fit lr including the hyperparameter tuning
+            fit_runtime = time.time() - fit_start_time
+            # Get peak memory
+            current, peak = tracemalloc.get_traced_memory()
+            tracemalloc.stop()
+            peak_memory_gb = peak / (1024 ** 3)
+
+            print(f"Peak memory allocated: {peak_memory_gb:.4f} GB")
+            print(f"Run time: {fit_runtime} seconds")
+            print(f"Best parameters: {search.best_params_}")
+            print(f"Best CV score {scoring_metric.capitalize()}: {search.best_score_:.4f}")
+
+            # Get the best model (already trained on full training set)
+            cv_results = search.cv_results_
+            best_model = search.best_estimator_
+            best_params = search.best_params_
+            best_cv_score = search.best_score_
+
         else:
-            # GridSearchCV with GroupKFold (default)
-            search = GridSearchCV(
-                estimator=base_model,
-                param_grid=model_param_grid[classifier_model],
-                cv=cv_splitter,
-                scoring=scoring_metric,  # Use AUROC as the scoring metric
-                n_jobs=-1,
-                verbose=3,
-            )
-            print("Running GridSearchCV...")
+            # Use default best parameters when cv_splitter is None
+            print("cv_splitter is None (single participant). Using default best parameters...")
+            print(f"Default parameters: { model_default_param_grid[classifier_model]}")
 
-        # Fit search (this does CV internally)
-        # Get the time here:
-        fit_start_time = time.time()
-        search.fit(X_train, y_train, groups=groups_train)
-        # Calculate runtime to fit lr including the hyperparameter tuning
-        fit_runtime = time.time() - fit_start_time
-        print(f"Run time: {fit_runtime} seconds")
-        print(f"Best parameters: {search.best_params_}")
-        print(f"Best CV score {scoring_metric.capitalize()}: {search.best_score_:.4f}")
+            if classifier_model == "logistic_regression":
+                best_model = LogisticRegression(**model_default_param_grid[classifier_model])
+            elif classifier_model == "random_forest":
+                best_model = RandomForestClassifier(** model_default_param_grid[classifier_model])
+            elif classifier_model == "xgboost":
+                best_model = xgb.XGBClassifier(**model_default_param_grid[classifier_model])
 
-        # Get the best model (already trained on full training set)
-        cv_results = search.cv_results_
-        best_model = search.best_estimator_
-        best_params = search.best_params_
-        best_cv_score = search.best_score_
+            fit_start_time = time.time()
+            best_model.fit(X_train, y_train)
+            # Calculate runtime to fit lr including the hyperparameter tuning
+            fit_runtime = time.time() - fit_start_time
 
+            best_params =  model_default_param_grid[classifier_model]
+            best_cv_score = None
+            cv_results = None
     else:
-        # Use default best parameters when cv_splitter is None
-        print("cv_splitter is None (single participant). Using default best parameters...")
-        print(f"Default parameters: { model_default_param_grid[classifier_model]}")
-
+        print(f"We disabled the hyperparameter tuning")
         if classifier_model == "logistic_regression":
             best_model = LogisticRegression(**model_default_param_grid[classifier_model])
         elif classifier_model == "random_forest":
-            best_model = RandomForestClassifier(** model_default_param_grid[classifier_model])
+            best_model = RandomForestClassifier(**model_default_param_grid[classifier_model])
         elif classifier_model == "xgboost":
             best_model = xgb.XGBClassifier(**model_default_param_grid[classifier_model])
 
+        tracemalloc.start()
         fit_start_time = time.time()
         best_model.fit(X_train, y_train)
         # Calculate runtime to fit lr including the hyperparameter tuning
         fit_runtime = time.time() - fit_start_time
 
-        best_params =  model_default_param_grid[classifier_model]
+        current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        peak_memory_gb = peak / (1024 ** 3)
+
+        best_params = model_default_param_grid[classifier_model]
         best_cv_score = None
         cv_results = None
+
+        print(f"Peak memory allocated: {peak_memory_gb:.4f} GB")
+        print(f"Run time: {fit_runtime} seconds")
 
     # Evaluate on test set
     y_test_proba = best_model.predict_proba(X_test)[:, 1]
@@ -1041,6 +1079,7 @@ def run_logistic_regression_with_gridsearch(
         'model': best_model,
         'scaler': scaler,
         'runtime (seconds)': fit_runtime,
+
     }
 
 

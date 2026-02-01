@@ -106,6 +106,7 @@ def main(
         window_size: int,
         step_size: int,
         classifier_epochs: int,
+        disable_hyperparameter_tuning: bool,
         label_fraction: float,
         k_folds: int = 5,
         min_participants_for_kfold: int = 5,
@@ -254,13 +255,14 @@ def main(
         if verbose:
             results = run_logistic_regression_with_gridsearch_verbose(
                 X_train_all, y_train_all, groups_train_all, X_test, y_test,
-                feature_names, cv_splitter, True, seed
+                feature_names, cv_splitter, True, seed,
             )
 
         else:
             results = run_logistic_regression_with_gridsearch(
                 X_train_all, y_train_all, groups_train_all,
                 X_test, y_test, feature_names, cv_splitter, True, seed,
+                disable_hyperparameter_tuning=disable_hyperparameter_tuning,
                 classifier_model=classifier_model
             )
 
@@ -331,6 +333,8 @@ if __name__ == "__main__":
     parser.add_argument("--step_size", type=int, default=10)
     parser.add_argument("--classifier_epochs", type=int, default=25)
     parser.add_argument("--label_fraction", type=float, default=0.01)
+    parser.add_argument("--disable_hyperparameter_tuning", action="store_true",
+                        help="If set, we do not use hyperparameter_tuning and we use default lr and dropout rates")
     parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
     parser.add_argument("--min_participants_for_kfold", type=int, default=5,
                         help="Minimum participants needed for k-fold (otherwise use Leave one participant out)")
