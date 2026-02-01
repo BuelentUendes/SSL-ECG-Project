@@ -2,14 +2,11 @@
 import os
 import json
 import argparse
-import logging
 import gc
 
 import numpy as np
 import pandas as pd
 import torch
-import mlflow
-import mlflow.pytorch
 
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -102,7 +99,6 @@ def handle_missing_data(data, drop_values=True, verbose=True):
             return df
 
 def main(
-        mlflow_tracking_uri: str,
         fs: str,
         gpu: int,
         seed: int,
@@ -128,14 +124,6 @@ def main(
     else:
         device = torch.device("cpu")
 
-    logging.basicConfig(level=logging.INFO)
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
-    mlflow.set_experiment("Baseline Classifiers CV")
-
-    # Start top‑level run
-    run = mlflow.start_run(run_name=f"cv_{classifier_model}_{seed}_lf_{label_fraction}")
-    run_id = run.info.run_id
-    logging.info(f"MLflow run_id: {run_id}")
     print(f"Using device: {device}")
 
     # Check if directory for saving results exist
@@ -270,23 +258,11 @@ def main(
             )
 
         else:
-            #ToDo: Rename the function here
             results = run_logistic_regression_with_gridsearch(
                 X_train_all, y_train_all, groups_train_all,
                 X_test, y_test, feature_names, cv_splitter, True, seed,
                 classifier_model=classifier_model
             )
-
-        # Log metrics
-        mlflow.log_metrics({
-            "best_cv_auroc": results['best_cv_score'] if cv_splitter is not None else 0,
-            "test_accuracy": results['test_metrics']['accuracy'],
-            "test_auroc": results['test_metrics']['auroc'],
-            "test_f1": results['test_metrics']['f1'],
-            "test_pr_auc": results['test_metrics']['pr_auc'],
-        })
-
-        mlflow.log_params(results['best_params'])
 
     elif classifier_model == "mlp":
         results = run_mlp_with_cv_and_test(
@@ -294,17 +270,6 @@ def main(
             X_test, y_test, feature_names, cv_splitter,
             device, classifier_epochs, seed
         )
-
-        # Log metrics
-        mlflow.log_metrics({
-            "best_cv_auroc": results['best_cv_score'],
-            "test_accuracy": results['test_metrics']['accuracy'],
-            "test_auroc": results['test_metrics']['auroc'],
-            "test_f1": results['test_metrics']['f1'],
-            "test_pr_auc": results['test_metrics']['pr_auc'],
-        })
-
-        mlflow.log_params(results['best_params'])
 
     if zero_shot_evaluation:
         # Load the best-trained model and scaler
@@ -346,29 +311,17 @@ def main(
     with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
-    # Log parameters
-    mlflow.log_params({
-        "classifier_model": classifier_model,
-        "label_fraction": label_fraction,
-        "seed": seed,
-        "k_folds": k_folds,
-        "n_cv_splits": n_splits,
-        "window_size": window_size,
-    })
-
     # ── Cleanup ────────────────────────────────────────────────────────────────
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    mlflow.end_run()
+    # mlflow.end_run()
     print(f"=== Cross-Validation Complete! Results saved to {results_save_path} ===")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Baseline Classifier CV Pipeline")
-    parser.add_argument("--mlflow_tracking_uri",
-                        default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     parser.add_argument("--fs", default=1000, type=str, help="Sample frequency")
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
@@ -390,6 +343,5 @@ if __name__ == "__main__":
                                  choices=("stressid", "wesad"), default="wesad")
 
     args = parser.parse_args()
-
 
     main(**vars(args))
