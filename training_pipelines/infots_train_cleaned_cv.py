@@ -218,11 +218,6 @@ def main(
         # Load data for encoder pretraining
         X_train_encoder = X[train_idx_encoder].astype(np.float32)
 
-        # The InfoTS has some labelled data for the classification task
-        supervised_meta = True
-        if supervised_meta:
-            y_train_encoder = y[train_idx_encoder].astype(np.float32)
-
         infots = InfoTS(
             input_dims=n_features,
             output_dims=infots_output_dims,
@@ -251,10 +246,10 @@ def main(
             X_train_encoder,
             n_epochs=infots_epochs,
             verbose=True,
-            supervised_meta=supervised_meta, # Set to True
+            supervised_meta=False,
             batch_size=infots_batch_size,
             results_save_path=results_save_path,
-            train_labels=y_train_encoder if supervised_meta else None# InfoTS uses unsupervised meta-learning by default
+            train_labels=None# InfoTS uses unsupervised meta-learning by default
         )
 
         # Save model
