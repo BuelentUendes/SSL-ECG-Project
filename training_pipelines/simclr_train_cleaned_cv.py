@@ -362,6 +362,7 @@ def main(
                 "temperature": temperature,
                 "batch_size": batch_size,
                 "tstcc_encoder_used": use_tstcc_encoder,
+                "epochs": epochs,
             },
             "CV score": results['best_cv_score'], #Criterion for checking the performance and selecting best hyperparameter set
             "Test_metrics": results["test_metrics"],
