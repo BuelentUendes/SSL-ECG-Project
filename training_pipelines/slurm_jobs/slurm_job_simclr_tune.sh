@@ -49,15 +49,16 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 simclr_train_cleaned_cv.py --seed $1 --epochs 20 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.2
-python3 simclr_train_cleaned_cv.py --seed $1 --epochs 20 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.1
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 20 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.5
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.1
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.2
+
 
 # Command to run the job
-#  for SEED in 3 5 7 9 42; do
+#  for SEED in 42; do
 #      sbatch --job-name=ECG_SimCLR_seed_${SEED} \
 #             --output=ecg_simclr_${SEED}_%j.out \
 #             --error=ecg_simclr_${SEED}_%j.err \
-#             --begin=20:00 \
 #             --time=12:00:00 \
 #             ./slurm_jobs/slurm_job_simclr_tune.sh $SEED
 #  done
