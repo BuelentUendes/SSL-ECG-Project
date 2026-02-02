@@ -34,7 +34,6 @@ from models.tstcc import (
     TC,
     Config as ECGConfig,
     encode_representations,
-    optimize_tstcc_hyperparameters,
 )
 
 
