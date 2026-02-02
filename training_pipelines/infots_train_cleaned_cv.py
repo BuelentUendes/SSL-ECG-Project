@@ -410,7 +410,7 @@ if __name__ == "__main__":
                              help="Learning rate for InfoTS encoder training")
     infots_group.add_argument("--infots_meta_lr", type=float, default=0.01,
                              help="Learning rate for InfoTS meta-learner")
-    infots_group.add_argument("--infots_batch_size", type=int, default=16,
+    infots_group.add_argument("--infots_batch_size", type=int, default=32,
                              help="Batch size for InfoTS training")
     infots_group.add_argument("--infots_output_dims", type=int, default=320,
                              help="InfoTS representation dimension")
