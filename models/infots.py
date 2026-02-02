@@ -692,7 +692,7 @@ class InfoTS:
             valid_dataset=None,
             miverbose=None,
             split_number=8,
-            meta_epoch=1,
+            meta_epoch=2,
             meta_beta=1.0,
             train_labels=None,
             batch_size=32,
@@ -840,7 +840,7 @@ class InfoTS:
     def meta_fit(self, train_loader, meta_optimizer, meta_beta, supervised_meta, cls_optimizer):
         pre_flag = self._net.training
         self._net.eval()
-        
+
         for batch in train_loader:
             x = batch[0][0]
             y = batch[1][0]
@@ -849,11 +849,15 @@ class InfoTS:
                 window_offset = np.random.randint(x.size(1) - self.max_train_length + 1)
                 x = x[:, window_offset: window_offset + self.max_train_length]
             x = x.to(self.device)
-            
+
+            # Get actual batch size from data
+            actual_batch_size = x.size(0)
+
             if supervised_meta:
                 y = y.to(self.device)
             else:
-                y = torch.arange(self.batch_size, dtype=torch.int64).to(self.device)
+                # Use actual batch size instead of self.batch_size
+                y = torch.arange(actual_batch_size, dtype=torch.int64).to(self.device)
 
             meta_optimizer.zero_grad()
             cls_optimizer.zero_grad()
