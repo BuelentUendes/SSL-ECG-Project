@@ -6,6 +6,9 @@ import numpy as np
 import json
 import os
 
+# Configure matplotlib to use Arial font -> BSPC has Times New Roman
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['font.sans-serif'] = ['Times New Roman']
 
 def load_ssl_runtime_data(results_base_path="results/ECG"):
     """Load actual runtime and memory data from JSON files.
@@ -20,13 +23,16 @@ def load_ssl_runtime_data(results_base_path="results/ECG"):
     # Available methods and their common seeds
     methods_seeds = {
         "TSTCC": [3, 5, 7, 9, 42],
-        "TSTCC_S3": [3, 5, 7, 9, 42], 
+        "TSTCC_S3": [3, 5, 7, 9, 42],
         "SimCLR": [3, 5, 7, 9, 42],
         "SimCLR_S3": [3, 5, 7, 9, 42],
         "TS2Vec": [3, 5, 7, 9, 42],
         "TS2Vec_S3": [3, 5, 7, 9, 42],
         "InfoTS": [3, 5, 7, 9, 42],
-        "InfoTS_S3": [3, 5, 7, 9, 42]
+        "InfoTS_S3": [3, 5, 7, 9, 42],
+        "cnn": [100, 101, 102, 103, 104],
+        "transformer": [100, 101, 102, 103, 104],
+        "tcn": [100, 101, 102, 103, 104],
     }
     
     # Convert methods to match the expected naming convention
@@ -38,7 +44,10 @@ def load_ssl_runtime_data(results_base_path="results/ECG"):
         "TS2Vec": "TS2Vec",
         "TS2Vec_S3": "TS2Vec+S3",
         "InfoTS": "InfoTS",
-        "InfoTS_S3": "InfoTS+S3"
+        "InfoTS_S3": "InfoTS+S3",
+        "cnn": "CNN",
+        "tcn": "TCN",
+        "transformer": "Transformer",
     }
     
     ssl_results = {}
@@ -48,7 +57,10 @@ def load_ssl_runtime_data(results_base_path="results/ECG"):
         
         for seed in seeds:
             # Construct the path to the JSON files
-            base_path = os.path.join(RESULTS_PATH, "ECG", method, "logistic_regression", str(seed), "0.1", "10", "5", "1.0")
+            if method not in ["cnn", "transformer", "tcn"]:
+                base_path = os.path.join(RESULTS_PATH, "ECG", method, "logistic_regression", str(seed), "0.1", "10", "5", "1.0")
+            else:
+                base_path = os.path.join(RESULTS_PATH, "ECG", "Supervised", method, str(seed), "0.1", "10", "5")
 
             memory_file = os.path.join(base_path, "peak_memory_consumption_epochs.json")
             runtime_file = os.path.join(base_path, "runtime_per_epoch.json")
@@ -134,12 +146,19 @@ def create_ssl_runtime_plot(legend_style='in_labels', save_path=None, figsize=(1
         auroc_list = []
         
         # Try to load from multiple seeds
-        seeds = [3, 5, 7, 9, 42]
+        seeds = [3, 5, 7, 9, 42, 100, 101, 102, 103, 104]
         for seed in seeds:
-            results_file = os.path.join(
-                RESULTS_PATH, "ECG", method_key, "logistic_regression", str(seed),
-                str(label_fraction), "10", "5", "1.0", "test_results.json"
-            )
+            if method.lower() not in ["cnn", "transformer", "tcn"]:
+                results_file = os.path.join(
+                    RESULTS_PATH, "ECG", method_key, "logistic_regression", str(seed),
+                    str(label_fraction), "10", "5", "1.0", "test_results.json"
+                )
+
+            else:
+                results_file = os.path.join(
+                    RESULTS_PATH, "ECG", "Supervised", method_key.lower(), str(seed),
+                    str(label_fraction), "10", "5", "test_results.json"
+                )
 
             if os.path.exists(results_file):
                 try:
@@ -189,7 +208,10 @@ def create_ssl_runtime_plot(legend_style='in_labels', save_path=None, figsize=(1
             'TS2Vec': '#D2B48C',  # Light tan/beige
             'TS2Vec+S3': '#944D0F',  # Darker brown
             'InfoTS': '#EBB952',  # Light orange/gold
-            'InfoTS+S3': '#F08D00'  # Darker orange
+            'InfoTS+S3': '#F08D00',  # Darker orange
+            'CNN': '#666666',
+            'TCN':'#7570b3',
+            'Transformer': '#1b9e77',
         }
 
         # Create scatter plot with bubble sizes proportional to memory consumption
@@ -234,7 +256,7 @@ def create_ssl_runtime_plot(legend_style='in_labels', save_path=None, figsize=(1
                 'InfoTS+S3': (-100, -60)
             }
             
-            offset_x, offset_y = offset_map.get(method, (25, 25))
+            offset_x, offset_y = offset_map.get(method, (10, 10))
             
             ax.annotate(label_text, (x, y),
                         xytext=(offset_x, offset_y), textcoords='offset points',
@@ -242,8 +264,11 @@ def create_ssl_runtime_plot(legend_style='in_labels', save_path=None, figsize=(1
                         color=color)
 
         # Customize the plot
-        ax.set_xlabel('Runtime per Epoch (seconds)', fontsize=20)
-        ax.set_ylabel('AUROC', fontsize=20)
+        ax.set_xlabel('Runtime per Epoch (seconds)', fontsize=24)
+        # ax.set_ylabel('AUROC', fontsize=20)
+        # ax.set_ylim(0.45, 0.80)  # Set for decimal AUROC values (0.0 to 1.0)
+        ax.set_ylabel('AUROC',  fontsize=24, rotation=0, ha="left", va="center")
+        ax.yaxis.set_label_coords(-0.3, 0.995)
         ax.set_ylim(0.45, 0.80)  # Set for decimal AUROC values (0.0 to 1.0)
 
         # Set tick label font sizes
@@ -308,8 +333,9 @@ def create_ssl_runtime_plot(legend_style='in_labels', save_path=None, figsize=(1
             plt.tight_layout()
 
         # Save the plots
-        save_name_pdf = 'ssl_runtime_analysis.pdf'
-        save_name_png = 'ssl_runtime_analysis.png'
+
+        save_name_pdf = 'ssl_runtime_analysis_supervised.pdf' if "CNN" in ssl_data.items() else 'ssl_runtime_analysis_supervised.pdf'
+        save_name_png = 'ssl_runtime_analysis_supervised.png' if "CNN" in ssl_data.items() else 'ssl_runtime_analysis_supervised.png'
         if save_path:
             # Save with proper bbox handling for external legends
             save_kwargs = {'dpi': 500, 'bbox_inches': 'tight', 'facecolor': 'white'}
