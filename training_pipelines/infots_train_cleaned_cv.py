@@ -415,11 +415,11 @@ if __name__ == "__main__":
                              help="Learning rate for InfoTS encoder training")
     infots_group.add_argument("--infots_meta_lr", type=float, default=0.01,
                              help="Learning rate for InfoTS meta-learner")
-    infots_group.add_argument("--infots_batch_size", type=int, default=16, #Code says 16, I had 32
+    infots_group.add_argument("--infots_batch_size", type=int, default=16,
                              help="Batch size for InfoTS training")
     infots_group.add_argument("--infots_output_dims", type=int, default=320,
                              help="InfoTS representation dimension")
-    infots_group.add_argument("--infots_hidden_dims", type=int, default=64, #Code says 60, we had 64
+    infots_group.add_argument("--infots_hidden_dims", type=int, default=64,
                              help="InfoTS hidden dimension")
     infots_group.add_argument("--infots_depth", type=int, default=10,
                              help="InfoTS depth (# dilated conv blocks)")
