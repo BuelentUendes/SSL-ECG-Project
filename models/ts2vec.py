@@ -324,6 +324,7 @@ class TSEncoder(nn.Module):
             hidden_dims=64,
             depth=10,
             mask_mode='binomial',
+            ts2vec_masking_prob=0.5,
             use_s3_layers=False,
             num_s3_layers=2,
             initial_num_segments=2,
@@ -334,6 +335,7 @@ class TSEncoder(nn.Module):
         self.output_dims = output_dims
         self.hidden_dims = hidden_dims
         self.mask_mode = mask_mode
+        self.ts2vec_masking_prob = ts2vec_masking_prob
         self.use_s3_layers = use_s3_layers
 
         if use_s3_layers:
@@ -369,7 +371,7 @@ class TSEncoder(nn.Module):
                 mask = 'all_true'
         
         if mask == 'binomial':
-            mask = generate_binomial_mask(x.size(0), x.size(1)).to(x.device)
+            mask = generate_binomial_mask(x.size(0), x.size(1), p=self.ts2vec_masking_prob).to(x.device)
         elif mask == 'continuous':
             mask = generate_continuous_mask(x.size(0), x.size(1)).to(x.device)
         elif mask == 'all_true':
@@ -447,6 +449,7 @@ class TS2Vec:
         batch_size=16,
         max_train_length=None,
         temporal_unit=0,
+        ts2vec_masking_prob=0.5,
         use_s3_layers=False,
         initial_num_segments=2,
         num_s3_layers=2,
@@ -482,6 +485,7 @@ class TS2Vec:
         self.batch_size = batch_size
         self.max_train_length = max_train_length
         self.temporal_unit = temporal_unit
+        self.ts2vec_masking_prob = ts2vec_masking_prob
         self.use_s3_layers = use_s3_layers
         self.num_s3_layers = num_s3_layers
         self.initial_num_segments = initial_num_segments
@@ -495,6 +499,7 @@ class TS2Vec:
             num_s3_layers=num_s3_layers,
             initial_num_segments=initial_num_segments,
             segment_multiplier=segment_multiplier,
+            ts2vec_masking_prob=ts2vec_masking_prob,
             depth=depth).to(self.device)
 
         self.net = torch.optim.swa_utils.AveragedModel(self._net)
