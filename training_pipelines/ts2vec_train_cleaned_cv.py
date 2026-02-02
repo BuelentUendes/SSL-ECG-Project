@@ -46,6 +46,7 @@ def main(
         ts2vec_depth: int,
         ts2vec_max_train_length: int,
         ts2vec_temporal_unit: int,
+        ts2vec_masking_prob: float,
         use_s3_layers: bool,
         initial_num_segments: int,
         num_s3_layers: int,
@@ -177,6 +178,7 @@ def main(
             batch_size=ts2vec_batch_size,
             max_train_length=ts2vec_max_train_length,
             temporal_unit=ts2vec_temporal_unit,
+            ts2vec_masking_prob=ts2vec_masking_prob,
             use_s3_layers=use_s3_layers,
             initial_num_segments=initial_num_segments,
             num_s3_layers=num_s3_layers,
@@ -207,6 +209,7 @@ def main(
             batch_size=ts2vec_batch_size,
             max_train_length=ts2vec_max_train_length,
             temporal_unit=ts2vec_temporal_unit,
+            ts2vec_masking_prob=ts2vec_masking_prob,
             use_s3_layers=use_s3_layers,
             initial_num_segments=initial_num_segments,
             num_s3_layers=num_s3_layers,
@@ -392,6 +395,8 @@ if __name__ == "__main__":
                              help="TS2Vec max training length")
     ts2vec_group.add_argument("--ts2vec_temporal_unit", type=int, default=3,
                              help="TS2Vec temporal unit for hierarchical pooling")
+    ts2vec_group.add_argument("--ts2vec_masking_prob", type=float, default=0.5,
+                              help="Masking probability for random masking augmentation")
 
     # Adding the S3 layers if needed with default parameters as specified in the paper
     ts2vec_group.add_argument("--use_s3_layers", action="store_true",
