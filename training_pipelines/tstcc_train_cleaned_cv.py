@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os
-import datetime
+from datetime import datetime
 import json
 import argparse
 import logging
