@@ -49,6 +49,19 @@ from utils.helper_paths import RESULTS_PATH
 
 warnings.filterwarnings('ignore')
 
+
+def return_track_data_file(filename):
+    # Load or initialize track data set
+    if os.path.exists(filename):
+        with open(filename, "r") as f:
+            data = json.load(f)
+    else:
+        data = {}
+
+    data.setdefault("runs", {})
+
+    return data
+
 def run_time(start_time, end_time):
     elapsed_time = end_time - start_time
     elapsed_mins = int(elapsed_time / 60)
