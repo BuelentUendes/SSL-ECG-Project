@@ -305,6 +305,7 @@ def main(
 
         hyperparameter_save_file["runs"][run_id] = {
             "hyperparameters": ts2vec.to_config_dict(),
+            "Loss log": loss_log[-5:],
             "CV score": results['best_cv_score'],
             "Test_metrics": results["test_metrics"],
             "timestamp": datetime.now().isoformat(),
