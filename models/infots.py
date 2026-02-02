@@ -242,15 +242,20 @@ class InfoTSAugmentation(nn.Module):
         factor = torch.normal(2.0, sigma, size=(x.size(0), 1, x.size(2))).to(x.device)
         return x * factor
 
-    def _totensor(x):
-        return torch.from_numpy(x).type(torch.FloatTensor).cuda()
-
     def _time_warp(self, x):
-        warp_transform = tsaug.TimeWarp(n_speed_change=100, max_speed_ratio=10)
-        x_np = x.cpu().detach().numpy()
-        x_tran = warp_transform.transform.augment(x_np)
+        """Apply time warping augmentation using tsaug"""
+        try:
+            warp_transform = tsaug.TimeWarp(n_speed_change=100, max_speed_ratio=10)
+            x_np = x.cpu().detach().numpy()
+            x_tran = warp_transform.augment(x_np)
 
-        return self._totensor(x_tran.astype(np.float32))
+            # Convert back to tensor on the same device as input
+            x_warped = torch.from_numpy(x_tran.astype(np.float32)).to(x.device)
+            return x_warped
+        except Exception as e:
+            # If tsaug fails, return original input
+            print(f"TimeWarp augmentation failed: {e}, returning original")
+            return x.clone()
 
     # def _time_warp(self, x, sigma=0.2):
     #     """Simple time warping by interpolation"""
@@ -360,8 +365,10 @@ class InfoTSAugmentation(nn.Module):
         x, t = xt
         if self.aug_p1 == 0 and self.aug_p2 == 0:
             return x.clone(), x.clone()
-        
-        para = self.get_sampling()
+
+        # CRITICAL FIX: Pass temperature t to enable annealing (2.0 -> 0.1)
+        # This is described in the paper but not implemented here
+        para = self.get_sampling(temperature=t)
 
         if random.random() > self.aug_p1 and self.training:
             aug1 = x.clone()
@@ -425,7 +432,7 @@ class InfoTSAugmentation(nn.Module):
         return aug1, aug2
 
 # --------------------------------------------------------
-# InfoTS Encoder - adapted from InfoTS but using ECG-friendly architecture
+# InfoTS Encoder
 # --------------------------------------------------------
 def generate_continuous_mask(B, T, n=5, l=0.1):
     res = torch.full((B, T), True, dtype=torch.bool)
@@ -570,7 +577,7 @@ class InfoTS:
         self,
         input_dims,
         output_dims=320,
-        hidden_dims=60,
+        hidden_dims=64,
         num_cls=2,
         depth=10,
         device='cuda',
@@ -621,6 +628,7 @@ class InfoTS:
         self.BCE = torch.nn.BCEWithLogitsLoss()
         self.cls_lr = meta_lr
         self.eval_every_epoch = eval_every_epoch
+        # This is temperature annealing as done starting from 2.0 to 0.1 at the end
         self.t0 = 2.0
         self.t1 = 0.1
         
@@ -674,9 +682,19 @@ class InfoTS:
         out2 = self._net(a2)
         return out1, out2
 
-    def fit(self, train_data, n_epochs=None, n_iters=None, verbose=True,
-            supervised_meta=True, beta=1.0, valid_dataset=None, miverbose=None, 
-            split_number=8, meta_epoch=2, meta_beta=1.0, train_labels=None,
+    def fit(self,
+            train_data,
+            n_epochs=None,
+            n_iters=None,
+            verbose=True,
+            supervised_meta=True,
+            beta=1.0,
+            valid_dataset=None,
+            miverbose=None,
+            split_number=8,
+            meta_epoch=1,
+            meta_beta=1.0,
+            train_labels=None,
             batch_size=32,
             results_save_path=RESULTS_PATH):
         
@@ -693,9 +711,13 @@ class InfoTS:
             train_labels = TensorDataset(torch.from_numpy(train_labels).to(torch.long).to(self.device))
             cls_optimizer = torch.optim.AdamW(self.pred.parameters(), lr=self.cls_lr)
 
-        train_data_label = []
-        for i in range(len(train_dataset)):
-            train_data_label.append([train_dataset[i], train_labels[i]])
+        # Old code
+        # train_data_label = []
+        # for i in range(len(train_dataset)):
+        #     train_data_label.append([train_dataset[i], train_labels[i]])
+        #
+        # Faster pairing using zip instead of list iteration
+        train_data_label = list(zip(train_dataset, train_labels))
 
         train_data_label_loader = DataLoader(
             train_data_label, 
@@ -918,6 +940,37 @@ class InfoTS:
     def load(self, fn):
         state_dict = torch.load(fn, map_location=self.device)
         self.net.load_state_dict(state_dict)
+
+    def to_config_dict(self):
+        return {
+            # Core model params
+            "model": "InfoTS",
+            "input_dims": self._net.input_dims if hasattr(self._net, "input_dims") else None,
+            "output_dims": self._net.output_dims if hasattr(self._net, "output_dims") else None,
+            "hidden_dims": self._net.hidden_dims if hasattr(self._net, "hidden_dims") else None,
+            "depth": self._net.depth if hasattr(self._net, "depth") else None,
+            "num_cls": self.pred.out_features if self.pred is not None else None,
+
+            # Training / device
+            "lr": self.lr,
+            "meta_lr": self.meta_lr,
+            "batch_size": self.batch_size,
+            "max_train_length": self.max_train_length,
+            "eval_every_epoch": self.eval_every_epoch,
+
+            # Augmentation / masking
+            "mask_mode": getattr(self._net, "mask_mode", None),
+            "dropout": getattr(self._net, "dropout", None),
+            "aug_p1": getattr(self.aug, "aug_p1", None),
+            "aug_p2": getattr(self.aug, "aug_p2", None),
+
+            # S3
+            "use_s3_layers": getattr(self._net, "use_s3_layers", None),
+
+            # Meta / loss behavior
+            "t0": self.t0,
+            "t1": self.t1,
+        }
 
 # --------------------------------------------------------
 # Utility functions for InfoTS integration
