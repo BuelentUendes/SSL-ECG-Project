@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 import os
+import datetime
 import json
 import argparse
 import logging
 import tempfile
 import gc
+import uuid
 
 import numpy as np
 import torch
@@ -12,6 +14,7 @@ import torch.optim as optim
 
 from utils.torch_utilities import (
     load_processed_data,
+    return_track_data_file,
     split_indices_by_participant_groups,
     set_seed,
     create_directory,
@@ -223,6 +226,7 @@ def main(
     torch.cuda.empty_cache()
     set_seed(seed)
 
+    #ToDo: Here we can reuse the model structure! -> I just need to change the model save path!
     model_file_name = "tstcc.pt" if tcc_batch_size == 128 else f"tstcc_{tcc_batch_size}.pt"
 
     # Check if we have a locally saved model and no forced retraining
@@ -258,54 +262,11 @@ def main(
         print("No cached encoder; training TS-TCC from scratch")
 
         if optimize_hyperparameters:
-            print("=== Hyperparameter Optimization Mode ===")
-            # Prepare data for hyperparameter optimization
-            Xtr = X[train_idx_encoder].astype(np.float32)
-            Xva = X[val_idx_encoder].astype(np.float32)
-            ytr = y[train_idx_encoder]
-            yva = y[val_idx_encoder]
-            groups_va = groups_val_idx_encoder
-
-            # Base configuration for hyperparameter optimization
-            base_config = {
-                'tcc_batch_size': tcc_batch_size,
-                'tcc_lr': tcc_lr,
-                'tc_timesteps': tc_timesteps,
-                'tc_hidden_dim': tc_hidden_dim,
-                'cc_temperature': cc_temperature,
-                'cc_use_cosine': cc_use_cosine,
-                "use_s3_layers": use_s3_layers,
-                "initial_num_segments": initial_num_segments,
-                "num_s3_layers": num_s3_layers,
-                "segment_multiplier": segment_multiplier,
-            }
-
-            # Run hyperparameter optimization
-            hp_results = optimize_tstcc_hyperparameters(
-                Xtr, ytr, Xva, yva, groups_va,
-                device, fs, window_size, base_config,
-                n_trials=hp_n_trials, n_epochs_hp=hp_n_epochs, seed=seed,
-                search_type=hp_search_type
+            # Generate random id for experiment tracking
+            run_id = str(uuid.uuid4())
+            hyperparameter_file_name = os.path.join(
+                results_save_path, "hyperparameter_tuning_results.json"
             )
-
-            # Log hyperparameter optimization results locally
-            print(f"Hyperparameter optimization completed with best score: {hp_results['best_score']:.4f}")
-            print(f"Best hyperparameters: {hp_results['best_params']}")
-
-            # Use the best hyperparameters to train final model with full epochs
-            print(f"Training final model with best hyperparameters: {hp_results['best_params']}")
-            jitter_ratio = hp_results['best_params']['jitter_ratio']
-            jitter_scale_ratio = hp_results['best_params']['jitter_scale_ratio']
-            max_segment = hp_results['best_params']['max_segment']
-
-            initial_num_segments = hp_results['best_params']["initial_num_segments"]
-            num_s3_layers = hp_results["best_params"]["num_s3_layers"]
-            segment_multiplier = hp_results["best_params"]["segment_multiplier"]
-
-            # Save hyperparameter optimization results
-            hp_results_path = os.path.join(results_save_path, "hyperparameter_optimization.json")
-            with open(hp_results_path, "w") as f:
-                json.dump(hp_results, f, indent=2, default=str)
 
         cfg = ECGConfig(fs, window_size)
         cfg.num_epoch = tcc_epochs
@@ -364,7 +325,10 @@ def main(
         )
 
         #IMPORTANT:
-        model_file_name = "tstcc.pt" if tcc_batch_size == 128 else f"tstcc_{tcc_batch_size}.pt"
+        if optimize_hyperparameters:
+            model_file_name = "tstcc_hyperparameter.pt" if tcc_batch_size == 128 else f"tstcc_hyperparameter_{tcc_batch_size}.pt"
+        else:
+            model_file_name = "tstcc.pt" if tcc_batch_size == 128 else f"tstcc_{tcc_batch_size}.pt"
 
         ckpt = os.path.join(workdir, model_file_name)
         torch.save(
@@ -441,10 +405,6 @@ def main(
 
         # Log metrics locally
         print(f"Best CV AUROC: {results['best_cv_score'] if cv_splitter is not None else 0:.4f}")
-        print(f"Test metrics - Accuracy: {results['test_metrics']['accuracy']:.4f}, "
-              f"AUROC: {results['test_metrics']['auroc']:.4f}, F1: {results['test_metrics']['f1']:.4f}, "
-              f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}")
-        print(f"Best hyperparameters: {results['best_params']}")
 
     else:
         results = run_mlp_with_cv_and_test(
@@ -455,10 +415,23 @@ def main(
 
         # Log metrics locally
         print(f"Best CV AUROC: {results['best_cv_score']:.4f}")
-        print(f"Test metrics - Accuracy: {results['test_metrics']['accuracy']:.4f}, "
-              f"AUROC: {results['test_metrics']['auroc']:.4f}, F1: {results['test_metrics']['f1']:.4f}, "
-              f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}")
-        print(f"Best hyperparameters: {results['best_params']}")
+
+    print(f"Test metrics - Accuracy: {results['test_metrics']['accuracy']:.4f}, "
+          f"AUROC: {results['test_metrics']['auroc']:.4f}, F1: {results['test_metrics']['f1']:.4f}, "
+          f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}")
+
+    if optimize_hyperparameters:
+        hyperparameter_save_file = return_track_data_file(hyperparameter_file_name)
+
+        hyperparameter_save_file["runs"][run_id] = {
+            "hyperparameters": cfg.to_dict(),
+            "CV score": results['best_cv_score'],
+            "Test_metrics": results["test_metrics"],
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        with open(hyperparameter_file_name, "w") as f:
+            json.dump(hyperparameter_save_file, f, indent=4)
 
     if zero_shot_evaluation:
         # Load the best-trained model
