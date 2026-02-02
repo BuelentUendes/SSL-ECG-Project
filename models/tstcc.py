@@ -761,7 +761,6 @@ def Trainer(
     with open(os.path.join(results_save_path, run_time_save_name), "w") as f:
         json.dump(epoch_runtimes, f, indent=2)
 
-
     if torch.cuda.is_available():
         with open(os.path.join(results_save_path, peak_memory_save_name), "w") as f:
             json.dump(epoch_peak_memory, f, indent=2)
@@ -867,6 +866,27 @@ def model_evaluate(model, temporal_contr_model,
 
     return torch.tensor(val_losses).mean(), torch.nan, [], []
 
+
+# Helper function to write to str
+def config_to_dict(obj):
+    if isinstance(obj, (int, float, str, bool)) or obj is None:
+        return obj
+
+    if isinstance(obj, dict):
+        return {k: config_to_dict(v) for k, v in obj.items()}
+
+    if isinstance(obj, (list, tuple)):
+        return [config_to_dict(v) for v in obj]
+
+    if hasattr(obj, "__dict__"):
+        return {
+            k: config_to_dict(v)
+            for k, v in obj.__dict__.items()
+            if not k.startswith("_")
+        }
+
+    return str(obj)
+
 # ----------------------------------------------------------------------
 # config.py
 # ----------------------------------------------------------------------
@@ -932,6 +952,9 @@ class Config(object):
         self.initial_num_segments = 2 # We need many more
         self.shuffle_vector_dim = 1
         self.segment_multiplier = 2
+
+    def to_dict(self):
+        return config_to_dict(self)
 
 
 class PPGConfig(object):
