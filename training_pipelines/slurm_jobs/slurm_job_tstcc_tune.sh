@@ -49,12 +49,12 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --timesteps 50 --jitter_scale_ratio 0.001 --temperature 0.2
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --timesteps 50 --jitter_scale_ratio 0.001 --temperature 0.1
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --timesteps 100 --jitter_scale_ratio 0.001 --temperature 0.1
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --timesteps 50 --jitter_scale_ratio 0.01 --temperature 0.2
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --timesteps 50 --jitter_scale_ratio 0.01 --temperature 0.1
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --timesteps 100 --jitter_scale_ratio 0.01 --temperature 0.1
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 50 --jitter_scale_ratio 0.001 --cc_temperature 0.2
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 50 --jitter_scale_ratio 0.001 --cc_temperature 0.1
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 100 --jitter_scale_ratio 0.001 --cc_temperature 0.1
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 50 --jitter_scale_ratio 0.01 --cc_temperature 0.2
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 50 --jitter_scale_ratio 0.01 --cc_temperature 0.1
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 100 --jitter_scale_ratio 0.01 --cc_temperature 0.1
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.01
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.025
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.05
@@ -67,7 +67,6 @@ python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1
 #      sbatch --job-name=ECG_TSTCC_seed_${SEED} \
 #             --output=ecg_tstcc_${SEED}_%j.out \
 #             --error=ecg_tstcc_${SEED}_%j.err \
-#             --begin=20:00 \
 #             --time=24:00:00 \
 #             ./slurm_jobs/slurm_job_tstcc_tune.sh $SEED
 #  done
