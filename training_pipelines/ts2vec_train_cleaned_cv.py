@@ -1,15 +1,18 @@
 #!/usr/bin/env python
 import os
+from datetime import datetime
 import json
 import argparse
 import logging
 import gc
+import uuid
 
 import numpy as np
 import torch
 
 from utils.torch_utilities import (
     load_processed_data,
+    return_track_data_file,
     split_indices_by_participant_groups,
     set_seed,
     create_directory,
@@ -47,6 +50,7 @@ def main(
         initial_num_segments: int,
         num_s3_layers: int,
         segment_multiplier: int,
+        optimize_hyperparameters: bool,
         classifier_model: str,
         classifier_epochs: int,
         classifier_lr: float,
@@ -159,7 +163,7 @@ def main(
     set_seed(seed)
 
     # Check if we have a locally saved model and no forced retraining
-    if os.path.exists(os.path.join(model_save_path, "ts2vec_model.pt")) and not force_retraining:
+    if os.path.exists(os.path.join(model_save_path, "ts2vec_model.pt")) and not force_retraining and not optimize_hyperparameters:
         print("We found a pretrained model. Load the pretrained weights")
         model_path = os.path.join(model_save_path, "ts2vec_model.pt")
 
@@ -182,6 +186,13 @@ def main(
 
     else:
         print("No cached encoder; training TS2Vec from scratch")
+
+        if optimize_hyperparameters:
+            # Generate random id for experiment tracking
+            run_id = str(uuid.uuid4())
+            hyperparameter_file_name = os.path.join(
+                results_save_path, "hyperparameter_tuning_results.json"
+            )
 
         # Load data for encoder pretraining
         X_train_encoder = X[train_idx_encoder].astype(np.float32)
@@ -213,7 +224,11 @@ def main(
         )
 
         # Save model
-        saved_results = os.path.join(model_save_path, "ts2vec_model.pt")
+        if optimize_hyperparameters:
+            saved_results = os.path.join(model_save_path, "ts2vec_model_hyperparameter.pt")
+        else:
+            saved_results = os.path.join(model_save_path, "ts2vec_model.pt")
+
         torch.save(ts2vec.net, saved_results)
 
     # ── Step 3: Extract Representations ─────────────────────────────────────────
@@ -283,6 +298,21 @@ def main(
         print(f"Best hyperparameters: {results['best_params']}")
 
     # ── Step 6: Save Results ────────────────────────────────────────────────────
+
+    # Track hyperparameter results:
+    if optimize_hyperparameters:
+        hyperparameter_save_file = return_track_data_file(hyperparameter_file_name)
+
+        hyperparameter_save_file["runs"][run_id] = {
+            "hyperparameters": ts2vec.to_config_dict(),
+            "CV score": results['best_cv_score'],
+            "Test_metrics": results["test_metrics"],
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        with open(hyperparameter_file_name, "w") as f:
+            json.dump(hyperparameter_save_file, f, indent=4)
+
     with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
@@ -368,6 +398,14 @@ if __name__ == "__main__":
     ts2vec_group.add_argument("--initial_num_segments", type=int, default=2)
     ts2vec_group.add_argument("--num_s3_layers", type=int, default=2)
     ts2vec_group.add_argument("--segment_multiplier", type=int, default=1)
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Hyperparameter Optimization Configuration
+    # ══════════════════════════════════════════════════════════════════════════════
+    hp_group = parser.add_argument_group('Hyperparameter Optimization')
+    hp_group.add_argument("--optimize_hyperparameters", action="store_true",
+                         help="Enable hyperparameter optimization for TS2Vec augmentation parameters."
+                              "It basically saves the run of the CV validation so we can retrieve it later.")
 
     # ══════════════════════════════════════════════════════════════════════════════
     # Downstream Classifier Configuration
