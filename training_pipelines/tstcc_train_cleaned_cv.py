@@ -76,9 +76,6 @@ def main(
         verbose: bool = False,
         scoring_metric: str = "roc_auc",
         optimize_hyperparameters: bool = False,
-        hp_n_trials: int = 20,
-        hp_n_epochs: int = 10,
-        hp_search_type: str = "random",
         zero_shot_evaluation: bool = False,
         zero_shot_dataset: str = "wesad",
 ):
@@ -226,11 +223,10 @@ def main(
     torch.cuda.empty_cache()
     set_seed(seed)
 
-    #ToDo: Here we can reuse the model structure! -> I just need to change the model save path!
     model_file_name = "tstcc.pt" if tcc_batch_size == 128 else f"tstcc_{tcc_batch_size}.pt"
 
     # Check if we have a locally saved model and no forced retraining
-    if os.path.exists(os.path.join(model_save_path, model_file_name)) and not force_retraining:
+    if os.path.exists(os.path.join(model_save_path, model_file_name)) and not force_retraining and not optimize_hyperparameters:
         print("We found a pretrained model. Load the pretrained weights")
         ckpt_path = os.path.join(model_save_path, model_file_name)
 
@@ -579,13 +575,6 @@ if __name__ == "__main__":
     hp_group = parser.add_argument_group('Hyperparameter Optimization')
     hp_group.add_argument("--optimize_hyperparameters", action="store_true",
                          help="Enable hyperparameter optimization for TSTCC augmentation parameters")
-    hp_group.add_argument("--hp_n_trials", type=int, default=30,
-                         help="Number of trials for hyperparameter optimization")
-    hp_group.add_argument("--hp_n_epochs", type=int, default=15,
-                         help="Number of epochs for each hyperparameter optimization trial")
-    hp_group.add_argument("--hp_search_type", type=str, default="grid",
-                         choices=["random", "grid"],
-                         help="Search strategy: 'random' for random search, 'grid' for grid search")
 
     # ══════════════════════════════════════════════════════════════════════════════
     # Zero-shot classification
