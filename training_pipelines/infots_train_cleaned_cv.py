@@ -1,15 +1,18 @@
 #!/usr/bin/env python
 import os
+from datetime import datetime
 import json
 import argparse
 import logging
 import gc
+import uuid
 
 import numpy as np
 import torch
 
 from utils.torch_utilities import (
     load_processed_data,
+    return_track_data_file,
     split_indices_by_participant_groups,
     set_seed,
     create_directory,
@@ -56,9 +59,6 @@ def main(
         verbose: bool = False,
         scoring_metric: str = "roc_auc",
         optimize_hyperparameters: bool = False,
-        hp_n_trials: int = 20,
-        hp_n_epochs: int = 10,
-        hp_search_type: str = "random",
         use_s3_layers: bool = False,
         num_s3_layers: int = 2,
         initial_num_segments: int = 2,
@@ -174,11 +174,13 @@ def main(
     torch.cuda.empty_cache()
     set_seed(seed)
 
-    # We save the weights differently depending on the batch size for the experiments later for the ablation study
-    model_save_name = "infots_model.pt" if infots_batch_size == 32 else f"infots_model_{infots_batch_size}.pt"
+    if optimize_hyperparameters:
+        model_save_name = "infots_model.pt"
+    else:
+        model_save_name = "infots_model_hyperparameter.pt"
 
     # Check if we have a locally saved model and no forced retraining
-    if os.path.exists(os.path.join(model_save_path, model_save_name)) and not force_retraining:
+    if os.path.exists(os.path.join(model_save_path, model_save_name)) and not force_retraining and not optimize_hyperparameters:
         print("We found a pretrained model. Load the pretrained weights")
         model_path = os.path.join(model_save_path, model_save_name)
 
@@ -206,8 +208,20 @@ def main(
     else:
         print("No cached encoder; training InfoTS from scratch")
 
+        if optimize_hyperparameters:
+            # Generate random id for experiment tracking
+            run_id = str(uuid.uuid4())
+            hyperparameter_file_name = os.path.join(
+                results_save_path, "hyperparameter_tuning_results.json"
+            )
+
         # Load data for encoder pretraining
         X_train_encoder = X[train_idx_encoder].astype(np.float32)
+
+        # The InfoTS has some labelled data for the classification task
+        supervised_meta = True
+        if supervised_meta:
+            y_train_encoder = y[train_idx_encoder].astype(np.float32)
 
         infots = InfoTS(
             input_dims=n_features,
@@ -237,15 +251,13 @@ def main(
             X_train_encoder,
             n_epochs=infots_epochs,
             verbose=True,
-            supervised_meta=False,
+            supervised_meta=supervised_meta, # Set to True
             batch_size=infots_batch_size,
-            results_save_path=results_save_path, # InfoTS uses unsupervised meta-learning by default
+            results_save_path=results_save_path,
+            train_labels=y_train_encoder if supervised_meta else None# InfoTS uses unsupervised meta-learning by default
         )
 
         # Save model
-        # Save the model differently here depending on whether it was trained with batch size 8 or  not
-        model_save_name = "infots_model.pt" if infots_batch_size == 32 else f"infots_model_{infots_batch_size}.pt"
-
         saved_results = os.path.join(model_save_path, model_save_name)
         torch.save(infots.net, saved_results)
 
@@ -316,10 +328,23 @@ def main(
         print(f"Best hyperparameters: {results['best_params']}")
 
     # ── Step 6: Save Results ────────────────────────────────────────────────────
-    # Different save name for non-default batch size
-    test_result_name = "test_results.json" if infots_batch_size == 32 else f"test_results_{infots_batch_size}.json"
 
-    with open(os.path.join(results_save_path, test_result_name), "w") as f:
+    # Track hyperparameter results:
+    if optimize_hyperparameters:
+        hyperparameter_save_file = return_track_data_file(hyperparameter_file_name)
+
+        hyperparameter_save_file["runs"][run_id] = {
+            "hyperparameters": infots.to_config_dict(),
+            "training_loss (last 5 scores)": loss_log[-5:],
+            "CV score": results['best_cv_score'],
+            "Test_metrics": results["test_metrics"],
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        with open(hyperparameter_file_name, "w") as f:
+            json.dump(hyperparameter_save_file, f, indent=4)
+
+    with open(os.path.join(results_save_path, "test_results.json" ), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
     # Log additional parameters locally
@@ -390,11 +415,11 @@ if __name__ == "__main__":
                              help="Learning rate for InfoTS encoder training")
     infots_group.add_argument("--infots_meta_lr", type=float, default=0.01,
                              help="Learning rate for InfoTS meta-learner")
-    infots_group.add_argument("--infots_batch_size", type=int, default=32,
+    infots_group.add_argument("--infots_batch_size", type=int, default=16, #Code says 16, I had 32
                              help="Batch size for InfoTS training")
     infots_group.add_argument("--infots_output_dims", type=int, default=320,
                              help="InfoTS representation dimension")
-    infots_group.add_argument("--infots_hidden_dims", type=int, default=64,
+    infots_group.add_argument("--infots_hidden_dims", type=int, default=64, #Code says 60, we had 64
                              help="InfoTS hidden dimension")
     infots_group.add_argument("--infots_depth", type=int, default=10,
                              help="InfoTS depth (# dilated conv blocks)")
@@ -454,15 +479,9 @@ if __name__ == "__main__":
     # ══════════════════════════════════════════════════════════════════════════════
     hp_group = parser.add_argument_group('Hyperparameter Optimization')
     hp_group.add_argument("--optimize_hyperparameters", action="store_true",
-                         help="Enable hyperparameter optimization for InfoTS augmentation parameters")
-    hp_group.add_argument("--hp_n_trials", type=int, default=30,
-                         help="Number of trials for hyperparameter optimization")
-    hp_group.add_argument("--hp_n_epochs", type=int, default=10,
-                         help="Number of epochs for each hyperparameter optimization trial")
-    hp_group.add_argument("--hp_search_type", type=str, default="grid",
-                         choices=["random", "grid"],
-                         help="Search strategy: 'random' for random search, "
-                              "'grid' for grid search")
+                         help="Enable hyperparameter optimization for InfoTS augmentation parameters."
+                              "Due to high computational costs, we resort to grid-search based tuning, selected "
+                              "via the command-line arguments, for 20 epochs and 10% label fraction.")
 
     # Parse arguments and run main function
     args = parser.parse_args()
