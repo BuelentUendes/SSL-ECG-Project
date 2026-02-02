@@ -49,16 +49,16 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --ts2vec_masking_prob 0.5
+#python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --ts2vec_masking_prob 0.5
 python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --ts2vec_masking_prob 0.3
-python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --ts2vec_masking_prob 0.1
+#python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --ts2vec_masking_prob 0.1
 
 # Command to run the job
 #  for SEED in 42; do
-#      sbatch --job-name=ECG_TS2Vec_seed_${SEED} \
-#             --output=ecg_ts2vec_${SEED}_%j.out \
+#      sbatch --job-name=ECG_TS2Vec_0_3_seed_${SEED} \
+#             --output=ecg_ts2vec_0_3_${SEED}_%j.out \
 #             --time=60:00:00 \
-#             --error=ecg_ts2vec_${SEED}_%j.err \
+#             --error=ecg_ts2vec_0_3_${SEED}_%j.err \
 #             ./slurm_jobs/slurm_job_ts2vec_tune.sh $SEED
 #  done
 ##
