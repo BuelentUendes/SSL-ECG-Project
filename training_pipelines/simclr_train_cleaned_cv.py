@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 import os
+from datetime import datetime
 import time
 import json
 import argparse
 import logging
 import gc
+import uuid
 
 import numpy as np
 import torch
@@ -12,6 +14,7 @@ import torch.optim as optim
 
 from utils.torch_utilities import (
     load_processed_data,
+    return_track_data_file,
     split_indices_by_participant_groups,
     set_seed,
     create_directory,
@@ -51,6 +54,7 @@ def main(
         initial_num_segments: int,
         num_s3_layers: int,
         segment_multiplier: int,
+        optimize_hyperparameters: bool,
         classifier_model: str,
         classifier_epochs: int,
         classifier_lr: float,
@@ -194,16 +198,28 @@ def main(
         use_tstcc_encoder=use_tstcc_encoder,
     )
 
-    model_save_name_weights = "simclr_encoder.pt" if batch_size == 256 else f"simclr_encoder_{batch_size}.pt"
+    if optimize_hyperparameters:
+        model_save_name_weights = "simclr_encoder_hyperparameter.pt"
+    else:
+        model_save_name_weights = "simclr_encoder.pt" if batch_size == 256 else f"simclr_encoder_{batch_size}.pt"
 
     # Check for local pretrained model
-    if os.path.exists(os.path.join(model_save_path, model_save_name_weights)) and not force_retraining:
+    if (os.path.exists(os.path.join(model_save_path, model_save_name_weights)) and not force_retraining
+            and not optimize_hyperparameters):
+
         print("Found pretrained model. Loading weights...")
         model_path = os.path.join(model_save_path, model_save_name_weights)
         model.load_state_dict(torch.load(model_path, map_location=device))
 
     else:
         print(f"No cached encoder; training {model_name} from scratch")
+
+        if optimize_hyperparameters:
+            # Generate random id for experiment tracking
+            run_id = str(uuid.uuid4())
+            hyperparameter_file_name = os.path.join(
+                results_save_path, "hyperparameter_tuning_results.json"
+            )
 
         # Load data for encoder pretraining
         X_train_encoder = X[train_idx_encoder].astype(np.float32)
@@ -337,6 +353,24 @@ def main(
     # Different save name for non-default batch size
     test_result_name = "test_results.json" if batch_size == 256 else f"test_results_{batch_size}.json"
 
+    # Track hyperparameter results:
+    if optimize_hyperparameters:
+        hyperparameter_save_file = return_track_data_file(hyperparameter_file_name)
+
+        hyperparameter_save_file["runs"][run_id] = {
+            "hyperparameters": {
+                "temperature": temperature,
+                "batch_size": batch_size,
+                "tstcc_encoder_used": use_tstcc_encoder,
+            },
+            "CV score": results['best_cv_score'], #Criterion for checking the performance and selecting best hyperparameter set
+            "Test_metrics": results["test_metrics"],
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        with open(hyperparameter_file_name, "w") as f:
+            json.dump(hyperparameter_save_file, f, indent=4)
+
     with open(os.path.join(results_save_path, test_result_name), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
@@ -419,6 +453,15 @@ if __name__ == "__main__":
     simclr_group.add_argument("--initial_num_segments", type=int, default=2)
     simclr_group.add_argument("--num_s3_layers", type=int, default=2)
     simclr_group.add_argument("--segment_multiplier", type=int, default=1)
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Hyperparameter Optimization Configuration
+    # ══════════════════════════════════════════════════════════════════════════════
+    hp_group = parser.add_argument_group('Hyperparameter Optimization')
+    hp_group.add_argument("--optimize_hyperparameters", action="store_true",
+                         help="Enable hyperparameter optimization for SimCLR augmentation parameters."
+                              "It basically saves the run of the CV validation so we can retrieve it later."
+                              "We do due to compute costs grid-search based tuning.")
 
     # ══════════════════════════════════════════════════════════════════════════════
     # Downstream Classifier Configuration
