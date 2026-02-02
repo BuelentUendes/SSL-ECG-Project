@@ -286,7 +286,6 @@ funcs, probs = zip(*AUGS)
 
 def sample_augmented(x: np.ndarray) -> np.ndarray:
     idx = np.random.choice(len(funcs), p=probs)
-    print(idx)
     return funcs[idx](x)
 
 def DataTransform(signal):
