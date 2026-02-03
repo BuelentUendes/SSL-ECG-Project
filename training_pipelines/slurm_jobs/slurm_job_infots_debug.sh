@@ -49,7 +49,7 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 1 --label_fraction 0.1 --optimize_hyperparameters
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 1 --infots_batch_size 16 --label_fraction 0.1 --optimize_hyperparameters
 #python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.01
 #python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.025
 #python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.05
@@ -65,5 +65,5 @@ python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 1 --label_fraction 
 #             --error=ecg_infots_${SEED}_%j.err \
 #             ./slurm_jobs/slurm_job_infots_debug.sh $SEED
 #  done
-##
+#
 #             --begin=20:00 \
