@@ -50,16 +50,16 @@ EOF
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
 python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.1 --window_size 10 --step_size 5 --dataset "ours" --force_retraining
-#python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.01 --window_size 10 --step_size 5 --dataset "ours"
-#python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.025 --window_size 10 --step_size 5 --dataset "ours"
-#python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.05 --window_size 10 --step_size 5 --dataset "ours"
-#python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.25 --window_size 10 --step_size 5 --dataset "ours"
-#python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.5 --window_size 10 --step_size 5 --dataset "ours"
-#python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 1.0 --window_size 10 --step_size 5 --dataset "ours"
+python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.01 --window_size 10 --step_size 5 --dataset "ours"
+python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.025 --window_size 10 --step_size 5 --dataset "ours"
+python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.05 --window_size 10 --step_size 5 --dataset "ours"
+python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.25 --window_size 10 --step_size 5 --dataset "ours"
+python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.5 --window_size 10 --step_size 5 --dataset "ours"
+python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 1.0 --window_size 10 --step_size 5 --dataset "ours"
 
 # Command to run the job
-#  for SEED in 3 5 7 9 42; do
-#      sbatch --job-name=cnn_${SEED}_30_10 \
+#  for SEED in 42; do
+#      sbatch --job-name=cnn_${SEED}_10_5 \
 #             --output=ecg_cnn_10_5_${SEED}_%j.out \
 #             --error=ecg_cnn_10_5_${SEED}_%j.err \
 #             --begin=20:00 \
