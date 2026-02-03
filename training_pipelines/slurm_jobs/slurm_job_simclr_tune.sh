@@ -7,7 +7,7 @@
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_simclr_%j.out
 #SBATCH --error=ecg_simclr_%j.err
-#SBATCH -C A4000
+#SBATCH -C A5000
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -49,12 +49,11 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.5
 python3 simclr_train_cleaned_cv.py --seed $1 --epochs 20 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.3
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.1
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.2
 python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.3
-#python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.1
-#python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.2
-
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.5
 
 # Command to run the job
 #  for SEED in 42; do
