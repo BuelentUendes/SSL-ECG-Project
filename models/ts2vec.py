@@ -809,23 +809,6 @@ class TS2Vec:
         state_dict = torch.load(fn, map_location=self.device)
         self.net.load_state_dict(state_dict)
 
-    def to_config_dict(self):
-        return {
-            "input_dims": self._net.input_dims if hasattr(self._net, "input_dims") else None,
-            "output_dims": self._net.output_dims if hasattr(self._net, "output_dims") else None,
-            "hidden_dims": self._net.hidden_dims if hasattr(self._net, "hidden_dims") else None,
-            "depth": self._net.depth if hasattr(self._net, "depth") else None,
-            "device": self.device,
-            "lr": self.lr,
-            "batch_size": self.batch_size,
-            "max_train_length": self.max_train_length,
-            "temporal_unit": self.temporal_unit,
-            "use_s3_layers": self.use_s3_layers,
-            "initial_num_segments": self.initial_num_segments,
-            "num_s3_layers": self.num_s3_layers,
-            "segment_multiplier": self.segment_multiplier
-        }
-
 def find_best_threshold(probs: np.ndarray,
                        labels: np.ndarray, 
                        num_classes: int = 2,
