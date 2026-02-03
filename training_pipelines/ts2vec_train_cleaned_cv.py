@@ -307,7 +307,17 @@ def main(
         hyperparameter_save_file = return_track_data_file(hyperparameter_file_name)
 
         hyperparameter_save_file["runs"][run_id] = {
-            "hyperparameters": ts2vec.to_config_dict(),
+            "hyperparameters":
+                {
+                    "epochs": ts2vec_epochs,
+                    "lr": ts2vec_lr,
+                    "batch_size": ts2vec_batch_size,
+                    "output_dim": ts2vec_output_dims,
+                    "ts2vec_depth": ts2vec_depth,
+                    "ts2vec_max_train_length": ts2vec_max_train_length,
+                    "ts2vec_temporal_unit": ts2vec_temporal_unit,
+                    "ts2vec_masking_prob": ts2vec_masking_prob,
+                },
             "Loss log": loss_log[-5:],
             "CV score": results['best_cv_score'],
             "Test_metrics": results["test_metrics"],
@@ -379,7 +389,7 @@ if __name__ == "__main__":
     # TS2Vec Encoder Training
     # ══════════════════════════════════════════════════════════════════════════════
     ts2vec_group = parser.add_argument_group('TS2Vec Encoder Training')
-    ts2vec_group.add_argument("--ts2vec_epochs", type=int, default=50,
+    ts2vec_group.add_argument("--ts2vec_epochs", type=int, default=40,
                              help="Number of epochs for TS2Vec pretraining")
     ts2vec_group.add_argument("--ts2vec_lr", type=float, default=0.001,
                              help="Learning rate for TS2Vec training")
