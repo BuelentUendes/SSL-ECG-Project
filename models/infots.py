@@ -233,13 +233,14 @@ class InfoTSAugmentation(nn.Module):
             lambda x: self._window_warp(x)
         ]
 
-    def _jitter(self, x, sigma=0.001):
-        """Add Gaussian noise"""
-        return x + torch.randn_like(x) * sigma
+    def _jitter(self, x, sigma=0.3):
+        "Adds random noise"
+        # https://arxiv.org/pdf/1706.00527.pdf
+        return x + torch.normal(mean=0., std=sigma, size=x.shape).to(x.device)
 
-    def _scaling(self, x, sigma=0.001):
+    def _scaling(self, x, sigma=0.5):
         """Scale the time series"""
-        factor = torch.normal(2.0, sigma, size=(x.size(0), 1, x.size(2))).to(x.device)
+        factor = torch.normal(1.0, sigma, size=(x.size(0), 1, x.size(2))).to(x.device)
         return x * factor
 
     def _time_warp(self, x):
@@ -257,36 +258,27 @@ class InfoTSAugmentation(nn.Module):
             print(f"TimeWarp augmentation failed: {e}, returning original")
             return x.clone()
 
-    # def _time_warp(self, x, sigma=0.2):
-    #     """Simple time warping by interpolation"""
-    #     orig_steps = torch.arange(x.size(1), dtype=torch.float32).to(x.device)
-    #     random_warps = torch.normal(1.0, sigma, size=(x.size(0), 1)).to(x.device)
-    #     warped_steps = orig_steps * random_warps
-    #     warped_steps = torch.clamp(warped_steps, 0, x.size(1) - 1)
-    #
-    #     # Simple linear interpolation
-    #     indices = warped_steps.long()
-    #     weights = warped_steps - indices.float()
-    #     indices_next = torch.clamp(indices + 1, max=x.size(1) - 1)
-    #
-    #     warped = x[:, indices] * (1 - weights).unsqueeze(-1) + x[:, indices_next] * weights.unsqueeze(-1)
-    #     return warped
-
-    def _window_slice(self, x, reduce_ratio=0.5):
+    def _window_slice(self, x, reduce_ratio=0.5, diff_len=True):
         """Randomly slice a window and pad to original length"""
-        original_len = x.size(1)
-        target_len = int(original_len * reduce_ratio)
-        start = torch.randint(0, original_len - target_len + 1, (1,)).item()
-        
-        # Extract slice and pad back to original length
-        sliced = x[:, start:start + target_len]
-        pad_len = original_len - target_len
-        pad_left = pad_len // 2
-        pad_right = pad_len - pad_left
-        
-        # Pad with zeros or repeat edge values
-        padded = F.pad(sliced, (0, 0, pad_left, pad_right), mode='constant', value=0)
-        return padded
+        x = torch.transpose(x,2,1)
+
+        target_len = np.ceil(reduce_ratio * x.shape[2]).astype(int)
+        if target_len >= x.shape[2]:
+            return torch.transpose(x, 2, 1)  # transpose back before returning
+
+        if diff_len:
+            starts = np.random.randint(low=0, high=x.shape[2] - target_len, size=(x.shape[0])).astype(int)
+            ends = (target_len + starts).astype(int)
+            croped_x =  torch.stack([x[i, :, starts[i]:ends[i]] for i in range(x.shape[0])],0)
+
+        else:
+            start = np.random.randint(low=0, high=x.shape[2] - target_len)
+            end  = target_len+start
+            croped_x = x[:, :, start:end]
+
+        ret = F.interpolate(croped_x, x.shape[2], mode='linear',align_corners=False)
+        ret = torch.transpose(ret,2,1)
+        return ret
 
     def _subsequence(self, x):
         """Extract random subsequence and zero out the rest"""
@@ -303,48 +295,48 @@ class InfoTSAugmentation(nn.Module):
         new_ts[:, end:, :] = 0.0
         return new_ts
 
-    # This needs to be replaced
-    # def _subsequence(self, x, reduce_ratio=0.95):
-    #     """Extract random subsequence and pad to original length"""
-    #     original_len = x.size(1)
-    #     target_len = int(original_len * reduce_ratio)
-    #     start = torch.randint(0, original_len - target_len + 1, (1,)).item()
-    #
-    #     # Extract subsequence and pad back to original length
-    #     subseq = x[:, start:start + target_len]
-    #     pad_len = original_len - target_len
-    #     pad_left = pad_len // 2
-    #     pad_right = pad_len - pad_left
-    #
-    #     # Pad with zero values to maintain signal characteristics
-    #     padded = F.pad(subseq, (0, 0, pad_left, pad_right), mode='constant', value=0)
-    #     return padded
-
-    def _cutout(self, x, area_ratio=0.1):
+    def _cutout(self, x, perc=0.1):
         """Randomly mask part of the signal"""
-        x_masked = x.clone()
         seq_len = x.size(1)
-        mask_len = int(seq_len * area_ratio)
-        
-        for i in range(x.size(0)):
-            start = torch.randint(0, seq_len - mask_len + 1, (1,)).item()
-            x_masked[i, start:start + mask_len] = 0
-        return x_masked
+        new_ts = x.clone()
+        win_len = int(perc * seq_len)
+        start = np.random.randint(0, seq_len - win_len - 1)
+        end = start + win_len
+        start = max(0, start)
+        end = min(end, seq_len)
+        new_ts[:, start:end, :] = 0.0
+        return new_ts
 
     def _window_warp(self, x, window_ratio=0.3, scales=[0.5, 2.]):
-        """Warp random windows"""
-        x_warped = x.clone()
-        seq_len = x.size(1)
-        window_len = int(seq_len * window_ratio)
-        
-        for i in range(x.size(0)):
-            start = torch.randint(0, seq_len - window_len + 1, (1,)).item()
-            scale = random.choice(scales)
-            window = x_warped[i, start:start + window_len]
-            
-            # Simple scaling as warping
-            x_warped[i, start:start + window_len] = window * scale
-        return x_warped
+        """Warp random windows by stretching/compressing in time"""
+        # x shape: (batch, seq_len, n_dim)
+        B, T, D = x.size()
+        x = x.transpose(1, 2)  # -> (batch, n_dim, seq_len)
+
+        warp_scales = np.random.choice(scales, B)
+        warp_size = int(np.ceil(window_ratio * T))
+        window_starts = np.random.randint(low=1, high=T - warp_size - 1, size=(B,)).astype(int)
+        window_ends = (window_starts + warp_size).astype(int)
+
+        rets = []
+        for i in range(B):
+            # Extract window and warp it
+            window_seg = x[i, :, window_starts[i]:window_ends[i]].unsqueeze(0)
+            warped_len = int(warp_size * warp_scales[i])
+            window_seg_inter = F.interpolate(window_seg, warped_len, mode='linear', align_corners=False)[0]
+
+            # Concatenate: before + warped + after
+            start_seg = x[i, :, :window_starts[i]]
+            end_seg = x[i, :, window_ends[i]:]
+            ret_i = torch.cat([start_seg, window_seg_inter, end_seg], dim=-1)
+
+            # Interpolate back to original length
+            ret_i_inter = F.interpolate(ret_i.unsqueeze(0), T, mode='linear', align_corners=False)
+            rets.append(ret_i_inter)
+
+        ret = torch.cat(rets, dim=0)
+        ret = ret.transpose(1, 2)  # -> (batch, seq_len, n_dim)
+        return ret
 
     def get_sampling(self, temperature=1.0, bias=0.0):
         if self.training:
