@@ -52,9 +52,10 @@ echo "=== GPU Test Completed ==="
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 50 --jitter_scale_ratio 0.001 --cc_temperature 0.2
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 50 --jitter_scale_ratio 0.001 --cc_temperature 0.1
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 100 --jitter_scale_ratio 0.001 --cc_temperature 0.1
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 50 --jitter_scale_ratio 0.01 --cc_temperature 0.2
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 50 --jitter_scale_ratio 0.01 --cc_temperature 0.1
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 100 --jitter_scale_ratio 0.01 --cc_temperature 0.1
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.1 --optimize_hyperparameters
+#python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 50 --jitter_scale_ratio 0.01 --cc_temperature 0.1
+#python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 100 --jitter_scale_ratio 0.01 --cc_temperature 0.1
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.01
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.025
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.05
