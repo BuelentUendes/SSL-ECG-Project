@@ -175,9 +175,9 @@ def main(
     set_seed(seed)
 
     if optimize_hyperparameters:
-        model_save_name = "infots_model.pt"
-    else:
         model_save_name = "infots_model_hyperparameter.pt"
+    else:
+        model_save_name = "infots_model.pt"
 
     # Check if we have a locally saved model and no forced retraining
     if os.path.exists(os.path.join(model_save_path, model_save_name)) and not force_retraining and not optimize_hyperparameters:
@@ -483,5 +483,6 @@ if __name__ == "__main__":
 
     # Important:
     args.pretrain_all_conditions = True
+    args.seed = 12456
 
     main(**vars(args))
