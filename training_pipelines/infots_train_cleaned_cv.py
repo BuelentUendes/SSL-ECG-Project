@@ -483,6 +483,5 @@ if __name__ == "__main__":
 
     # Important:
     args.pretrain_all_conditions = True
-    args.seed = 12456
 
     main(**vars(args))
