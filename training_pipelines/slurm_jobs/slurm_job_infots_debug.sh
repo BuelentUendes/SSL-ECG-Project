@@ -49,7 +49,9 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 1 --infots_batch_size 16 --label_fraction 0.1 --optimize_hyperparameters
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 20 --infots_batch_size 16 --label_fraction 0.1 --optimize_hyperparameters --infots_aug_p1 0.2
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 20 --infots_batch_size 16 --label_fraction 0.1 --optimize_hyperparameters --infots_aug_p1 0.1
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 20 --infots_batch_size 16 --label_fraction 0.1 --optimize_hyperparameters --infots_aug_p1 0.3
 #python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.01
 #python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.025
 #python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.05
