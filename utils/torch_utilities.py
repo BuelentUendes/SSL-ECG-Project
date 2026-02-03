@@ -1022,6 +1022,22 @@ def run_logistic_regression_with_gridsearch(
             best_params = search.best_params_
             best_cv_score = search.best_score_
 
+            # Get out-of-fold predictions for threshold optimization
+            from sklearn.model_selection import cross_val_predict
+            y_train_proba_cv = cross_val_predict(
+                best_model, X_train, y_train,
+                cv=cv_splitter, groups=groups_train, method='predict_proba'
+            )[:, 1]
+
+            # Find optimal thresholds on CV predictions
+            thresholds = np.linspace(0.1, 0.9, 81)
+            optimal_thresh_bal_acc = max(thresholds, key=lambda t: balanced_accuracy_score(y_train, (
+                        y_train_proba_cv >= t).astype(int)))
+            optimal_thresh_f1 = max(thresholds, key=lambda t: f1_score(y_train, (y_train_proba_cv >= t).astype(int)))
+
+            print(f"Optimal threshold (balanced acc): {optimal_thresh_bal_acc:.2f}")
+            print(f"Optimal threshold (F1): {optimal_thresh_f1:.2f}")
+
         else:
             # Use default best parameters when cv_splitter is None
             print("cv_splitter is None (single participant). Using default best parameters...")
@@ -1042,6 +1058,9 @@ def run_logistic_regression_with_gridsearch(
             best_params =  model_default_param_grid[classifier_model]
             best_cv_score = None
             cv_results = None
+
+            optimal_thresh_bal_acc = 0.5
+            optimal_thresh_f1 = 0.5
     else:
         print(f"We disabled the hyperparameter tuning")
         if classifier_model == "logistic_regression":
@@ -1065,6 +1084,9 @@ def run_logistic_regression_with_gridsearch(
         best_cv_score = None
         cv_results = None
 
+        optimal_thresh_bal_acc = 0.5
+        optimal_thresh_f1 = 0.5
+
         computational_analysis = {
             "runtime": round(fit_runtime, 4),
             "peak memory (GB)": round(peak_memory_gb,4),
@@ -1076,19 +1098,25 @@ def run_logistic_regression_with_gridsearch(
     # Evaluate on test set
     y_test_proba = best_model.predict_proba(X_test)[:, 1]
     y_test_pred = best_model.predict(X_test)
+    y_test_pred_bal_opt = (y_test_proba >= optimal_thresh_bal_acc).astype(int)
+    y_test_pred_f1_opt = (y_test_proba >= optimal_thresh_f1).astype(int)
 
     print(f"The mean test prediction is {np.mean(y_test_pred)}, {y_test_pred}")
 
-    # Calculate test metrics
+    # Calculate test metrics (default threshold 0.5)
     test_acc = accuracy_score(y_test, y_test_pred)
     balanced_test_acc = balanced_accuracy_score(y_test, y_test_pred)
     test_auroc = roc_auc_score(y_test, y_test_proba)
     test_f1 = f1_score(y_test, y_test_pred)
     test_pr_auc = average_precision_score(y_test, y_test_proba)
 
-    # Save the results for peak memory time and compute requirements
-    with open(os.path.join(results_save_path, "computational_cost_analysis.json"), "w") as f:
-        json.dump(computational_analysis , f, indent=2)
+    # Calculate test metrics (optimized thresholds)
+    test_acc_bal_opt = accuracy_score(y_test, y_test_pred_bal_opt)
+    balanced_test_acc_bal_opt = balanced_accuracy_score(y_test, y_test_pred_bal_opt)
+    test_f1_bal_opt = f1_score(y_test, y_test_pred_bal_opt)
+    test_acc_f1_opt = accuracy_score(y_test, y_test_pred_f1_opt)
+    balanced_test_acc_f1_opt = balanced_accuracy_score(y_test, y_test_pred_f1_opt)
+    test_f1_f1_opt = f1_score(y_test, y_test_pred_f1_opt)
 
     print(f"\n=== Test Set Results ===")
     print(f"Test Accuracy: {test_acc:.4f}")
@@ -1096,22 +1124,36 @@ def run_logistic_regression_with_gridsearch(
     print(f"Test AUROC: {test_auroc:.4f}")
     print(f"Test F1: {test_f1:.4f}")
     print(f"Test PR-AUC: {test_pr_auc:.4f}")
+    print(f"\n=== Optimized Threshold Results ===")
+    print(
+        f"Bal Acc Opt (thresh={optimal_thresh_bal_acc:.2f}): Acc={test_acc_bal_opt:.4f}, BalAcc={balanced_test_acc_bal_opt:.4f}, F1={test_f1_bal_opt:.4f}")
+    print(
+        f"F1 Opt (thresh={optimal_thresh_f1:.2f}): Acc={test_acc_f1_opt:.4f}, BalAcc={balanced_test_acc_f1_opt:.4f}, F1={test_f1_f1_opt:.4f}")
 
     return {
         'best_params': best_params,
         'best_cv_score': best_cv_score,
         'cv_results': cv_results,
+        'optimal_thresholds': {
+            'balanced_accuracy': optimal_thresh_bal_acc,
+            'f1': optimal_thresh_f1,
+        },
         'test_metrics': {
             'accuracy': test_acc,
             'balanced_accuracy': balanced_test_acc,
             'auroc': test_auroc,
             'f1': test_f1,
-            'pr_auc': test_pr_auc
+            'pr_auc': test_pr_auc,
+            'accuracy_bal_opt': test_acc_bal_opt,
+            'balanced_accuracy_bal_opt': balanced_test_acc_bal_opt,
+            'f1_bal_opt': test_f1_bal_opt,
+            'accuracy_f1_opt': test_acc_f1_opt,
+            'balanced_accuracy_f1_opt': balanced_test_acc_f1_opt,
+            'f1_f1_opt': test_f1_f1_opt,
         },
         'model': best_model,
         'scaler': scaler,
         'runtime (seconds)': fit_runtime,
-
     }
 
 
