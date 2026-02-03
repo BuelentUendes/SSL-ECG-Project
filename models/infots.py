@@ -222,14 +222,14 @@ class InfoTSAugmentation(nn.Module):
         self.aug_p2 = aug_p2
 
     def _create_augmentations(self):
-        """Create augmentations as as defined in the InfoTS paper"""
+        """Create augmentations as defined in the InfoTS paper"""
         return [
-            lambda x: self._jitter(x, 0.3), #0.001 is uesd by TS-TCC
-            lambda x: self._scaling(x, 0.5), #0.001 is used by TS-TCC
-            lambda x: self._cutout(x), # 10% of the area will be replaced with 0
-            lambda x: self._time_warp(x), # random changes the speed of the timeline
-            lambda x: self._window_slice(x), #Window slice and subsequence are basically the same, as I do need to pad it anyways
             lambda x: self._subsequence(x),
+            lambda x: self._cutout(x),
+            lambda x: self._jitter(x, 0.3),
+            lambda x: self._scaling(x, 0.5),
+            lambda x: self._time_warp(x),
+            lambda x: self._window_slice(x),
             lambda x: self._window_warp(x)
         ]
 
