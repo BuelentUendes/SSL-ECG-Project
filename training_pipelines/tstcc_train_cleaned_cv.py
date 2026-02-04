@@ -53,7 +53,7 @@ def main(
         tc_timesteps: int,
         tc_hidden_dim: int,
         cc_temperature: float,
-        cc_use_cosine: bool,
+        cc_disable_cosine: bool,
         use_s3_layers: bool,
         initial_num_segments: int,
         num_s3_layers: int,
@@ -236,7 +236,7 @@ def main(
         cfg.TC.timesteps = tc_timesteps
         cfg.TC.hidden_dim = tc_hidden_dim
         cfg.Context_Cont.temperature = cc_temperature
-        cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
+        cfg.Context_Cont.use_cosine_similarity = False if cc_disable_cosine else True
         cfg.use_s3_layers = use_s3_layers
         cfg.initial_num_segments = initial_num_segments
         cfg.num_s3_layers = num_s3_layers
@@ -287,7 +287,7 @@ def main(
         cfg.TC.timesteps = tc_timesteps
         cfg.TC.hidden_dim = tc_hidden_dim
         cfg.Context_Cont.temperature = cc_temperature
-        cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
+        cfg.Context_Cont.use_cosine_similarity = False if cc_disable_cosine else True
 
         # data loaders
         Xtr = X[train_idx_encoder].astype(np.float32)
@@ -522,8 +522,8 @@ if __name__ == "__main__":
                                  help="Hidden dimension for temporal contrasting")
     tstcc_arch_group.add_argument("--cc_temperature", type=float, default=0.07,
                                  help="Temperature parameter for contrastive learning")
-    tstcc_arch_group.add_argument("--cc_use_cosine", action="store_true",
-                                 help="Use cosine similarity for contrastive learning")
+    tstcc_arch_group.add_argument("--cc_disable_cosine", action="store_true",
+                                 help="Disable cosine similarity for contrastive learning")
 
     tstcc_arch_group.add_argument("--use_s3_layers", action="store_true",
                                   help="If set, we use the S3 layer")
