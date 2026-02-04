@@ -56,6 +56,8 @@ python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 64 --tc_timesteps 10 --max_segment 5
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 64 --tc_timesteps 50 --max_segment 8
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 64 --tc_timesteps 50 --max_segment 5
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 64 --tc_timesteps 100 --max_segment 8
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 64 --tc_timesteps 100 --max_segment 5
 
 echo "=== Runs with 20 epochs are completed! ==="
 
@@ -63,6 +65,8 @@ python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.1
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 64 --tc_timesteps 10 --max_segment 5
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 64 --tc_timesteps 50 --max_segment 8
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 64 --tc_timesteps 50 --max_segment 5
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 64 --tc_timesteps 100 --max_segment 8
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 64 --tc_timesteps 100 --max_segment 5
 
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 50 --jitter_scale_ratio 0.01 --cc_temperature 0.1
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 100 --jitter_scale_ratio 0.01 --cc_temperature 0.1
