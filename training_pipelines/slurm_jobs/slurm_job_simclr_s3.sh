@@ -49,7 +49,13 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --use_s3_layers --batch_size 8 --force_retraining
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --force_retraining --temperature 0.3 --use_s3_layers
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.01 --temperature 0.3 --use_s3_layers
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.025 --temperature 0.3 --use_s3_layers
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.05 --temperature 0.3 --use_s3_layers
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.25 --temperature 0.3 --use_s3_layers
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.5 --temperature 0.3 --use_s3_layers
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 1.0 --temperature 0.3 --use_s3_layers
 
 # Command to run the job
 #  for SEED in 3 5 7 9 42; do
@@ -57,7 +63,7 @@ python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.1 --
 #             --output=ecg_simclr_s3_${SEED}_%j.out \
 #             --error=ecg_simclr_s3_${SEED}_%j.err \
 #             --begin=20:00 \
-#             --time=12:00:00 \
+#             --time=24:00:00 \
 #             ./slurm_jobs/slurm_job_simclr_s3.sh $SEED
 #  done
 ##
