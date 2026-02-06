@@ -516,11 +516,11 @@ if __name__ == "__main__":
 
     # TS-TCC Architecture Parameters
     tstcc_arch_group = parser.add_argument_group('TS-TCC Architecture')
-    tstcc_arch_group.add_argument("--tc_timesteps", type=int, default=70,
+    tstcc_arch_group.add_argument("--tc_timesteps", type=int, default=10, # Before 70
                                  help="Number of timesteps for temporal contrasting")
-    tstcc_arch_group.add_argument("--tc_hidden_dim", type=int, default=128,
+    tstcc_arch_group.add_argument("--tc_hidden_dim", type=int, default=64, #Make it equal to TS2Vec and InfoTS (previously 128)
                                  help="Hidden dimension for temporal contrasting")
-    tstcc_arch_group.add_argument("--cc_temperature", type=float, default=0.07,
+    tstcc_arch_group.add_argument("--cc_temperature", type=float, default=0.2, #Constant value, as set
                                  help="Temperature parameter for contrastive learning")
     tstcc_arch_group.add_argument("--cc_disable_cosine", action="store_true",
                                  help="Disable cosine similarity for contrastive learning")
