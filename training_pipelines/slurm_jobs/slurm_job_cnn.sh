@@ -7,7 +7,7 @@
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_cnn_%j.out
 #SBATCH --error=ecg_cnn_%j.err
-#SBATCH -C A4000
+#SBATCH -C A5000
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -58,11 +58,12 @@ python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.5 --windo
 python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 1.0 --window_size 10 --step_size 5 --dataset "ours" --force_retraining
 
 # Command to run the job
-#  for SEED in 42; do
+# TODO: SEED 11 13 15 17 19
+#  for SEED in 11 13 15 17 19; do
 #      sbatch --job-name=cnn_${SEED}_10_5 \
 #             --output=ecg_cnn_10_5_${SEED}_%j.out \
 #             --error=ecg_cnn_10_5_${SEED}_%j.err \
-#             --time=24:00:00 \
+#             --time=72:00:00 \
 #             ./slurm_jobs/slurm_job_cnn.sh $SEED
 #  done
 ##
