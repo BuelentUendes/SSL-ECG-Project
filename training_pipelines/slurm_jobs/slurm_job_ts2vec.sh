@@ -49,7 +49,7 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.1
+python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.1 --force_retraining
 python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.01
 python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.025
 python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 0.05
@@ -58,11 +58,11 @@ python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction
 python3 ts2vec_train_cleaned_cv.py --seed $1 --ts2vec_epochs 40 --label_fraction 1.0
 
 # Command to run the job
-  for SEED in 3 5 7 9 42; do
-      sbatch --job-name=ECG_TS2Vec_seed_${SEED} \
-             --output=ecg_ts2vec_${SEED}_%j.out \
-             --time=60:00:00 \
-             --error=ecg_ts2vec_${SEED}_%j.err \
-             ./slurm_jobs/slurm_job_ts2vec.sh $SEED
-  done
+#  for SEED in 11 13 15 17 19; do
+#      sbatch --job-name=ECG_TS2Vec_seed_${SEED} \
+#             --output=ecg_ts2vec_${SEED}_%j.out \
+#             --time=60:00:00 \
+#             --error=ecg_ts2vec_${SEED}_%j.err \
+#             ./slurm_jobs/slurm_job_ts2vec.sh $SEED
+#  done
 ##
