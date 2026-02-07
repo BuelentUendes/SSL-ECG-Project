@@ -7,7 +7,7 @@
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_transformer_%j.out
 #SBATCH --error=ecg_transformer_%j.err
-#SBATCH -C A4000
+#SBATCH -C A6000
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -58,7 +58,8 @@ python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.5 --windo
 python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 1.0 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining
 
 # Command to run the job
-#  for SEED in 42; do
+# ToDo: seed 11 13 15 17 19
+#  for SEED in 11 13 15 17 19; do
 #      sbatch --job-name=transformer_${SEED}_10_5 \
 #             --output=ecg_transformer_10_5_${SEED}_%j.out \
 #             --error=ecg_transformer_10_5_${SEED}_%j.err \
@@ -66,4 +67,3 @@ python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 1.0 --windo
 #             ./slurm_jobs/slurm_job_transformer.sh $SEED
 #  done
 ##
-#             --begin=20:00 \
