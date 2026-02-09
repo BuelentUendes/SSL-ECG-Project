@@ -414,7 +414,7 @@ if __name__ == "__main__":
                              help="Batch size for InfoTS training")
     infots_group.add_argument("--infots_output_dims", type=int, default=320,
                              help="InfoTS representation dimension")
-    infots_group.add_argument("--infots_hidden_dims", type=int, default=64,
+    infots_group.add_argument("--infots_hidden_dims", type=int, default=60,
                              help="InfoTS hidden dimension")
     infots_group.add_argument("--infots_depth", type=int, default=10,
                              help="InfoTS depth (# dilated conv blocks)")
