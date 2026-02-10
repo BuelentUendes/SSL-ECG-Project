@@ -263,6 +263,7 @@ def run_supervised_model_with_cv_and_test(
     # Save the memory consumption and runtimes per model here as well
     epoch_peak_memory = {}
     epoch_runtimes = {}
+    average_epoch_loss = []
 
     # Train final model
     for idx, epoch in enumerate(range(classifier_epochs), start=1):
@@ -270,6 +271,7 @@ def run_supervised_model_with_cv_and_test(
         print(f"Final training: Epoch {idx} / {classifier_epochs}", end="\r")
         final_model.train()
         epoch_start_time = time.time()
+        epoch_loss = []
 
         for X_batch, y_batch in tr_loader:
             X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
@@ -278,9 +280,11 @@ def run_supervised_model_with_cv_and_test(
             logits = final_model(X_batch).squeeze(-1)
             loss = loss_fn(logits, y_batch)
             loss.backward()
-            if epoch % 5 == 0:
-                print(f"The loss is {loss}")
+            epoch_loss.append(loss.item())
             optimizer.step()
+
+        average_epoch_loss.append(np.mean(epoch_loss))
+        print(f"Epoch: {idx}: average loss: {np.mean(epoch_loss)}")
 
         # Calculate epoch runtime
         epoch_runtime = time.time() - epoch_start_time
@@ -344,6 +348,7 @@ def run_supervised_model_with_cv_and_test(
             'pr_auc': test_pr_auc
         },
         'total_params': total_params,
+        'average_epoch_loss': average_epoch_loss,
     }, final_model
 
 
