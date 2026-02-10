@@ -2,11 +2,13 @@
 #!/usr/bin/env python
 import copy
 import os
+from datetime import datetime
 import json
 import argparse
 import logging
 import tempfile
 import gc
+import uuid
 
 import numpy as np
 import torch
@@ -16,6 +18,7 @@ import mlflow.pytorch
 
 from utils.torch_utilities import (
     load_processed_data,
+    return_track_data_file,
     split_indices_by_participant_groups,
     set_seed,
     create_directory,
@@ -26,7 +29,6 @@ from utils.torch_utilities import (
     run_linear_classifier_with_cv_and_test,
 )
 
-from torch.utils.data import DataLoader, TensorDataset, Dataset
 from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
 from models.tstcc import (
@@ -36,16 +38,12 @@ from models.tstcc import (
     TC,
     Config as ECGConfig,
     encode_representations,
-    build_tstcc_fingerprint,
-    search_encoder_fp,
-    optimize_tstcc_hyperparameters,
     FineTunedNet,
     freeze_and_unfreeze_encoder,
 )
 
 
 def main(
-        mlflow_tracking_uri: str,
         fs: str,
         window_size:int,
         step_size: int,
@@ -61,7 +59,7 @@ def main(
         tc_timesteps: int,
         tc_hidden_dim: int,
         cc_temperature: float,
-        cc_use_cosine: bool,
+        cc_disable_cosine: bool,
         use_s3_layers: bool,
         initial_num_segments: int,
         num_s3_layers: int,
@@ -81,9 +79,6 @@ def main(
         verbose: bool = False,
         scoring_metric: str = "roc_auc",
         optimize_hyperparameters: bool = False,
-        hp_n_trials: int = 20,
-        hp_n_epochs: int = 10,
-        hp_search_type: str = "random",
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -99,13 +94,6 @@ def main(
         device = torch.device("cpu")
 
     logging.basicConfig(level=logging.INFO)
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
-    mlflow.set_experiment(f"TSTCC with CV {classifier_model}")
-
-    # Start top‑level run
-    run = mlflow.start_run(run_name=f"tstcc_cv_{classifier_model}_{seed}_lf_{label_fraction}")
-    run_id = run.info.run_id
-    logging.info(f"MLflow run_id: {run_id}")
     print(f"Using device: {device}")
 
     # Check if directory for saving model parameters exist, otherwise create it
@@ -240,40 +228,9 @@ def main(
     torch.cuda.empty_cache()
     set_seed(seed)
 
-    # Fingerprint & search
-    fp = build_tstcc_fingerprint({
-        "model_name": "TSTCC",
-        "seed": seed,
-        "pretrain_all_conditions": pretrain_all_conditions,
-        "tcc_epochs": tcc_epochs,
-        "tcc_lr": tcc_lr,
-        "tcc_batch_size": tcc_batch_size,
-        "tc_timesteps": tc_timesteps,
-        "tc_hidden_dim": tc_hidden_dim,
-        "cc_temperature": cc_temperature,
-        "cc_use_cosine": cc_use_cosine,
-        "use_s3_layers": use_s3_layers,
-        "initial_num_segments": initial_num_segments,
-        "num_s3_layers": num_s3_layers,
-        "segment_multiplier": segment_multiplier,
-        "jitter_ratio": jitter_ratio,
-        "jitter_scale_ratio": jitter_scale_ratio,
-        "max_seg": max_segment,
-    })
-
-    cached = search_encoder_fp(
-        fp, experiment_name="TSTCC", tracking_uri=mlflow_tracking_uri
-    )
-
-    if (cached or os.path.exists(os.path.join(model_save_path, "tstcc.pt"))) and not (force_retraining):
-        if cached:
-            print(f"Found cached encoder run {cached}; downloading…")
-            uri = f"runs:/{cached}/tstcc_model"
-            ckpt_dir = mlflow.artifacts.download_artifacts(uri)
-            ckpt_path = os.path.join(ckpt_dir, "tstcc.pt")
-        else:
-            print("We found a pretrained model. Load the pretrained weights")
-            ckpt_path = os.path.join(model_save_path, "tstcc.pt")
+    if (os.path.exists(os.path.join(model_save_path, "tstcc.pt"))) and not (force_retraining):
+        print("We found a pretrained model. Load the pretrained weights")
+        ckpt_path = os.path.join(model_save_path, "tstcc.pt")
 
         # rebuild model
         cfg = ECGConfig(fs, window_size)
@@ -282,7 +239,7 @@ def main(
         cfg.TC.timesteps = tc_timesteps
         cfg.TC.hidden_dim = tc_hidden_dim
         cfg.Context_Cont.temperature = cc_temperature
-        cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
+        cfg.Context_Cont.use_cosine_similarity = False if cc_disable_cosine else True
         cfg.use_s3_layers = use_s3_layers
         cfg.initial_num_segments = initial_num_segments
         cfg.num_s3_layers = num_s3_layers
@@ -298,60 +255,11 @@ def main(
         print("No cached encoder; training TS-TCC from scratch")
 
         if optimize_hyperparameters:
-            print("=== Hyperparameter Optimization Mode ===")
-            # Prepare data for hyperparameter optimization
-            Xtr = X[train_idx_encoder].astype(np.float32)
-            Xva = X[val_idx_encoder].astype(np.float32)
-            ytr = y[train_idx_encoder]
-            yva = y[val_idx_encoder]
-            groups_tr = groups_train_idx_encoder
-            groups_va = groups_val_idx_encoder
-
-            # Base configuration for hyperparameter optimization
-            base_config = {
-                'tcc_batch_size': tcc_batch_size,
-                'tcc_lr': tcc_lr,
-                'tc_timesteps': tc_timesteps,
-                'tc_hidden_dim': tc_hidden_dim,
-                'cc_temperature': cc_temperature,
-                'cc_use_cosine': cc_use_cosine,
-                "use_s3_layers": use_s3_layers,
-                "initial_num_segments": initial_num_segments,
-                "num_s3_layers": num_s3_layers,
-                "segment_multiplier": segment_multiplier,
-            }
-
-            # Run hyperparameter optimization
-            hp_results = optimize_tstcc_hyperparameters(
-                Xtr, ytr, Xva, yva, groups_va,
-                device, fs, window_size, base_config,
-                n_trials=hp_n_trials, n_epochs_hp=hp_n_epochs, seed=seed,
-                search_type=hp_search_type
+            # Generate random id for experiment tracking
+            run_id = str(uuid.uuid4())
+            hyperparameter_file_name = os.path.join(
+                results_save_path, "hyperparameter_tuning_results.json"
             )
-
-            # Log hyperparameter optimization results
-            mlflow.log_params({
-                'hp_optimization': True,
-                'hp_n_trials': hp_n_trials,
-                'hp_n_epochs': hp_n_epochs,
-                'hp_best_score': hp_results['best_score'],
-                **{f"hp_best_{k}": v for k, v in hp_results['best_params'].items()}
-            })
-
-            # Use the best hyperparameters to train final model with full epochs
-            print(f"Training final model with best hyperparameters: {hp_results['best_params']}")
-            jitter_ratio = hp_results['best_params']['jitter_ratio']
-            jitter_scale_ratio = hp_results['best_params']['jitter_scale_ratio']
-            max_segment = hp_results['best_params']['max_segment']
-
-            initial_num_segments = hp_results['best_params']["initial_num_segments"]
-            num_s3_layers = hp_results["best_params"]["num_s3_layers"]
-            segment_multiplier = hp_results["best_params"]["segment_multiplier"]
-
-            # Save hyperparameter optimization results
-            hp_results_path = os.path.join(results_save_path, "hyperparameter_optimization.json")
-            with open(hp_results_path, "w") as f:
-                json.dump(hp_results, f, indent=2, default=str)
 
         cfg = ECGConfig(fs, window_size)
         cfg.num_epoch = tcc_epochs
@@ -359,7 +267,7 @@ def main(
         cfg.TC.timesteps = tc_timesteps
         cfg.TC.hidden_dim = tc_hidden_dim
         cfg.Context_Cont.temperature = cc_temperature
-        cfg.Context_Cont.use_cosine_similarity = cc_use_cosine
+        cfg.Context_Cont.use_cosine_similarity = False if cc_disable_cosine else True
         cfg.use_s3_layers = use_s3_layers
         cfg.initial_num_segments = initial_num_segments
         cfg.num_s3_layers = num_s3_layers
@@ -385,8 +293,6 @@ def main(
         opt_m = optim.AdamW(model.parameters(), lr=tcc_lr, weight_decay=3e-4)
         opt_tc = optim.AdamW(tc_head.parameters(), lr=tcc_lr, weight_decay=3e-4)
 
-        # Deleted second start of the run
-        mlflow.log_params(fp)
         workdir = tempfile.mkdtemp(prefix="tstcc_")
         Trainer(
             model=model,
@@ -397,7 +303,8 @@ def main(
             device=device, config=cfg,
             experiment_log_dir=workdir,
             training_mode="self_supervised",
-            save_path_result=results_save_path,
+            results_save_path=results_save_path,
+            batch_size=tcc_batch_size,
         )
         ckpt = os.path.join(workdir, "tstcc.pt")
         torch.save(
@@ -465,51 +372,6 @@ def main(
         with open(os.path.join(results_save_path, "test_results_lp_ft.json"), "w") as f:
             json.dump(fine_tuned_results, f, indent=2, default=str)
 
-        # Old code
-        # fine_tune_model = FineTunedNet(encoder=model, tc_head=tc_head).to(device)
-        # y_train = y[train_idx][downstream_mask["train"]]
-        #
-        # loader = DataLoader(
-        #     TensorDataset(torch.from_numpy(X[train_idx][downstream_mask["train"]]).float(),
-        #                   torch.from_numpy(y_train).long()),
-        #     batch_size=tcc_batch_size, shuffle=False
-        # )
-        # optimizer = torch.optim.AdamW(fine_tune_model.parameters(), lr=1e-4)
-        # loss_fn = torch.nn.BCEWithLogitsLoss()
-        #
-        # # Train final model
-        # for idx in (range(classifier_epochs)):
-        #     print(f"Final model training: Epoch {idx+1} / {classifier_epochs}", flush=True, end="\r")
-        #     fine_tune_model.train()
-        #     epoch_accuracy = []
-        #     epoch_loss = []
-        #
-        #     for X_batch, y_batch in loader:
-        #         if X_batch.shape.index(min(X_batch.shape)) != 1:
-        #             X_batch = X_batch.permute(0, 2, 1)
-        #
-        #         X_batch = X_batch.to(device)
-        #         y_batch = y_batch.to(device).float()
-        #         optimizer.zero_grad()
-        #         logits = fine_tune_model(X_batch).squeeze(-1)
-        #         loss = loss_fn(logits, y_batch)
-        #         loss.backward()
-        #
-        #         accuracy_epoch = binary_accuracy(logits, y_batch, logits=True)
-        #         epoch_loss.append(loss.cpu().item())
-        #         epoch_accuracy.append(accuracy_epoch.cpu().item())
-        #         optimizer.step()
-        #
-        #     # Get the epoch accuracy and epoch loss
-        #     if (idx + 1) % 2 == 0:
-        #         print(f"The loss is {np.mean(epoch_loss)}")
-        #         print(f"The binary accuracy is {np.mean(epoch_accuracy)}")
-        #
-        # #ToDo: Now evaluate without retraining on CV
-
-    # if fine_tune_encoder:
-    #     model = fine_tune_model.encoder.eval()
-    #     tc_head = fine_tune_model.tc_head.eval()
     else:
         model.eval()
         tc_head.eval()
@@ -565,16 +427,6 @@ def main(
                     test_repr, y_test, feature_names, cv_splitter, False, seed, scoring_metric=scoring_metric
                 )
 
-            # Log metrics
-            mlflow.log_metrics({
-                "best_cv_auroc": results['best_cv_score'] if cv_splitter is not None else 0,
-                "test_accuracy": results['test_metrics']['accuracy'],
-                "test_auroc": results['test_metrics']['auroc'],
-                "test_f1": results['test_metrics']['f1'],
-                "test_pr_auc": results['test_metrics']['pr_auc'],
-            })
-
-            mlflow.log_params(results['best_params'])
 
         else:
             results = run_mlp_with_cv_and_test(
@@ -583,30 +435,23 @@ def main(
                 device, classifier_epochs, classifier_batch_size,classifier_lr, False, seed
             )
 
-            # Log metrics
-            mlflow.log_metrics({
-                "best_cv_auroc": results['best_cv_score'],
-                "test_accuracy": results['test_metrics']['accuracy'],
-                "test_auroc": results['test_metrics']['auroc'],
-                "test_f1": results['test_metrics']['f1'],
-                "test_pr_auc": results['test_metrics']['pr_auc'],
-            })
-
-            mlflow.log_params(results['best_params'])
 
         # ── Step 7: Save Results ────────────────────────────────────────────────────
         with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
             json.dump(results, f, indent=2, default=str)
 
-        # Log additional parameters
-        mlflow.log_params({
-            "classifier_model": classifier_model,
-            "label_fraction": label_fraction,
-            "seed": seed,
-            "k_folds": k_folds,
-            "n_cv_splits": n_splits,
-            "pretrain_all_conditions": pretrain_all_conditions,
-        })
+        if optimize_hyperparameters:
+            hyperparameter_save_file = return_track_data_file(hyperparameter_file_name)
+
+            hyperparameter_save_file["runs"][run_id] = {
+                "hyperparameters": cfg.to_dict(),
+                "CV score": results['best_cv_score'],
+                "Test_metrics": results["test_metrics"],
+                "timestamp": datetime.now().isoformat(),
+            }
+
+            with open(hyperparameter_file_name, "w") as f:
+                json.dump(hyperparameter_save_file, f, indent=4)
 
         # ── Cleanup ────────────────────────────────────────────────────────────────
         for _ in range(3):
@@ -618,7 +463,6 @@ def main(
               f"AUROC: {results['test_metrics']['auroc']:.4f}, "
               f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}, "
               f"F1: {results['test_metrics']['f1']:.4f} ===")
-        mlflow.end_run()
 
 
 if __name__ == "__main__":
@@ -631,9 +475,6 @@ if __name__ == "__main__":
     # General Setup
     # ══════════════════════════════════════════════════════════════════════════════
     general_group = parser.add_argument_group('General Setup')
-    general_group.add_argument("--mlflow_tracking_uri",
-                              default=os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"),
-                              help="MLflow tracking URI for experiment logging")
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
     general_group.add_argument("--seed", type=int, default=42,
@@ -675,14 +516,14 @@ if __name__ == "__main__":
 
     # TS-TCC Architecture Parameters
     tstcc_arch_group = parser.add_argument_group('TS-TCC Architecture')
-    tstcc_arch_group.add_argument("--tc_timesteps", type=int, default=70,
+    tstcc_arch_group.add_argument("--tc_timesteps", type=int, default=50,
                                  help="Number of timesteps for temporal contrasting")
-    tstcc_arch_group.add_argument("--tc_hidden_dim", type=int, default=128,
+    tstcc_arch_group.add_argument("--tc_hidden_dim", type=int, default=100,
                                  help="Hidden dimension for temporal contrasting")
-    tstcc_arch_group.add_argument("--cc_temperature", type=float, default=0.07,
+    tstcc_arch_group.add_argument("--cc_temperature", type=float, default=0.2,
                                  help="Temperature parameter for contrastive learning")
-    tstcc_arch_group.add_argument("--cc_use_cosine", action="store_true",
-                                 help="Use cosine similarity for contrastive learning")
+    tstcc_arch_group.add_argument("--cc_disable_cosine", action="store_true",
+                                 help="Disable cosine similarity for contrastive learning")
     tstcc_arch_group.add_argument("--use_s3_layers", action="store_true",
                                   help="If set, we use the S3 layer")
     tstcc_arch_group.add_argument("--initial_num_segments", type=int, default=2)
@@ -729,13 +570,6 @@ if __name__ == "__main__":
     hp_group = parser.add_argument_group('Hyperparameter Optimization')
     hp_group.add_argument("--optimize_hyperparameters", action="store_true",
                          help="Enable hyperparameter optimization for TSTCC augmentation parameters")
-    hp_group.add_argument("--hp_n_trials", type=int, default=20,
-                         help="Number of trials for hyperparameter optimization")
-    hp_group.add_argument("--hp_n_epochs", type=int, default=10,
-                         help="Number of epochs for each hyperparameter optimization trial")
-    hp_group.add_argument("--hp_search_type", type=str, default="grid",
-                         choices=["random", "grid"],
-                         help="Search strategy: 'random' for random search, 'grid' for grid search")
 
     # Parse arguments and run main function
     args = parser.parse_args()
