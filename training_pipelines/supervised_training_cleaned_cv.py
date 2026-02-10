@@ -51,6 +51,8 @@ def run_supervised_model_with_cv_and_test(
         classifier_epochs=25,
         classifier_batch_size=32,
         disable_hyperparameter_tuning=False,
+        dropout_rate=0.3,
+        lr=0.0001,
         pin_memory=False,
         scoring_metric="roc_auc",
         use_s3_layers: bool = False,
@@ -219,9 +221,13 @@ def run_supervised_model_with_cv_and_test(
         print(f"Best CV score: {best_cv_score:.4f}")
 
     else:
-        print(f"Hyperparameter tuning is disabled. Run with default values")
-        print(default_best_params)
-        best_params = default_best_params
+        print(f"Hyperparameter tuning is disabled. Run with selected hyperparameters")
+        best_params = {
+            "dropout": dropout_rate,
+            "lr": lr,
+        }
+
+        print(best_params)
 
     # Train final model with best parameters on full training set
     print("Training final model on full training set...")
@@ -472,6 +478,8 @@ def main(
         seed: int = 42,
         force_retraining: bool = True,
         disable_hyperparameter_tuning: bool = False,
+        dropout_rate: float=0.3,
+        lr: float=0.0001,
         batch_size: int = 32,
         num_epochs: int = 25,
         k_folds: int = 5,
@@ -631,6 +639,8 @@ def main(
             model_type, X_train, y_train, groups_train, X_test, y_test,
             cv_splitter, device, classifier_epochs=num_epochs, classifier_batch_size=batch_size,
             disable_hyperparameter_tuning=disable_hyperparameter_tuning,
+            dropout_rate=dropout_rate,
+            lr=lr,
             pin_memory=pin_memory, scoring_metric=scoring_metric,
             use_s3_layers=use_s3_layers, initial_num_segments=initial_num_segments,
             num_s3_layers=num_s3_layers, segment_multiplier=segment_multiplier,
@@ -816,6 +826,10 @@ if __name__ == "__main__":
     parser.add_argument("--force_retraining", action="store_true")
     parser.add_argument("--disable_hyperparameter_tuning", action="store_true",
                         help="If set, we do not use hyperparameter_tuning and we use default lr and dropout rates")
+    parser.add_argument("--dropout_rate", type=float, default=0.3,
+                        help="If disable_hyperparameter_tuning is set, what dropout rate to use. Otherwise it gets tuned")
+    parser.add_argument("--lr", type=float, default=0.0001,
+                        help="If disable_hyperparameter_tuning is set, what lr to use. Otherwise it gets tuned")
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--num_epochs", type=int, default=25)
     parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
