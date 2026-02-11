@@ -72,6 +72,8 @@ def run_supervised_model_with_cv_and_test(
 
     best_params = None
     best_cv_score = 0
+    # Stores per-epoch mean val scores across folds for each (lr, dropout) combination.
+    cv_val_scores_per_epoch: dict = {}
 
     default_best_params = {
         "dropout": 0.5,
@@ -94,6 +96,8 @@ def run_supervised_model_with_cv_and_test(
                     print(f"Testing lr={lr}, dropout={dropout_rate}")
 
                     fold_scores = []
+                    # Per-epoch val scores: list of lists, shape (n_folds, classifier_epochs)
+                    fold_epoch_scores = []
 
                     # Run CV for this parameter combination
                     for fold, (train_idx, val_idx) in enumerate(cv_splitter.split(X_train, y_train, groups_train), 1):
@@ -151,7 +155,10 @@ def run_supervised_model_with_cv_and_test(
 
                         non_blocking_bool = torch.cuda.is_available()
 
-                        # Training loop
+                        # Per-epoch val scores for this fold (for convergence diagnosis)
+                        this_fold_epoch_scores = []
+
+                        # Training loop — evaluate val score after every epoch
                         for idx, epoch in enumerate(range(classifier_epochs), 1):
                             print(f"Fold: {fold}: Processing Epoch {idx} / {classifier_epochs}", flush=True, end="\r")
                             model.train()
@@ -164,52 +171,62 @@ def run_supervised_model_with_cv_and_test(
                                 loss.backward()
                                 optimizer.step()
 
-                        # Validation evaluation
-                        model.eval()
-                        val_probs = []
-                        val_labels = []
+                            # Validation evaluation after each epoch
+                            model.eval()
+                            val_probs = []
+                            val_labels = []
 
-                        with torch.no_grad():
-                            for X_batch, y_batch in val_loader:
-                                X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
-                                y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
-                                logits = model(X_batch).squeeze(-1)
+                            with torch.no_grad():
+                                for X_batch, y_batch in val_loader:
+                                    X_batch = X_batch.to(device, non_blocking=non_blocking_bool).permute(0, 2, 1)  # (B,C,L)
+                                    y_batch = y_batch.to(device, non_blocking=non_blocking_bool).float()
+                                    logits = model(X_batch).squeeze(-1)
 
-                                # Check for NaN in logits
-                                if torch.isnan(logits).any():
-                                    print(f"NaN detected in logits! Fold {fold}, batch size: {X_batch.size()}")
-                                    print(f"Logits: {logits}")
-                                    raise ValueError("Model produced NaN logits")
+                                    # Check for NaN in logits
+                                    if torch.isnan(logits).any():
+                                        print(f"NaN detected in logits! Fold {fold}, batch size: {X_batch.size()}")
+                                        print(f"Logits: {logits}")
+                                        raise ValueError("Model produced NaN logits")
 
-                                probs = torch.sigmoid(logits)
+                                    probs = torch.sigmoid(logits)
 
-                                # Check for NaN in probabilities
-                                if torch.isnan(probs).any():
-                                    print(f"NaN detected in probs! Fold {fold}")
-                                    print(f"Probs: {probs}")
-                                    raise ValueError("Sigmoid produced NaN probabilities")
+                                    # Check for NaN in probabilities
+                                    if torch.isnan(probs).any():
+                                        print(f"NaN detected in probs! Fold {fold}")
+                                        print(f"Probs: {probs}")
+                                        raise ValueError("Sigmoid produced NaN probabilities")
 
-                                val_probs.extend(probs.cpu().numpy())
-                                val_labels.extend(y_batch.cpu().numpy())
+                                    val_probs.extend(probs.cpu().numpy())
+                                    val_labels.extend(y_batch.cpu().numpy())
 
-                        # Calculate fold score based on selected metric
-                        if scoring_metric == "roc_auc":
-                            fold_score = roc_auc_score(val_labels, val_probs)
-                        elif scoring_metric == "average_precision":
-                            fold_score = average_precision_score(val_labels, val_probs)
-                        elif scoring_metric == "f1":
-                            val_preds = (np.array(val_probs) > 0.5).astype(int)
-                            fold_score = f1_score(val_labels, val_preds)
-                        elif scoring_metric == "balanced_accuracy":
-                            val_preds = (np.array(val_probs) > 0.5).astype(int)
-                            fold_score = balanced_accuracy_score(val_labels, val_preds)
-                        else:
-                            raise ValueError(f"Unknown scoring metric: {scoring_metric}")
+                            # Calculate epoch val score for convergence tracking
+                            if scoring_metric == "roc_auc":
+                                epoch_val_score = roc_auc_score(val_labels, val_probs)
+                            elif scoring_metric == "average_precision":
+                                epoch_val_score = average_precision_score(val_labels, val_probs)
+                            elif scoring_metric == "f1":
+                                val_preds = (np.array(val_probs) > 0.5).astype(int)
+                                epoch_val_score = f1_score(val_labels, val_preds)
+                            elif scoring_metric == "balanced_accuracy":
+                                val_preds = (np.array(val_probs) > 0.5).astype(int)
+                                epoch_val_score = balanced_accuracy_score(val_labels, val_preds)
+                            else:
+                                raise ValueError(f"Unknown scoring metric: {scoring_metric}")
 
-                        fold_scores.append(fold_score)
+                            this_fold_epoch_scores.append(epoch_val_score)
 
-                    # Average CV score for this parameter combination
+                        fold_scores.append(this_fold_epoch_scores[-1])
+                        fold_epoch_scores.append(this_fold_epoch_scores)
+
+                    # Average CV score for this parameter combination (final epoch, consistent with prior behaviour)
                     mean_cv_score = np.mean(fold_scores)
+                    # Mean val score per epoch across folds — shape (classifier_epochs,)
+                    mean_epoch_scores = np.mean(fold_epoch_scores, axis=0).tolist()
+                    std_epoch_scores = np.std(fold_epoch_scores, axis=0).tolist()
+                    cv_val_scores_per_epoch[(lr, dropout_rate)] = {
+                        "mean": mean_epoch_scores,
+                        "std": std_epoch_scores,
+                    }
                     print()
                     print(f"  Mean CV {scoring_metric.upper()}: {mean_cv_score:.4f}")
 
@@ -343,6 +360,19 @@ def run_supervised_model_with_cv_and_test(
     if torch.cuda.is_available():
         with open(os.path.join(results_save_path, peak_memory_save_name), "w") as f:
             json.dump(epoch_peak_memory, f, indent=2)
+
+    # Persist CV learning curves for all hyperparameter combinations.
+    # Keys are serialised as "lr=<lr>,dropout=<dropout>" for JSON compatibility.
+    # Each entry contains "mean" and "std" arrays of length classifier_epochs,
+    # representing the cross-validated val score per epoch — used to justify the
+    # epoch budget and verify convergence for the paper.
+    if cv_val_scores_per_epoch:
+        cv_curves_serialisable = {
+            f"lr={k[0]},dropout={k[1]}": v
+            for k, v in cv_val_scores_per_epoch.items()
+        }
+        with open(os.path.join(results_save_path, "cv_val_scores_per_epoch.json"), "w") as f:
+            json.dump(cv_curves_serialisable, f, indent=2)
 
     return {
         'best_params': best_params,
