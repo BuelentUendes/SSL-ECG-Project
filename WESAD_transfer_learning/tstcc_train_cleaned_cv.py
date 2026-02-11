@@ -211,7 +211,7 @@ def main(
     groups_train_idx_encoder = groups_train_all_encoder[train_idx_encoder]  # 60% of original data
     groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
 
-    # Test that we have all 127 participants moved in one of the categories
+    # Test that we have all 15 participants moved in one of the categories
     assert (len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) +
             len(np.unique(groups[test_idx])) == 15), \
         "Something went wrong with the participant split!"
