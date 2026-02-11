@@ -1,13 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=ECG_TSTCC
-#SBATCH --time=0:20:00
 #SBATCH -N 1
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_tstcc_%j.out
 #SBATCH --error=ecg_tstcc_%j.err
-#SBATCH -C A4000
+#SBATCH -C A5000
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -49,15 +48,14 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 tstcc_train_cleaned_cv.py --seed 1 --tcc_epochs 2 --label_fraction 0.25 --force_retraining --fs 500
-#python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 2 --label_fraction 0.5 --fs 500
-#python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 2 --label_fraction 1.0 --fs 500
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0 --force_retraining --fs 700
 
 # Command to run the job
-#  for SEED in 50 51 52 53 54; do
-#      sbatch --job-name=ECG_TSTCC_seed_${SEED} \
-#             --output=ecg_tstcc_${SEED}_%j.out \
-#             --error=ecg_tstcc_${SEED}_%j.err \
-#             slurm_job_tstcc.sh $SEED
+#  for SEED in 3 5 7 9 42; do
+#      sbatch --job-name=WESAD_ECG_TSTCC_seed_${SEED} \
+#             --output=ecg_wesad_tstcc_${SEED}_%j.out \
+#             --error=ecg_wesad_tstcc_${SEED}_%j.err \
+#             --time=48:00:00 \
+#             ./slurm_jobs/slurm_job_tstcc.sh $SEED
 #  done
 ##
