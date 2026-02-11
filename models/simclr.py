@@ -288,7 +288,7 @@ def sample_augmented(x: np.ndarray) -> np.ndarray:
     idx = np.random.choice(len(funcs), p=probs)
     return funcs[idx](x)
 
-def DataTransform(signal):
+def DataTransform(signal, use_all_augmentations=True):
     sig = to_1d(signal)
     v1, v2 = sig.copy(), sig.copy()
     # Important:
@@ -297,12 +297,13 @@ def DataTransform(signal):
     # Here we randomly sample two augmentations; the paper argues that time warping scaling performs best
     # But we do not see this
 
-    v1 = sample_augmented(v1); v1 = sample_augmented(v1)
-    v2 = sample_augmented(v2); v2 = sample_augmented(v2)
-
-    # Original proposed solution
-    # v1 = scaling(window_warp(v1))
-    # v2 = scaling(window_warp(v2))
+    if use_all_augmentations:
+        v1 = sample_augmented(v1); v1 = sample_augmented(v1)
+        v2 = sample_augmented(v2); v2 = sample_augmented(v2)
+    else:
+    # Original proposed solution if set
+        v1 = scaling(window_warp(v1))
+        v2 = scaling(window_warp(v2))
 
     # ensure shape & contiguity
     L = sig.shape[-1]
@@ -494,15 +495,16 @@ class NTXentLoss(nn.Module):
 # Dataset wrapper
 # ----------------------------------------------------------------------
 class SimCLRDataset(Dataset):
-    def __init__(self, signals):
+    def __init__(self, signals, use_all_augmentations):
         self.signals = signals
+        self.use_all_augmentations = use_all_augmentations
 
     def __len__(self):
         return len(self.signals)
 
     def __getitem__(self, idx):
         x = self.signals[idx]
-        v1, v2 = DataTransform(x)
+        v1, v2 = DataTransform(x, use_all_augmentations=self.use_all_augmentations)
         
         # reshape to (C,L)
         v1 = torch.tensor(v1, dtype=torch.float).unsqueeze(0)
@@ -538,9 +540,9 @@ def get_simclr_model(
     proj = ProjectionHead().to(device)
     return SimCLR(enc, proj)
 
-def simclr_data_loaders(X_train, X_val, batch_size:int):
-    return (DataLoader(SimCLRDataset(X_train), batch_size, shuffle=True,  drop_last=True),
-            DataLoader(SimCLRDataset(X_val),   batch_size, shuffle=False, drop_last=True))
+def simclr_data_loaders(X_train, X_val, batch_size:int, use_all_augmentations=True):
+    return (DataLoader(SimCLRDataset(X_train, use_all_augmentations=use_all_augmentations), batch_size, shuffle=True,  drop_last=True),
+            DataLoader(SimCLRDataset(X_val, use_all_augmentations=use_all_augmentations),   batch_size, shuffle=False, drop_last=True))
 
 def pretrain_one_epoch(model, loader, loss_fn, opt, device):
     model.train()
