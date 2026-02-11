@@ -494,7 +494,7 @@ if __name__ == "__main__":
                            help="Window size in seconds")
     data_group.add_argument("--step_size", type=int, default=5,
                            help="Step size in seconds for sliding window")
-    data_group.add_argument("--label_fraction", type=float, default=0.5,
+    data_group.add_argument("--label_fraction", type=float, default=1.0,
                            help="Fraction of labeled participants to use (0.0-1.0)")
     data_group.add_argument("--pretrain_all_conditions", action="store_true",
                            help="Pretrain on all conditions (not just baseline/mental_stress)")
@@ -577,7 +577,7 @@ if __name__ == "__main__":
     #Important:
     args.pretrain_all_conditions = True
     # IMPORTANT:
-    # use pretrained encoder -> train a new head
-    # fine_tune_encoder -> fine tune encoder and a new head
+    # use pretrained encoder -> train a new head saved as pretrained_encoder_new_head (LP)
+    # fine_tune_encoder -> fine tune encoder and a new head -> saved as fined_tuned_encoder_new_head (LP+FT)
 
     main(**vars(args))
