@@ -458,6 +458,8 @@ if __name__ == "__main__":
     simclr_group.add_argument("--use_only_inversion_negation", action="store_true",
                               help="If set, we use only inversion and negation for the augmentation instead of all.")
 
+    # Use only inversion & negation was used in this paper:
+    # Contrastive Self-Supervised Learning for Stress Detection from ECG Data
     # S3 configurations
     simclr_group.add_argument("--use_s3_layers", action="store_true",
                                   help="If set, we use the S3 layer")
