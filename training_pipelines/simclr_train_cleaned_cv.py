@@ -50,6 +50,7 @@ def main(
         batch_size: int,
         temperature: float,
         use_tstcc_encoder: bool,
+        use_only_inversion_negation: bool,
         use_s3_layers: bool,
         initial_num_segments: int,
         num_s3_layers: int,
@@ -227,7 +228,10 @@ def main(
 
         loss_fn = NTXentLoss(batch_size, temperature)
         opt = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-        tr_dl, _ = simclr_data_loaders(X_train_encoder, X_val_encoder, batch_size)
+        use_all_augmentations = False if use_only_inversion_negation else True
+        tr_dl, _ = simclr_data_loaders(
+            X_train_encoder, X_val_encoder, batch_size, use_all_augmentations=use_all_augmentations
+        )
 
         print(f"Created {model_name} model on device: {next(model.parameters()).device}")
 
@@ -363,6 +367,7 @@ def main(
             "hyperparameters": {
                 "temperature": temperature,
                 "batch_size": batch_size,
+                "use_only_inversion_negation": use_only_inversion_negation,
                 "tstcc_encoder_used": use_tstcc_encoder,
                 "epochs": epochs,
             },
@@ -450,6 +455,8 @@ if __name__ == "__main__":
                              help="Temperature parameter for contrastive loss")
     simclr_group.add_argument("--use_tstcc_encoder", action="store_true",
                               help="If set, we use the tstcc encoder (differs from the original architecture.")
+    simclr_group.add_argument("--use_only_inversion_negation", action="store_true",
+                              help="If set, we use only inversion and negation for the augmentation instead of all.")
 
     # S3 configurations
     simclr_group.add_argument("--use_s3_layers", action="store_true",
