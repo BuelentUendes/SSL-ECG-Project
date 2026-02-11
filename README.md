@@ -274,7 +274,6 @@ For the zero-shot transfer results for the logistic regression run the following
 
 ```bash
 cd domain_specific_ml
-mlflow server --host 127.0.0.1 --port 5000
 python3 train_simple_classifiers.py --zero_shot_evaluation --zero_shot_dataset "wesad" --fs 700
 ```
 For the StressID, one can run the same command, replacing "wesad" with "stressid" and fs set to 500
@@ -292,17 +291,17 @@ To obtain the zero-shot transfer (for WESAD, replace "wesad" with "stressid" for
 
 **Zero-shot**
 ```bash
-python3 supervised_training_cleaned_cv.py --zero_shot_evaluation --zero_shot_dataset "wesad"
+python3 supervised_training_cleaned_cv.py --zero_shot_evaluation --zero_shot_dataset "wesad" --label_fraction 1.0
 ```
 
 #### TS-TCC and TS-TCC+S3
 ```bash
-python3 tstcc_train_cleaned_cv.py --zero_shot_evaluation --zero_shot_dataset "wesad" --fs 700
+python3 tstcc_train_cleaned_cv.py --zero_shot_evaluation --zero_shot_dataset "wesad" --fs 700 --label_fraction 1.0
 ```
 
 For "StressID" one needs to use the following:
 ```bash
-python3 tstcc_train_cleaned_cv.py --zero_shot_evaluation --zero_shot_dataset "stressid" --fs 500
+python3 tstcc_train_cleaned_cv.py --zero_shot_evaluation --zero_shot_dataset "stressid" --fs 500 --label_fraction 1.0
 ```
 For the S3 version, one needs to use the --use_s3_layers option.
 
