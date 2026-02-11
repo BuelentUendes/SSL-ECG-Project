@@ -12,8 +12,6 @@ import uuid
 import numpy as np
 import torch
 import torch.optim as optim
-import mlflow
-import mlflow.pytorch
 
 from utils.torch_utilities import (
     load_processed_data,
@@ -37,9 +35,6 @@ from models.tstcc import (
     TC,
     Config as ECGConfig,
     encode_representations,
-    build_tstcc_fingerprint,
-    search_encoder_fp,
-    optimize_tstcc_hyperparameters,
     FineTunedNet,
     freeze_and_unfreeze_encoder,
 )
@@ -206,12 +201,7 @@ def main(
     # We could use these for the hyperparameter tuning
     groups_val_idx_encoder = groups_train_all_encoder[val_idx_encoder]  # 20% of original data
 
-    print(
-        (len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) +
-         len(np.unique(groups[test_idx]))
-    )
-    )
-    #This throws an error?
+    # Check that we have all 65 participants
     assert (len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) +
             len(np.unique(groups[test_idx])) == 65), \
         "Something went wrong with the participant split!"
