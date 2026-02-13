@@ -7,7 +7,7 @@
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_tstcc_%j.out
 #SBATCH --error=ecg_tstcc_%j.err
-#SBATCH -C A6000
+#SBATCH -C A5000
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -58,7 +58,7 @@ python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.5
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0 --fs 700
 
 # Command to run the job
-#  for SEED in 3 5 7 9 42; do
+#  for SEED in 11 13 15 17 19; do
 #      sbatch --job-name=ECG_700_TSTCC_seed_${SEED} \
 #             --output=ecg_700_tstcc_${SEED}_%j.out \
 #             --error=ecg_700_tstcc_${SEED}_%j.err \
