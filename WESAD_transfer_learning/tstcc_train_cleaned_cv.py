@@ -103,6 +103,7 @@ def main(
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
 
+    #IMPORTANT: If we use a pretrained encoder then we use a different save path so it loads a different model!
     if use_pretrained_encoder:
         if use_s3_layers:
             model_save_path = os.path.join(
@@ -350,7 +351,7 @@ def main(
             X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
             feature_names, cv_splitter, device, classifier_epochs=10,
             classifier_batch_size=classifier_batch_size,
-            standardize=False, seed=42
+            standardize=False, seed=seed
         )
 
         # Get the updated model (this has the head already fine-tuned)
@@ -363,7 +364,7 @@ def main(
             X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
             feature_names, cv_splitter, device, classifier_epochs=15,
             classifier_batch_size=classifier_batch_size,
-            standardize=False, seed=42
+            standardize=False, seed=seed
         )
 
         print(f"We finished the fine-tuning stage (LP + FT)")
