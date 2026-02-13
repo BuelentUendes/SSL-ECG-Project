@@ -344,11 +344,13 @@ def main(
         fine_tune_model = freeze_and_unfreeze_encoder(fine_tune_model, freeze=True)
 
         # This fine-tunes the encoder and test them right away (we will extract the head here)
+        # Here we seed also accordingly to the random split seed to also capture the variability of the model training
+        # Before it was set to 42
         fine_tune_results = run_linear_classifier_with_cv_and_test(
             X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
             feature_names, cv_splitter, device, classifier_epochs=10,
             classifier_batch_size=classifier_batch_size,
-            standardize=False, seed=42
+            standardize=False, seed=seed
         )
 
         # Get the updated model (this has the head already fine-tuned)
@@ -364,7 +366,7 @@ def main(
             X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
             feature_names, cv_splitter, device, classifier_epochs=15,
             classifier_batch_size=classifier_batch_size,
-            standardize=False, seed=42
+            standardize=False, seed=seed
         )
 
         print(f"We finished the fine-tuning stage")
