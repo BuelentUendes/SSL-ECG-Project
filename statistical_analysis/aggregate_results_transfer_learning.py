@@ -260,7 +260,8 @@ def main(base_path, strategy_dir, models, is_zero_shot=False,
         else:
             # Zero-shot CNN has no head — load as plain "cnn"
             results = load_results(base_path, strategy_dir, model, SEEDS,
-                                   is_zero_shot=is_zero_shot)
+                                   is_zero_shot=is_zero_shot,
+                                   use_lp_ft_file=use_lp_ft_file)
             process_model_results(results, model, all_results, summary_stats,
                                   aggregated_results, is_zero_shot)
 
@@ -319,7 +320,7 @@ if __name__ == "__main__":
     dataset_name = "WESAD" if args.dataset == "wesad" else "StressID"
     is_zero_shot = args.strategy == "zero_shot"
     use_lp_ft_file = args.strategy == "lp_ft"
-    include_features = args.strategy == "lp_ft"
+    include_features = False # Set to true if one wants the trained from scratch results as well
 
     strategy_dir = STRATEGY_TO_DIR[args.strategy]
     base_path = os.path.join(RESULTS_PATH, "Transfer_learning", dataset_name)
