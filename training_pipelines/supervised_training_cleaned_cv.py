@@ -714,11 +714,14 @@ def main(
                 fine_tune_model = freeze_and_unfreeze_encoder(fine_tune_model, freeze=True)
 
                 # This fine-tunes the classifier head first (with the frozen backbone)
+                # Option A: Here we control for the training variability seed 42
+                # or also randomly set the seed according to what the other options are
+                # -> then it is set seed args.seed
                 fine_tuned_results = run_linear_classifier_with_cv_and_test(
                     X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
                     feature_names=None, cv_splitter=cv_splitter, device=device, classifier_epochs=10,
                     classifier_batch_size=classifier_batch_size,
-                    standardize=False, seed=42
+                    standardize=False, seed=seed
                 )
 
                 # Get the updated model (this has the head already fine-tuned)
@@ -731,7 +734,7 @@ def main(
                     X_train, y_train, groups_train, X_test, y_test, fine_tune_model,
                     feature_names=None, cv_splitter=cv_splitter, device=device, classifier_epochs=15,
                     classifier_batch_size=classifier_batch_size,
-                    standardize=False, seed=42
+                    standardize=False, seed=seed
                 )
 
                 print(f"We finished the fine-tuning stage (LP + FT)")
