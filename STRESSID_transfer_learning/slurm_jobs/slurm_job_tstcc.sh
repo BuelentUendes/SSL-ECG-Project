@@ -51,7 +51,7 @@ echo "=== GPU Test Completed ==="
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0 --force_retraining --fs 500
 
 # Command to run the job
-#  for SEED in 3 5 7 9 42; do
+#  for SEED in 11 13 15 17 19; do
 #      sbatch --job-name=STRESSID_ECG_TSTCC_seed_${SEED} \
 #             --output=ecg_stressid_tstcc_${SEED}_%j.out \
 #             --error=ecg_stressid_tstcc_${SEED}_%j.err \
