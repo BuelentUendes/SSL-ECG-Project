@@ -6,7 +6,7 @@
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_tstcc_%j.out
 #SBATCH --error=ecg_tstcc_%j.err
-#SBATCH -C A5000
+#SBATCH -C A4000
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -51,7 +51,7 @@ echo "=== GPU Test Completed ==="
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0 --force_retraining --fs 700
 
 # Command to run the job
-#  for SEED in 3 5 7 9 42; do
+#  for SEED in 11 13 15 17 19; do
 #      sbatch --job-name=WESAD_ECG_TSTCC_seed_${SEED} \
 #             --output=ecg_wesad_tstcc_${SEED}_%j.out \
 #             --error=ecg_wesad_tstcc_${SEED}_%j.err \
