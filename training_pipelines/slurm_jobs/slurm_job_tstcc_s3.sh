@@ -7,7 +7,7 @@
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_tstcc_s3%j.out
 #SBATCH --error=ecg_tstcc_s3%j.err
-#SBATCH -C A4000
+#SBATCH -C A5000
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -62,8 +62,7 @@ python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0
 #      sbatch --job-name=ECG_TSTCC_s3_seed_${SEED} \
 #             --output=ecg_tstcc_s3_${SEED}_%j.out \
 #             --error=ecg_tstcc_s3_${SEED}_%j.err \
-#             --begin=20:00 \
-#             --time=24:00:00 \
+#             --time=48:00:00 \
 #             ./slurm_jobs/slurm_job_tstcc_s3.sh $SEED
 #  done
 ##
