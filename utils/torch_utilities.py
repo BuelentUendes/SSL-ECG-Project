@@ -1626,10 +1626,11 @@ def run_linear_classifier_with_cv_and_test(
                 # =========================================================
 
                 # Create datasets that don't pre-load to GPU (avoids multiprocessing CUDA issues)
+                # During WESAD training, training the model leads to issues as the batchnorm needs more than 1 sample in the bathc
                 tr_ds = PhysiologicalDataset(X_fold_train, y_fold_train)
                 val_ds = PhysiologicalDataset(X_fold_val, y_fold_val)
                 tr_loader = DataLoader(
-                    tr_ds, batch_size=classifier_batch_size, shuffle=True,
+                    tr_ds, batch_size=classifier_batch_size, shuffle=True, drop_last=True,
                     pin_memory=pin_memory, num_workers=num_workers
                 )
                 val_loader = DataLoader(
