@@ -108,10 +108,18 @@ def main(
         SAVED_MODELS_PATH, "ECG", str(fs), model_name, pretrain_data, f"{seed}", f"{window_size}", f"{step_size}",
         str(train_ratio_encoder)
     )
-    results_save_path = os.path.join(
-        RESULTS_PATH, "ECG", str(fs), model_name, classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
-        f"{step_size}", str(train_ratio_encoder)
-    )
+
+    if tc_hidden_dim == 100:
+        # Main results are saved here
+        results_save_path = os.path.join(
+            RESULTS_PATH, "ECG", str(fs), model_name, classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
+            f"{step_size}", str(train_ratio_encoder)
+        )
+    else:
+        results_save_path = os.path.join(
+            RESULTS_PATH, "ECG", str(fs), model_name, f"{classifier_model}_{str(tc_hidden_dim)}", f"{seed}", f"{label_fraction}", f"{window_size}",
+            f"{step_size}", str(train_ratio_encoder)
+        )
 
     # We will save the embeddings so we can later do some analysis on them
     embedding_save_path = os.path.join(
@@ -588,5 +596,8 @@ if __name__ == "__main__":
 
     #Important:
     args.pretrain_all_conditions = True
+
+    # For zero-shot transfer:
+    #python3 tstcc_train_cleaned_cv.py --fs 700 --label_fraction 1.0 --zero_shot_evaluation --zero_shot_dataset wesad --seed 3
 
     main(**vars(args))
