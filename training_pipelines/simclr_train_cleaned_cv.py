@@ -200,14 +200,16 @@ def main(
     )
 
     if optimize_hyperparameters:
-        model_save_name_weights = "simclr_encoder_hyperparameter.pt"
+        if batch_size == 256:
+            model_save_name_weights = "simclr_encoder_hyperparameter.pt"
+        else:
+            model_save_name_weights = f"simclr_encoder_hyperparameter_{batch_size}.pt"
     else:
         model_save_name_weights = "simclr_encoder.pt" if batch_size == 256 else f"simclr_encoder_{batch_size}.pt"
 
     # Check for local pretrained model
     if (os.path.exists(os.path.join(model_save_path, model_save_name_weights)) and not force_retraining
             and not optimize_hyperparameters):
-
         print("Found pretrained model. Loading weights...")
         model_path = os.path.join(model_save_path, model_save_name_weights)
         model.load_state_dict(torch.load(model_path, map_location=device))
@@ -218,9 +220,12 @@ def main(
         if optimize_hyperparameters:
             # Generate random id for experiment tracking
             run_id = str(uuid.uuid4())
-            hyperparameter_file_name = os.path.join(
-                results_save_path, "hyperparameter_tuning_results.json"
-            )
+            if batch_size == 256:
+                hyperparameter_file_name = os.path.join(results_save_path, "hyperparameter_tuning_results.json")
+            else:
+                hyperparameter_file_name = os.path.join(
+                    results_save_path, f"hyperparameter_tuning_results_{batch_size}.json"
+                )
 
         # Load data for encoder pretraining
         X_train_encoder = X[train_idx_encoder].astype(np.float32)
@@ -243,7 +248,6 @@ def main(
 
         # Start recording memory snapshot history
         if torch.cuda.is_available():
-            # Add this to your training loop for systematic reporting
             torch.cuda.reset_peak_memory_stats()
 
         # Train SimCLR
@@ -264,10 +268,10 @@ def main(
             epoch_losses.append(tr_loss)
             print(f"Epoch {ep}/{epochs}: loss={tr_loss:.4f}")
 
-        if batch_size != 256:  # default one:
+        if batch_size != 256:
             run_time_save_name = f"runtime_per_epoch_{batch_size}.json"
             peak_memory_save_name = f"peak_memory_consumption_epochs_{batch_size}.json"
-        else:
+        else: # default one:
             run_time_save_name = "runtime_per_epoch.json"
             peak_memory_save_name = "peak_memory_consumption_epochs.json"
 
