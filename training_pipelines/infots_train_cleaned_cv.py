@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import os
 from datetime import datetime
 import json
@@ -175,9 +174,15 @@ def main(
     set_seed(seed)
 
     if optimize_hyperparameters:
-        model_save_name = "infots_model_hyperparameter.pt"
+        if infots_batch_size == 16:
+            model_save_name = "infots_model_hyperparameter.pt"
+        else:
+            model_save_name = f"infots_model_hyperparameter_{infots_batch_size}.pt"
     else:
-        model_save_name = "infots_model.pt"
+        if infots_batch_size == 16:
+            model_save_name = "infots_model.pt"
+        else:
+            model_save_name = f"infots_model_{infots_batch_size}.pt"
 
     # Check if we have a locally saved model and no forced retraining
     if os.path.exists(os.path.join(model_save_path, model_save_name)) and not force_retraining and not optimize_hyperparameters:
@@ -211,9 +216,12 @@ def main(
         if optimize_hyperparameters:
             # Generate random id for experiment tracking
             run_id = str(uuid.uuid4())
-            hyperparameter_file_name = os.path.join(
-                results_save_path, "hyperparameter_tuning_results.json"
-            )
+            if infots_batch_size == 16:
+                hyperparameter_file_name = os.path.join(results_save_path, "hyperparameter_tuning_results.json")
+            else:
+                hyperparameter_file_name = os.path.join(
+                    results_save_path, f"hyperparameter_tuning_results_{infots_batch_size}.json"
+                )
 
         # Load data for encoder pretraining
         X_train_encoder = X[train_idx_encoder].astype(np.float32)
@@ -339,7 +347,12 @@ def main(
         with open(hyperparameter_file_name, "w") as f:
             json.dump(hyperparameter_save_file, f, indent=4)
 
-    with open(os.path.join(results_save_path, "test_results.json" ), "w") as f:
+    if infots_batch_size == 16:
+        test_result_file_name = "test_results.json"
+    else:
+        test_result_file_name = f"test_results_{infots_batch_size}.json"
+
+    with open(os.path.join(results_save_path, test_result_file_name ), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
     # Log additional parameters locally
