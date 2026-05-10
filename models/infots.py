@@ -813,10 +813,10 @@ class InfoTS:
                 print(f"Epoch #{self.n_epochs}: loss={cum_loss}")
                 mlflow.log_metric("train_loss", cum_loss, step=self.n_epochs)
 
-        if batch_size != 32:  # default one:
+        if batch_size != 32:
             run_time_save_name = f"runtime_per_epoch_{batch_size}.json"
             peak_memory_save_name = f"peak_memory_consumption_epochs_{batch_size}.json"
-        else:
+        else: # default one:
             run_time_save_name = "runtime_per_epoch.json"
             peak_memory_save_name = "peak_memory_consumption_epochs.json"
 
