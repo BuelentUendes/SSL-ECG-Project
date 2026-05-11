@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import os
 from datetime import datetime
 import json
@@ -85,9 +84,9 @@ def main(
     if torch.cuda.is_available():
         device = torch.device(f"cuda:{gpu}")
     elif torch.backends.mps.is_available():
-        device = torch.device("mps")
         # Important note:
         # For TSTCC the MPS is not supported due to some binary operation that does not work on MPS.
+        device = torch.device("mps")
     else:
         device = torch.device("cpu")
 
@@ -217,8 +216,6 @@ def main(
     assert (len(np.unique(groups_train_idx_encoder)) + len(np.unique(groups_val_idx_encoder)) +
             len(np.unique(groups[test_idx])) == 127), \
         "Something went wrong with the participant split!"
-
-    print(f"Labelled windows for training classifier: train {len(train_idx)}, test {len(test_idx)}")
 
     # Keep binary‐task mask for later
     downstream_mask = {
@@ -485,7 +482,7 @@ if __name__ == "__main__":
     general_group = parser.add_argument_group('General Setup')
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
-    general_group.add_argument("--seed", type=int, default=42,
+    general_group.add_argument("--seed", type=int, default=123,
                               help="Random seed for reproducibility")
     general_group.add_argument("--verbose", action="store_true",
                               help="Show verbose output of CV for logistic regression")
