@@ -265,7 +265,7 @@ def main(
                 print(f"Peak memory allocated during epoch {ep}: {torch.cuda.max_memory_allocated() / (1024 ** 3):.2f} GB")
 
             logging.info(f"SSL train loss: {tr_loss}")
-            epoch_train_loss[f"{ep}"] = tr_loss
+            epoch_train_loss[f"{ep}"] = tr_loss.item()
             print(f"Epoch {ep}/{epochs}: loss={tr_loss:.4f}")
 
         if batch_size != 256:
