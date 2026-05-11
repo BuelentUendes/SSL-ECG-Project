@@ -719,6 +719,7 @@ def Trainer(
 
     epoch_peak_memory = {}
     epoch_runtimes = {}
+    epoch_train_loss = {}
 
     for epoch in range(1, config.num_epoch + 1):
         epoch_start_time = time.time()
@@ -733,6 +734,7 @@ def Trainer(
         # Calculate epoch runtime
         epoch_runtime = time.time() - epoch_start_time
         epoch_runtimes[f"{epoch}"] = epoch_runtime
+        epoch_train_loss[f"{epoch}"] = train_loss
 
         # Log memory usage for CUDA
         if torch.cuda.is_available():
@@ -757,6 +759,9 @@ def Trainer(
     else:
         run_time_save_name = "runtime_per_epoch.json"
         peak_memory_save_name = "peak_memory_consumption_epochs.json"
+
+    with open(os.path.join(results_save_path, "training_loss_convergence.json"), "w") as f:
+        json.dump(epoch_train_loss, f, indent=2)
 
     with open(os.path.join(results_save_path, run_time_save_name), "w") as f:
         json.dump(epoch_runtimes, f, indent=2)
