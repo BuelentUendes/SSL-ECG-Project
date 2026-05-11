@@ -556,6 +556,7 @@ class TS2Vec:
 
         epoch_peak_memory = {}
         epoch_runtimes = {}
+        epoch_train_loss = {}
         
         while True:
             epoch_start_time = time.time()
@@ -632,6 +633,7 @@ class TS2Vec:
             
             cum_loss /= n_epoch_iters
             loss_log.append(cum_loss)
+            epoch_train_loss[f"{self.n_epochs}"] = cum_loss.item()
             if verbose:
                 print(f"Epoch #{self.n_epochs}: loss={cum_loss}")
                 mlflow.log_metric("train_loss", cum_loss, step=self.n_epochs)
@@ -641,6 +643,9 @@ class TS2Vec:
                 self.after_epoch_callback(self, cum_loss)
 
             pbar.close()
+
+        with open(os.path.join(results_save_path, "training_loss_convergence.json"), "w") as f:
+            json.dump(epoch_train_loss, f, indent=2)
 
         with open(os.path.join(results_save_path, "runtime_per_epoch.json"), "w") as f:
             json.dump(epoch_runtimes, f, indent=2)
