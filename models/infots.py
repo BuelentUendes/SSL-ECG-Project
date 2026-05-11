@@ -733,6 +733,7 @@ class InfoTS:
 
         epoch_peak_memory = {}
         epoch_runtimes = {}
+        epoch_train_loss = {}
 
         while True:
             epoch_start_time = time.time()
@@ -797,6 +798,7 @@ class InfoTS:
             # Calculate epoch runtime
             epoch_runtime = time.time() - epoch_start_time
             epoch_runtimes[f"{self.n_epochs}"] = epoch_runtime
+            epoch_train_loss[f"{self.n_epochs}"] = cum_loss.item()
 
             # Log memory usage for CUDA
             if torch.cuda.is_available():
