@@ -244,7 +244,7 @@ def main(
 
         epoch_peak_memory = {}
         epoch_runtimes = {}
-        epoch_losses = []
+        epoch_train_loss = {}
 
         # Start recording memory snapshot history
         if torch.cuda.is_available():
@@ -265,7 +265,7 @@ def main(
                 print(f"Peak memory allocated during epoch {ep}: {torch.cuda.max_memory_allocated() / (1024 ** 3):.2f} GB")
 
             logging.info(f"SSL train loss: {tr_loss}")
-            epoch_losses.append(tr_loss)
+            epoch_train_loss[f"{ep}"] = tr_loss
             print(f"Epoch {ep}/{epochs}: loss={tr_loss:.4f}")
 
         if batch_size != 256:
@@ -274,6 +274,9 @@ def main(
         else: # default one:
             run_time_save_name = "runtime_per_epoch.json"
             peak_memory_save_name = "peak_memory_consumption_epochs.json"
+
+        with open(os.path.join(results_save_path, "training_loss_convergence.json"), "w") as f:
+            json.dump(epoch_train_loss, f, indent=2)
 
         with open(os.path.join(results_save_path, run_time_save_name), "w") as f:
             json.dump(epoch_runtimes, f, indent=2)
