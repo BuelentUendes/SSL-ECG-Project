@@ -633,7 +633,8 @@ class TS2Vec:
             
             cum_loss /= n_epoch_iters
             loss_log.append(cum_loss)
-            epoch_train_loss[f"{self.n_epochs}"] = cum_loss.item()
+            epoch_train_loss[f"{self.n_epochs}"] = cum_loss
+
             if verbose:
                 print(f"Epoch #{self.n_epochs}: loss={cum_loss}")
                 mlflow.log_metric("train_loss", cum_loss, step=self.n_epochs)

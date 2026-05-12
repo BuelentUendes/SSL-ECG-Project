@@ -798,7 +798,6 @@ class InfoTS:
             # Calculate epoch runtime
             epoch_runtime = time.time() - epoch_start_time
             epoch_runtimes[f"{self.n_epochs}"] = epoch_runtime
-            epoch_train_loss[f"{self.n_epochs}"] = cum_loss.item()
 
             # Log memory usage for CUDA
             if torch.cuda.is_available():
@@ -811,6 +810,8 @@ class InfoTS:
 
             cum_loss /= n_epoch_iters
             loss_log.append(cum_loss)
+            epoch_train_loss[f"{self.n_epochs}"] = cum_loss
+
             if verbose:
                 print(f"Epoch #{self.n_epochs}: loss={cum_loss}")
                 mlflow.log_metric("train_loss", cum_loss, step=self.n_epochs)
@@ -821,6 +822,9 @@ class InfoTS:
         else: # default one:
             run_time_save_name = "runtime_per_epoch.json"
             peak_memory_save_name = "peak_memory_consumption_epochs.json"
+
+        with open(os.path.join(results_save_path, "training_loss_convergence.json"), "w") as f:
+            json.dump(epoch_train_loss, f, indent=2)
 
         with open(os.path.join(results_save_path, run_time_save_name), "w") as f:
             json.dump(epoch_runtimes, f, indent=2)
