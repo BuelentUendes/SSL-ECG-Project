@@ -39,7 +39,7 @@ def collect_results(results_dir: str) -> pd.DataFrame:
     results = []
     results_path = Path(results_dir)
 
-    target_seeds = [3, 5, 7, 9, 42]
+    target_seeds = [3, 5, 7, 9, 42, 11, 13, 15, 17, 19]
     
     # Label fractions to collect
     label_fractions = [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0]
@@ -50,11 +50,11 @@ def collect_results(results_dir: str) -> pd.DataFrame:
     # SSL models - mapping directory names to clean names
     ssl_models = {
         'TS2Vec': 'TS2Vec',
-        'TS2Vec_S3': 'TS2Vec_S3', 
+        'TS2Vec_S3': 'TS2Vec_S3',
         'TSTCC': 'TSTCC',
         'TSTCC_S3': 'TSTCC_S3',
         'SimCLR': 'SimCLR',
-        'SimCLR_S3': 'SimCLR_S3',
+        'SimCLR_S3': "SimCLR_S3",
         'InfoTS': 'InfoTS',
         'InfoTS_S3': 'InfoTS_S3'
     }
@@ -130,6 +130,7 @@ def collect_results(results_dir: str) -> pd.DataFrame:
                             })
                             break  # Found result, don't check other paths
 
+
     features_path = results_path / "ECG_features" / "logistic_regression"
     if features_path.exists():
         print("Collecting ECG features results...")
@@ -164,6 +165,42 @@ def collect_results(results_dir: str) -> pd.DataFrame:
                                 'accuracy': metrics.get('accuracy', np.nan),
                                 'f1': metrics.get('f1', np.nan)
                             })
+
+        features_path = results_path / "ECG_features" / "xgboost"
+        if features_path.exists():
+            print("Collecting ECG features results...")
+            for seed in target_seeds:
+                seed_path = features_path / str(seed)
+                if not seed_path.exists():
+                    continue
+
+                for label_frac in label_fractions:
+                    # Look for results with different window sizes and shifts
+                    window_configurations = [
+                        (10, 5),  # 10s window, 5s shift
+                        (30, 10),  # 30s window, 10s shift
+                        (30, 5),  # 30s window, 5s shift
+                        (30, 15),  # 30s window, 15s shift
+                    ]
+
+                    for window_size, window_shift in window_configurations:
+                        result_file = seed_path / str(label_frac) / str(window_size) / str(
+                            window_shift) / "test_results.json"
+                        if result_file.exists():
+                            metrics = load_json_results(str(result_file))
+                            if metrics and 'auroc' in metrics and 'pr_auc' in metrics:
+                                results.append({
+                                    'method_type': 'Features',
+                                    'model': f'XGboost_{window_size}s_{window_shift}s',
+                                    'seed': seed,
+                                    'label_fraction': label_frac,
+                                    'window_size': window_size,
+                                    'window_shift': window_shift,
+                                    'auroc': metrics['auroc'],
+                                    'pr_auc': metrics['pr_auc'],
+                                    'accuracy': metrics.get('accuracy', np.nan),
+                                    'f1': metrics.get('f1', np.nan)
+                                })
 
     df = pd.DataFrame(results)
     print(f"Collected {len(df)} result entries")
@@ -221,7 +258,7 @@ def calculate_statistics(df: pd.DataFrame) -> pd.DataFrame:
         seed_to_pr_auc = dict(zip(group_sorted['seed'], group_sorted['pr_auc']))
         
         # Add columns for each seed (up to 5 seeds: 3, 5, 7, 9, 42)
-        all_seeds = [3, 5, 7, 9, 42]
+        all_seeds = [3, 5, 7, 9, 42, 11, 13, 15, 17, 19]
         for i, seed in enumerate(all_seeds, 1):
             if seed in seed_to_auroc:
                 result[f'auroc_seed_{seed}'] = seed_to_auroc[seed]
@@ -259,7 +296,7 @@ def wilcoxon_signed_rank_test(df: pd.DataFrame, stats_df: pd.DataFrame) -> pd.Da
     critical_value_n5_alpha010 = 0
 
     target_fractions = [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0]
-    target_seeds = [3, 5, 7, 9, 42]
+    target_seeds = [3, 5, 7, 9, 42, 11, 13, 15, 17, 19]
 
     # Method pairs to compare
     comparisons = [
@@ -464,7 +501,7 @@ def export_to_csv(stats_df: pd.DataFrame, output_path: str) -> None:
         export_df[col] = export_df[col]
     
     # Convert to percentages - individual seed columns
-    all_seeds = [3, 5, 7, 9, 42]
+    all_seeds = [3, 5, 7, 9, 42, 11, 13, 15, 17, 19]
     for seed in all_seeds:
         auroc_col = f'auroc_seed_{seed}'
         pr_auc_col = f'pr_auc_seed_{seed}'
@@ -486,7 +523,7 @@ def export_to_csv(stats_df: pd.DataFrame, output_path: str) -> None:
 
 def main():
     """Main function to run the aggregation."""
-    output_csv = "ecg_ssl_aggregated_results.csv"
+    output_csv = "ecg_ssl_aggregated_results_xgboost.csv"
     
     if not os.path.exists(RESULTS_PATH):
         print(f"Results directory '{RESULTS_PATH}' not found!")
