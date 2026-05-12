@@ -265,7 +265,7 @@ def main(
                 print(f"Peak memory allocated during epoch {ep}: {torch.cuda.max_memory_allocated() / (1024 ** 3):.2f} GB")
 
             logging.info(f"SSL train loss: {tr_loss}")
-            epoch_train_loss[f"{ep}"] = tr_loss.item()
+            epoch_train_loss[f"{ep}"] = tr_loss
             print(f"Epoch {ep}/{epochs}: loss={tr_loss:.4f}")
 
         if batch_size != 256:
@@ -378,7 +378,7 @@ def main(
                 "tstcc_encoder_used": use_tstcc_encoder,
                 "epochs": epochs,
             },
-            "Training loss": epoch_losses[-5:],
+            "Training loss": epoch_train_loss[-5:],
             "CV score": results['best_cv_score'], #Criterion for checking the performance and selecting best hyperparameter set
             "Test_metrics": results["test_metrics"],
             "timestamp": datetime.now().isoformat(),
