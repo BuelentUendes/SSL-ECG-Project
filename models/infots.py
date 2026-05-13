@@ -687,33 +687,39 @@ class InfoTS:
             meta_epoch=2,
             meta_beta=1.0,
             train_labels=None,
+            meta_train_data=None,
             batch_size=32,
             results_save_path=RESULTS_PATH):
-        
+
         assert train_data.ndim == 3
-        
+
         train_data, train_dataset, train_loader = self.get_dataloader(train_data, shuffle=True, drop_last=True)
-        
+
         cls_optimizer = None
-        
+
         if not supervised_meta:
+            # Unsupervised: use batch-position indices as pseudo-labels, full train_data as meta source
             train_labels = TensorDataset(torch.arange(train_data.shape[0]).to(torch.long).to(self.device))
             cls_optimizer = torch.optim.AdamW(self.unsup_pred.parameters(), lr=self.cls_lr)
+            meta_data_label = list(zip(train_dataset, train_labels))
+            meta_batch_size = min(self.batch_size, len(train_dataset))
         else:
+            # Supervised: use real class labels. If meta_train_data is provided, it is a separate
+            # (typically smaller) labeled subset; otherwise fall back to train_data.
             train_labels = TensorDataset(torch.from_numpy(train_labels).to(torch.long).to(self.device))
             cls_optimizer = torch.optim.AdamW(self.pred.parameters(), lr=self.cls_lr)
-
-        # Old code
-        # train_data_label = []
-        # for i in range(len(train_dataset)):
-        #     train_data_label.append([train_dataset[i], train_labels[i]])
-        #
-        # Faster pairing using zip instead of list iteration
-        train_data_label = list(zip(train_dataset, train_labels))
+            if meta_train_data is not None:
+                assert meta_train_data.ndim == 3
+                _, meta_dataset, _ = self.get_dataloader(meta_train_data, shuffle=False, drop_last=False)
+                meta_data_label = list(zip(meta_dataset, train_labels))
+                meta_batch_size = min(self.batch_size, len(meta_dataset))
+            else:
+                meta_data_label = list(zip(train_dataset, train_labels))
+                meta_batch_size = min(self.batch_size, len(train_dataset))
 
         train_data_label_loader = DataLoader(
-            train_data_label, 
-            batch_size=min(self.batch_size, len(train_dataset)), 
+            meta_data_label,
+            batch_size=meta_batch_size,
             shuffle=True,
             drop_last=True,
             pin_memory=False,

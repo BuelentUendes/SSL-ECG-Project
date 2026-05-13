@@ -63,6 +63,7 @@ def main(
         initial_num_segments: int = 2,
         shuffle_vector_dim: int = 1,
         segment_multiplier: int = 2,
+        supervised_meta: bool = False,
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -95,14 +96,15 @@ def main(
 
     # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
     pretrain_data = "all_labels" if pretrain_all_conditions else "mental_stress_baseline"
+    meta_mode = "supervised_meta" if supervised_meta else "unsupervised_meta"
 
     model_save_path = os.path.join(
-        SAVED_MODELS_PATH, "ECG", str(fs), model_name, pretrain_data, f"{seed}", f"{window_size}", f"{step_size}",
-        str(train_ratio_encoder)
+        SAVED_MODELS_PATH, "ECG", str(fs), model_name, pretrain_data, meta_mode, f"{seed}", f"{window_size}",
+        f"{step_size}", str(train_ratio_encoder)
     )
     results_save_path = os.path.join(
-        RESULTS_PATH, "ECG", model_name, classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
-        f"{step_size}", str(train_ratio_encoder)
+        RESULTS_PATH, "ECG", model_name, classifier_model, meta_mode, f"{seed}", f"{label_fraction}",
+        f"{window_size}", f"{step_size}", str(train_ratio_encoder)
     )
 
     create_directory(model_save_path)
@@ -162,6 +164,20 @@ def main(
         "Something went wrong with the participant split!"
 
     print(f"Labelled windows for training classifier: train {len(train_idx)}, test {len(test_idx)}")
+
+    # Prepare data for supervised meta-learning if requested.
+    # Only binary-labeled windows from the label fraction are available; all other samples
+    # (unlabeled participants, physical-activity conditions) are excluded from meta-learning.
+    if supervised_meta:
+        binary_mask = np.isin(y[train_idx], [0, 1])
+        binary_train_indices = train_idx[binary_mask]
+        meta_train_data = X[binary_train_indices].astype(np.float32)
+        train_labels_for_fit = y[binary_train_indices].astype(np.int64)
+        print(f"Supervised meta-learning: {len(train_labels_for_fit)} binary-labeled windows "
+              f"({label_fraction*100:.0f}% label fraction)")
+    else:
+        meta_train_data = None
+        train_labels_for_fit = None
 
     # Keep binary‐task mask for later
     downstream_mask = {
@@ -249,15 +265,15 @@ def main(
 
         print(f"Created {model_name} model on device: {next(infots.net.parameters()).device}")
 
-        # Train InfoTS - Note: InfoTS uses unsupervised meta-learning, so we don't provide labels
         loss_log = infots.fit(
             X_train_encoder,
             n_epochs=infots_epochs,
             verbose=True,
-            supervised_meta=False,
+            supervised_meta=supervised_meta,
             batch_size=infots_batch_size,
             results_save_path=results_save_path,
-            train_labels=None# InfoTS uses unsupervised meta-learning by default
+            train_labels=train_labels_for_fit,
+            meta_train_data=meta_train_data,
         )
 
         # Save model
@@ -491,10 +507,20 @@ if __name__ == "__main__":
                               "Due to high computational costs, we resort to grid-search based tuning, selected "
                               "via the command-line arguments, for 20 epochs and 10% label fraction.")
 
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Meta-Learning Configuration
+    # ══════════════════════════════════════════════════════════════════════════════
+    meta_group = parser.add_argument_group('Meta-Learning')
+    meta_group.add_argument("--supervised_meta", action="store_true",
+                            help="Use supervised meta-learning: the augmentation module is guided by actual class "
+                                 "labels instead of random batch-position pseudo-labels. Requires label_fraction > 0 "
+                                 "to provide a meaningful signal.")
+
     # Parse arguments and run main function
     args = parser.parse_args()
 
     # Important:
     args.pretrain_all_conditions = True
+    args.supervised_meta = True
 
     main(**vars(args))
