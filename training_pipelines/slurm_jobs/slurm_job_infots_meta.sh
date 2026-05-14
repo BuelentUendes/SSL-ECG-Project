@@ -49,13 +49,13 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.1 --force_retraining --infots_aug_p1 0.3 --supervised_meta
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.01 --infots_aug_p1 0.3 --supervised_meta
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.025 --infots_aug_p1 0.3 --supervised_meta
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.05 --infots_aug_p1 0.3 --supervised_meta
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.25 --infots_aug_p1 0.3 --supervised_meta
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.5 --infots_aug_p1 0.3 --supervised_meta
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 1.0 --infots_aug_p1 0.3 --supervised_meta
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 1.0 --force_retraining --infots_aug_p1 0.3 --supervised_meta
+#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.01 --infots_aug_p1 0.3 --supervised_meta
+#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.025 --infots_aug_p1 0.3 --supervised_meta
+#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.05 --infots_aug_p1 0.3 --supervised_meta
+#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.25 --infots_aug_p1 0.3 --supervised_meta
+#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.5 --infots_aug_p1 0.3 --supervised_meta
+#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 1.0 --infots_aug_p1 0.3 --supervised_meta
 
 #
 #  for SEED in 3 5 7 9 11; do
