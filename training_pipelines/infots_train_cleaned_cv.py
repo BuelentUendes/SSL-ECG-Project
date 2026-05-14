@@ -521,6 +521,6 @@ if __name__ == "__main__":
 
     # Important:
     args.pretrain_all_conditions = True
-    args.supervised_meta = True
+    # args.supervised_meta = True
 
     main(**vars(args))
