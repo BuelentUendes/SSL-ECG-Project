@@ -47,6 +47,7 @@ def main(
         ts2vec_max_train_length: int,
         ts2vec_temporal_unit: int,
         ts2vec_masking_prob: float,
+        ts2vec_use_gradient_clipping: bool,
         use_s3_layers: bool,
         initial_num_segments: int,
         num_s3_layers: int,
@@ -164,9 +165,15 @@ def main(
     set_seed(seed)
 
     if ts2vec_lr == 0.01:
-        model_save_name = "ts2vec_model.pt"
+        if ts2vec_use_gradient_clipping:
+            model_save_name = "ts2vec_model_gradient_clipped.pt"
+        else:
+            model_save_name = "ts2vec_model.pt"
     else:
-        model_save_name = f"ts2vec_model_{ts2vec_lr}.pt"
+        if ts2vec_use_gradient_clipping:
+            model_save_name = f"ts2vec_model_{ts2vec_lr}_gradient_clipped.pt"
+        else:
+            model_save_name = f"ts2vec_model_{ts2vec_lr}.pt"
 
     # Check if we have a locally saved model and no forced retraining
     if (os.path.exists(os.path.join(model_save_path, model_save_name)) and not force_retraining
@@ -229,6 +236,7 @@ def main(
             X_train_encoder,
             n_epochs=ts2vec_epochs,
             verbose=True,
+            use_gradient_clipping=ts2vec_use_gradient_clipping,
             results_save_path=results_save_path
         )
 
@@ -339,7 +347,17 @@ def main(
         with open(hyperparameter_file_name, "w") as f:
             json.dump(hyperparameter_save_file, f, indent=4)
 
-    test_result_file_name = "test_results.json" if ts2vec_lr == 0.001 else f"test_results_{ts2vec_lr}.json"
+    if ts2vec_lr == 0.001:
+        if ts2vec_use_gradient_clipping:
+            test_result_file_name = "test_results_gradient_clipped.json"
+        else:
+            test_result_file_name = "test_results.json"
+    else:
+        if ts2vec_use_gradient_clipping:
+            test_result_file_name = f"test_results_{ts2vec_lr}_gradient_clipped.json"
+        else:
+            test_result_file_name = f"test_results_{ts2vec_lr}.json"
+
     with open(os.path.join(results_save_path, test_result_file_name), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
@@ -420,6 +438,8 @@ if __name__ == "__main__":
                              help="TS2Vec temporal unit for hierarchical pooling")
     ts2vec_group.add_argument("--ts2vec_masking_prob", type=float, default=0.5,
                               help="Masking probability for random masking augmentation")
+    ts2vec_group.add_argument("--ts2vec_use_gradient_clipping", action="store_true",
+                              help="If true, we use gradient clipping for the TS2Vec training")
 
     # Adding the S3 layers if needed with default parameters as specified in the paper
     ts2vec_group.add_argument("--use_s3_layers", action="store_true",
