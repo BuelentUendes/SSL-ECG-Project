@@ -163,10 +163,16 @@ def main(
     torch.cuda.empty_cache()
     set_seed(seed)
 
+    if ts2vec_lr == 0.01:
+        model_save_name = "ts2vec_model.pt"
+    else:
+        model_save_name = f"ts2vec_model_{ts2vec_lr}.pt"
+
     # Check if we have a locally saved model and no forced retraining
-    if os.path.exists(os.path.join(model_save_path, "ts2vec_model.pt")) and not force_retraining and not optimize_hyperparameters:
+    if (os.path.exists(os.path.join(model_save_path, model_save_name)) and not force_retraining
+            and not optimize_hyperparameters):
         print("We found a pretrained model. Load the pretrained weights")
-        model_path = os.path.join(model_save_path, "ts2vec_model.pt")
+        model_path = os.path.join(model_save_path, model_save_name)
 
         ts2vec = TS2Vec(
             input_dims=n_features,
@@ -228,9 +234,15 @@ def main(
 
         # Save model
         if optimize_hyperparameters:
-            saved_results = os.path.join(model_save_path, "ts2vec_model_hyperparameter.pt")
+            if ts2vec_lr == 0.001:
+                saved_results = os.path.join(model_save_path, "ts2vec_model_hyperparameter.pt")
+            else:
+                saved_results = os.path.join(model_save_path, f"ts2vec_model_hyperparameter_{ts2vec_lr}.pt")
         else:
-            saved_results = os.path.join(model_save_path, "ts2vec_model.pt")
+            if ts2vec_lr == 0.001:
+                saved_results = os.path.join(model_save_path, "ts2vec_model.pt")
+            else:
+                saved_results = os.path.join(model_save_path, f"ts2vec_model_{ts2vec_lr}.pt")
 
         torch.save(ts2vec.net, saved_results)
 
@@ -327,7 +339,8 @@ def main(
         with open(hyperparameter_file_name, "w") as f:
             json.dump(hyperparameter_save_file, f, indent=4)
 
-    with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
+    test_result_file_name = "test_results.json" if ts2vec_lr == 0.001 else f"test_results_{ts2vec_lr}.json"
+    with open(os.path.join(results_save_path, test_result_file_name), "w") as f:
         json.dump(results, f, indent=2, default=str)
 
     # Log additional parameters locally
