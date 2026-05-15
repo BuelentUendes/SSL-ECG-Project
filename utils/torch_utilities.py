@@ -607,7 +607,7 @@ def prepare_model_signature(model, sample_input):
     
     return ModelSignature(inputs=input_schema, outputs=output_schema)
 
-def set_seed(seed=42, deterministic=True):
+def set_seed(seed=42, deterministic=True, infots_algo=False):
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
@@ -620,11 +620,13 @@ def set_seed(seed=42, deterministic=True):
     if deterministic:
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark     = False
-        
-        if hasattr(torch, "use_deterministic_algorithms"):
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                torch.use_deterministic_algorithms(True, warn_only=True)
+
+        # For InfoTS this interferes with the algorithm so we need to disable this
+        if not infots_algo:
+            if hasattr(torch, "use_deterministic_algorithms"):
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    torch.use_deterministic_algorithms(True, warn_only=True)
 
 
 def create_directory(path):
