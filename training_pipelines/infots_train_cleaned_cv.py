@@ -187,7 +187,7 @@ def main(
 
     # ── Step 2: InfoTS Pretraining ──────────────────────────────────────────────
     torch.cuda.empty_cache()
-    set_seed(seed)
+    set_seed(seed, infots_algo=True)
 
     if optimize_hyperparameters:
         if infots_batch_size == 16:
@@ -521,6 +521,5 @@ if __name__ == "__main__":
 
     # Important:
     args.pretrain_all_conditions = True
-    # args.supervised_meta = True
 
     main(**vars(args))
