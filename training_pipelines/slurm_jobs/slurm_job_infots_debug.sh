@@ -7,7 +7,7 @@
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_infots_%j.out
 #SBATCH --error=ecg_infots_%j.err
-#SBATCH -C A6000
+#SBATCH -C A4000
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -50,8 +50,9 @@ EOF
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
 python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 20 --infots_batch_size 16 --label_fraction 0.1 --optimize_hyperparameters --infots_aug_p1 0.4
-#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 20 --infots_batch_size 16 --label_fraction 0.1 --optimize_hyperparameters --infots_aug_p1 0.1
-#python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 20 --infots_batch_size 16 --label_fraction 0.1 --optimize_hyperparameters --infots_aug_p1 0.3
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 20 --infots_batch_size 16 --label_fraction 0.1 --optimize_hyperparameters --infots_aug_p1 0.2
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 20 --infots_batch_size 16 --label_fraction 0.1 --optimize_hyperparameters --infots_aug_p1 0.1
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 20 --infots_batch_size 16 --label_fraction 0.1 --optimize_hyperparameters --infots_aug_p1 0.3
 #python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.01
 #python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.025
 #python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.05
@@ -61,8 +62,8 @@ python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 20 --infots_batch_s
 
 ##
 #  for SEED in 42; do
-#      sbatch --job-name=ECG_INFOTS_seed_${SEED} \
-#             --output=ecg_infots_${SEED}_%j.out \
+#      sbatch --job-name=ECG_Tune_INFOTS_seed_${SEED} \
+#             --output=ecg_infots_TUNE_${SEED}_%j.out \
 #             --time=60:00:00 \
 #             --error=ecg_infots_${SEED}_%j.err \
 #             ./slurm_jobs/slurm_job_infots_debug.sh $SEED
