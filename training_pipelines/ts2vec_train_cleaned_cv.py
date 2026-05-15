@@ -164,7 +164,7 @@ def main(
     torch.cuda.empty_cache()
     set_seed(seed)
 
-    if ts2vec_lr == 0.01:
+    if ts2vec_lr == 5e-4:
         if ts2vec_use_gradient_clipping:
             model_save_name = "ts2vec_model_gradient_clipped.pt"
         else:
@@ -242,12 +242,12 @@ def main(
 
         # Save model
         if optimize_hyperparameters:
-            if ts2vec_lr == 0.001:
+            if ts2vec_lr == 5e-4:
                 saved_results = os.path.join(model_save_path, "ts2vec_model_hyperparameter.pt")
             else:
                 saved_results = os.path.join(model_save_path, f"ts2vec_model_hyperparameter_{ts2vec_lr}.pt")
         else:
-            if ts2vec_lr == 0.001:
+            if ts2vec_lr == 5e-4:
                 saved_results = os.path.join(model_save_path, "ts2vec_model.pt")
             else:
                 saved_results = os.path.join(model_save_path, f"ts2vec_model_{ts2vec_lr}.pt")
@@ -347,7 +347,7 @@ def main(
         with open(hyperparameter_file_name, "w") as f:
             json.dump(hyperparameter_save_file, f, indent=4)
 
-    if ts2vec_lr == 0.001:
+    if ts2vec_lr == 5e-4:
         if ts2vec_use_gradient_clipping:
             test_result_file_name = "test_results_gradient_clipped.json"
         else:
@@ -422,7 +422,7 @@ if __name__ == "__main__":
     ts2vec_group = parser.add_argument_group('TS2Vec Encoder Training')
     ts2vec_group.add_argument("--ts2vec_epochs", type=int, default=40,
                              help="Number of epochs for TS2Vec pretraining")
-    ts2vec_group.add_argument("--ts2vec_lr", type=float, default=0.001,
+    ts2vec_group.add_argument("--ts2vec_lr", type=float, default=5e-4, #5e-4 more stable lr compared to 1e-3
                              help="Learning rate for TS2Vec training")
     ts2vec_group.add_argument("--ts2vec_batch_size", type=int, default=8,
                              help="Batch size for TS2Vec training")
