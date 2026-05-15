@@ -355,6 +355,8 @@ class InfoTSAugmentation(nn.Module):
 
     def forward(self, xt):
         x, t = xt
+        original_shape = x.shape  #
+
         if self.aug_p1 == 0 and self.aug_p2 == 0:
             return x.clone(), x.clone()
 
@@ -651,6 +653,8 @@ class InfoTS:
         pin_memory = torch.cuda.is_available()
         num_workers = 4 if torch.cuda.is_available() else 0
 
+        g = torch.Generator()
+        g.manual_seed(torch.initial_seed())
         loader = DataLoader(
             dataset,
             batch_size=min(self.batch_size, len(dataset)),
@@ -659,6 +663,7 @@ class InfoTS:
             pin_memory=pin_memory,
             num_workers=num_workers,
             persistent_workers=num_workers > 0,
+            generator=g if shuffle else None,
         )
 
         return data, dataset, loader
@@ -717,6 +722,8 @@ class InfoTS:
                 meta_data_label = list(zip(train_dataset, train_labels))
                 meta_batch_size = min(self.batch_size, len(train_dataset))
 
+        meta_g = torch.Generator()
+        meta_g.manual_seed(torch.initial_seed())
         train_data_label_loader = DataLoader(
             meta_data_label,
             batch_size=meta_batch_size,
@@ -724,6 +731,7 @@ class InfoTS:
             drop_last=True,
             pin_memory=False,
             num_workers=0,
+            generator=meta_g,
         )
 
         meta_p = self.aug.parameters()
