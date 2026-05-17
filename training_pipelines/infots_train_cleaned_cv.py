@@ -66,7 +66,7 @@ def main(
         supervised_meta: bool = False,
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
-    set_seed(seed)
+    set_seed(seed, infots_algo=True)
 
     # device
     if torch.cuda.is_available():
@@ -305,7 +305,7 @@ def main(
     )
 
     # ── Step 5: Run CV with Logistic Regression or MLP ─────────────────────────────────
-    set_seed(seed)
+    set_seed(seed, infots_algo=True)
 
     # Create feature names for representations (just numbered features)
     feature_names = [f"repr_{i}" for i in range(train_repr.shape[1])]
