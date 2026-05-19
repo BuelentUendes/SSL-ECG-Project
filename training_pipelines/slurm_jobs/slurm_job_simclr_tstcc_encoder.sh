@@ -58,12 +58,12 @@ python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 0.5 --
 python3 simclr_train_cleaned_cv.py --seed $1 --epochs 40 --label_fraction 1.0 --temperature 0.3 --use_tstcc_encoder
 
 # Command to run the job
-  for SEED in 3 5 7 9 11 13 15 17 19 42; do
-      sbatch --job-name=ECG_SimCLR_TSTCC_seed_${SEED} \
-             --output=ecg_simclr_TSTCC_${SEED}_%j.out \
-             --error=ecg_simclr_TSTCC_${SEED}_%j.err \
-             --time=24:00:00 \
-             ./slurm_jobs/slurm_job_simclr_tstcc_encoder.sh $SEED
-  done
+#  for SEED in 3 5 7 9 11 13 15 17 19 42; do
+#      sbatch --job-name=ECG_SimCLR_TSTCC_seed_${SEED} \
+#             --output=ecg_simclr_TSTCC_${SEED}_%j.out \
+#             --error=ecg_simclr_TSTCC_${SEED}_%j.err \
+#             --time=24:00:00 \
+#             ./slurm_jobs/slurm_job_simclr_tstcc_encoder.sh $SEED
+#  done
 ##
 
