@@ -1,7 +1,6 @@
 ####
 # This is the script of supervised_training with cross validation
 ###
-
 import os
 import copy
 import json
@@ -42,6 +41,14 @@ from models.supervised import (
     FineTunedCNNNet,
     freeze_and_unfreeze_encoder,
 )
+
+
+# Numeric index → WESAD participant ID (sorted numerically, S12 is missing)
+WESAD_PARTICIPANT_MAP = {
+    0: "S2", 1: "S3", 2: "S4", 3: "S5", 4: "S6",
+    5: "S7", 6: "S8", 7: "S9", 8: "S10", 9: "S11",
+    10: "S13", 11: "S14", 12: "S15", 13: "S16", 14: "S17",
+}
 
 
 def run_supervised_model_with_cv_and_test(
@@ -526,7 +533,9 @@ def main(
         classifier_head: str = "logistic_regression",
         classifier_epochs: int = 25,
         classifier_lr: float = 1e-4,
-        classifier_batch_size: int =32,
+        classifier_batch_size: int = 32,
+        loso: bool = False,
+        held_out_participant: int = 0,
 ):
 
     set_seed(seed)
@@ -546,8 +555,22 @@ def main(
     create_directory(RESULTS_PATH)
 
     model_save_path, results_save_path, window_data_path = get_paths(
-        dataset, fs, model_type, seed, label_fraction, window_size,step_size
+        dataset, fs, model_type, seed, label_fraction, window_size, step_size
     )
+
+    if loso and dataset == "wesad":
+        held_out_id = WESAD_PARTICIPANT_MAP[held_out_participant]
+        print(f"LOSO mode: holding out participant {held_out_id} (index {held_out_participant}) as test set")
+        loso_tag = f"loso{held_out_participant}"
+        model_save_path = os.path.join(
+            SAVED_MODELS_PATH, "WESAD_LOSO", str(fs), f"{model_type}", f"{seed}",
+            loso_tag, f"{label_fraction}", f"{window_size}", f"{step_size}"
+        )
+        results_save_path = os.path.join(
+            RESULTS_PATH, "WESAD_LOSO", "Supervised", model_type,
+            f"seed{seed}", loso_tag, f"{label_fraction}", f"{window_size}", f"{step_size}"
+        )
+
     create_directory(model_save_path)
     create_directory(results_save_path)
 
@@ -569,10 +592,17 @@ def main(
             f"{window_size}", f"{step_size}"
         )
         dataset_name = "WESAD" if dataset == "wesad" else "StressID"
-        transfer_learning_results_save_path = os.path.join(
-            RESULTS_PATH, "Transfer_learning", dataset_name, subfolder_name, model_type,
-            f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}", classifier_head
-    )
+        if loso and dataset == "wesad":
+            transfer_learning_results_save_path = os.path.join(
+                RESULTS_PATH, "Transfer_learning", "WESAD_LOSO", subfolder_name, model_type,
+                classifier_head, f"{seed}", f"participant_index_{held_out_participant}",
+                f"{label_fraction}", f"{window_size}", f"{step_size}"
+            )
+        else:
+            transfer_learning_results_save_path = os.path.join(
+                RESULTS_PATH, "Transfer_learning", dataset_name, subfolder_name, model_type,
+                f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}", classifier_head
+            )
 
         create_directory(transfer_learning_results_save_path)
 
@@ -624,15 +654,30 @@ def main(
 
     # train/val/test split
     # Split by participant to get train/test split
-    train_idx, train_p, test_idx, test_p = split_indices_by_participant_groups(
-        groups,
-        train_ratio=0.8,
-        label_fraction=label_fraction,
-        seed=seed
-    )
+    if loso and dataset == "wesad":
+        held_out_id = WESAD_PARTICIPANT_MAP[held_out_participant]
+        all_train_p = np.array([p for p in WESAD_PARTICIPANT_MAP.values() if p != held_out_id])
+        test_idx = np.flatnonzero(groups == held_out_id)
+        all_train_idx = np.flatnonzero(np.isin(groups, all_train_p))
+
+        rng = np.random.default_rng(seed)
+        if label_fraction < 1.0:
+            n_labeled = max(1, int(len(all_train_p) * label_fraction))
+            labeled_participants = rng.choice(all_train_p, size=n_labeled, replace=False)
+            train_p = labeled_participants.copy()
+            train_idx = np.flatnonzero(np.isin(groups, labeled_participants))
+        else:
+            train_p = all_train_p.copy()
+            train_idx = all_train_idx.copy()
+    else:
+        train_idx, train_p, test_idx, test_p = split_indices_by_participant_groups(
+            groups,
+            train_ratio=0.8,
+            label_fraction=label_fraction,
+            seed=seed
+        )
 
     print(f" Labeled windows: train {len(train_idx)}, test {len(test_idx)}")
-
     X_train = X[train_idx]
     y_train = y[train_idx]
     groups_train = groups[train_idx]
@@ -901,6 +946,15 @@ if __name__ == "__main__":
                                  help="Learning rate for MLP classifier")
     parser.add_argument("--classifier_batch_size", type=int, default=32,
                                  help="Batch size for fine-tuning")
+
+    # Leave-One-Subject-Out (WESAD only)
+    parser.add_argument("--loso", action="store_true",
+                        help="Leave-one-subject-out: hold out one WESAD participant as test "
+                             "(only applies when --dataset wesad)")
+    parser.add_argument("--held_out_participant", type=int, default=0,
+                        help="Index (0-14) of participant to hold out under --loso. "
+                             "Mapping: 0=S2, 1=S3, 2=S4, 3=S5, 4=S6, 5=S7, 6=S8, 7=S9, "
+                             "8=S10, 9=S11, 10=S13, 11=S14, 12=S15, 13=S16, 14=S17")
 
     args = parser.parse_args()
 
