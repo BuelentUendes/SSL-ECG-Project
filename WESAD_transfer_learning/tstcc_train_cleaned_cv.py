@@ -43,6 +43,14 @@ from models.tstcc import (
 )
 
 
+# Numeric index → WESAD participant ID (sorted numerically, S12 is missing)
+WESAD_PARTICIPANT_MAP = {
+    0: "S2", 1: "S3", 2: "S4", 3: "S5", 4: "S6",
+    5: "S7", 6: "S8", 7: "S9", 8: "S10", 9: "S11",
+    10: "S13", 11: "S14", 12: "S15", 13: "S16", 14: "S17",
+}
+
+
 def main(
         fs: str,
         window_size:int,
@@ -79,6 +87,8 @@ def main(
         verbose: bool = False,
         scoring_metric: str = "roc_auc",
         optimize_hyperparameters: bool = False,
+        loso: bool = False,
+        held_out_participant: int = 0,
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -117,15 +127,25 @@ def main(
             )
 
     else:
-        if use_s3_layers:
-            model_save_path = os.path.join(
-                SAVED_MODELS_PATH, "WESAD", "TSTCC_S3", f"{seed}", f"{window_size}", f"{step_size}"
-            )
-
+        if loso:
+            loso_tag = f"loso{held_out_participant}"
+            if use_s3_layers:
+                model_save_path = os.path.join(
+                    SAVED_MODELS_PATH, "WESAD", "TSTCC_S3_LOSO", f"{seed}", loso_tag, f"{window_size}", f"{step_size}"
+                )
+            else:
+                model_save_path = os.path.join(
+                    SAVED_MODELS_PATH, "WESAD", "TSTCC_LOSO", f"{seed}", loso_tag, f"{window_size}", f"{step_size}"
+                )
         else:
-            model_save_path = os.path.join(
-                SAVED_MODELS_PATH, "WESAD", "TSTCC", f"{seed}", f"{window_size}", f"{step_size}"
-            )
+            if use_s3_layers:
+                model_save_path = os.path.join(
+                    SAVED_MODELS_PATH, "WESAD", "TSTCC_S3", f"{seed}", f"{window_size}", f"{step_size}"
+                )
+            else:
+                model_save_path = os.path.join(
+                    SAVED_MODELS_PATH, "WESAD", "TSTCC", f"{seed}", f"{window_size}", f"{step_size}"
+                )
 
     # Save the results based on either pretrained from our dataset or trained from scratch
     # use pretrained encoder -> train a new head
@@ -143,10 +163,17 @@ def main(
 
     model_name = "TSTCC_S3" if use_s3_layers else "TSTCC"
 
-    results_save_path = os.path.join(
-        RESULTS_PATH, "Transfer_learning", "WESAD", subfolder_name, model_name, classifier_model,
-        f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
-    )
+    if loso:
+        results_save_path = os.path.join(
+            RESULTS_PATH, "Transfer_learning", "WESAD_LOSO", subfolder_name, model_name,
+            classifier_model, f"{seed}", f"participant_index_{held_out_participant}",
+            f"{label_fraction}", f"{window_size}", f"{step_size}"
+        )
+    else:
+        results_save_path = os.path.join(
+            RESULTS_PATH, "Transfer_learning", "WESAD", subfolder_name, model_name, classifier_model,
+            f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
+        )
 
     # We will save the embeddings so we can later do some analysis on them
     embedding_save_path = os.path.join(
@@ -188,13 +215,32 @@ def main(
     # train_idx to the labeled ones!
     # train_p refers to the labeled training participant!
     # all_train_idx refer to all the training samples (irrespective of labeled or not)
-    train_idx, train_p, all_train_p, all_train_idx, test_idx, test_p = split_indices_by_participant_groups(
-        groups,
-        train_ratio=0.8,
-        label_fraction=label_fraction,
-        seed=seed,
-        return_all_train_p=True
-    )
+    if loso:
+        held_out_id = WESAD_PARTICIPANT_MAP[held_out_participant]
+        print(f"LOSO mode: holding out participant {held_out_id} (index {held_out_participant}) as test set")
+        test_p = np.array([held_out_id])
+        all_train_p = np.array([p for p in WESAD_PARTICIPANT_MAP.values() if p != held_out_id])
+
+        test_idx = np.flatnonzero(groups == held_out_id)
+        all_train_idx = np.flatnonzero(np.isin(groups, all_train_p))
+
+        rng = np.random.default_rng(seed)
+        if label_fraction < 1.0:
+            n_labeled = max(1, int(len(all_train_p) * label_fraction))
+            labeled_participants = rng.choice(all_train_p, size=n_labeled, replace=False)
+            train_p = labeled_participants.copy()
+            train_idx = np.flatnonzero(np.isin(groups, labeled_participants))
+        else:
+            train_p = all_train_p.copy()
+            train_idx = all_train_idx.copy()
+    else:
+        train_idx, train_p, all_train_p, all_train_idx, test_idx, test_p = split_indices_by_participant_groups(
+            groups,
+            train_ratio=0.8,
+            label_fraction=label_fraction,
+            seed=seed,
+            return_all_train_p=True
+        )
 
     # This is the dataset we use for training of the encoder!
     groups_train_all_encoder = groups[all_train_idx]
@@ -561,7 +607,7 @@ if __name__ == "__main__":
                          help="Number of folds for cross-validation")
     cv_group.add_argument("--min_participants_for_kfold", type=int, default=5,
                          help="Minimum participants needed for k-fold (otherwise use Leave-one-participant-out-CV)")
-    cv_group.add_argument("--scoring_metric", type=str, default="f1",
+    cv_group.add_argument("--scoring_metric", type=str, default="roc_auc",
                          choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
                          help="Scoring metric for cross-validation hyperparameter selection")
 
@@ -571,6 +617,17 @@ if __name__ == "__main__":
     hp_group = parser.add_argument_group('Hyperparameter Optimization')
     hp_group.add_argument("--optimize_hyperparameters", action="store_true",
                          help="Enable hyperparameter optimization for TSTCC augmentation parameters")
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Leave-One-Subject-Out Configuration
+    # ══════════════════════════════════════════════════════════════════════════════
+    loso_group = parser.add_argument_group('Leave-One-Subject-Out')
+    loso_group.add_argument("--loso", action="store_true",
+                            help="Leave-one-subject-out: hold out one participant as test")
+    loso_group.add_argument("--held_out_participant", type=int, default=0,
+                            help="Index (0-14) of participant to hold out under --loso. "
+                                 "Mapping: 0=S2, 1=S3, 2=S4, 3=S5, 4=S6, 5=S7, 6=S8, 7=S9, "
+                                 "8=S10, 9=S11, 10=S13, 11=S14, 12=S15, 13=S16, 14=S17")
 
     # Parse arguments and run main function
     args = parser.parse_args()
