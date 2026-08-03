@@ -44,7 +44,7 @@ pip3 install .
 ├── environment.yml            # Conda environment definition
 ├── requirements.txt           # Optional pip requirements
 ├── setup.py                   # Python config file for setuptools, needed for the sia package
-
+├── participants_splits/       # Specific participant splits for each seed and label fraction
 ├── sia/                       # A module that facilitates window segmentation and feature engineering of standard ECG-based features  
 
 ├── graphical_pictures/        # Contains the graphical figure in pdf and png format
