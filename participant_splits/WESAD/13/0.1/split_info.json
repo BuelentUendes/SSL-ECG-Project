@@ -1,0 +1,35 @@
+{
+  "dataset": "WESAD",
+  "seed": 13,
+  "label_fraction": 0.1,
+  "fs": 700,
+  "window_size": 10,
+  "step_size": 5,
+  "train_ratio": 0.8,
+  "n_total_participants": 15,
+  "n_test_participants": 3,
+  "n_all_train_participants": 12,
+  "n_labeled_train_participants": 1,
+  "test_participants": [
+    "S4",
+    "S7",
+    "S8"
+  ],
+  "all_train_participants": [
+    "S10",
+    "S11",
+    "S13",
+    "S14",
+    "S15",
+    "S16",
+    "S17",
+    "S2",
+    "S3",
+    "S5",
+    "S6",
+    "S9"
+  ],
+  "labeled_train_participants": [
+    "S5"
+  ]
+}
