@@ -5,7 +5,7 @@
 
  ## Bash script for running several experiments
 fractions=(1.0)
-seeds=(3) #3 5 7 9 42 (5 seeds should be enough)
+seeds=(7) #3 5 7 9 42 (5 seeds should be enough)
 held_out_participants=(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14)
 
 # This is for LP
