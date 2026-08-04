@@ -127,25 +127,14 @@ def main(
             )
 
     else:
-        if loso:
-            loso_tag = f"loso{held_out_participant}"
-            if use_s3_layers:
-                model_save_path = os.path.join(
-                    SAVED_MODELS_PATH, "WESAD", "TSTCC_S3_LOSO", f"{seed}", loso_tag, f"{window_size}", f"{step_size}"
-                )
-            else:
-                model_save_path = os.path.join(
-                    SAVED_MODELS_PATH, "WESAD", "TSTCC_LOSO", f"{seed}", loso_tag, f"{window_size}", f"{step_size}"
-                )
+        if use_s3_layers:
+            model_save_path = os.path.join(
+                SAVED_MODELS_PATH, "WESAD", "TSTCC_S3", f"{seed}", f"{window_size}", f"{step_size}"
+            )
         else:
-            if use_s3_layers:
-                model_save_path = os.path.join(
-                    SAVED_MODELS_PATH, "WESAD", "TSTCC_S3", f"{seed}", f"{window_size}", f"{step_size}"
-                )
-            else:
-                model_save_path = os.path.join(
-                    SAVED_MODELS_PATH, "WESAD", "TSTCC", f"{seed}", f"{window_size}", f"{step_size}"
-                )
+            model_save_path = os.path.join(
+                SAVED_MODELS_PATH, "WESAD", "TSTCC", f"{seed}", f"{window_size}", f"{step_size}"
+            )
 
     # Save the results based on either pretrained from our dataset or trained from scratch
     # use pretrained encoder -> train a new head
@@ -509,7 +498,7 @@ def main(
         print(f"=== Done! Test Acc: {results['test_metrics']['accuracy']:.4f}, "
               f"AUROC: {results['test_metrics']['auroc']:.4f}, "
               f"PR-AUC: {results['test_metrics']['pr_auc']:.4f}, "
-              f"F1: {results['test_metrics']['f1']:.4f} ===")
+              f"F1 (default threshold): {results['test_metrics']['f1']:.4f} ===")
 
 
 if __name__ == "__main__":
