@@ -8,9 +8,6 @@ import gc
 import numpy as np
 import pandas as pd
 import torch
-import mlflow
-import mlflow.pytorch
-
 from torch.utils.data import DataLoader, TensorDataset
 
 from utils.torch_utilities import (
@@ -25,6 +22,14 @@ from utils.torch_utilities import (
 )
 
 from utils.helper_paths import DATA_PATH, RESULTS_PATH
+
+
+# Numeric index → WESAD participant ID (sorted numerically, S12 is missing)
+WESAD_PARTICIPANT_MAP = {
+    0: "S2", 1: "S3", 2: "S4", 3: "S5", 4: "S6",
+    5: "S7", 6: "S8", 7: "S9", 8: "S10", 9: "S11",
+    10: "S13", 11: "S14", 12: "S15", 13: "S16", 14: "S17",
+}
 
 
 def create_data_loaders(X, y, batch_size, device, shuffle=True):
@@ -105,6 +110,8 @@ def main(
         min_participants_for_kfold: int = 5,
         verbose: bool = False,
         scoring_metric: str = "roc_auc",
+        loso: bool = False,
+        held_out_participant: int = 0,
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -122,14 +129,15 @@ def main(
 
     # Check if directory for saving results exist
     create_directory(RESULTS_PATH)
-    if use_normalized_ecg_signal:
+    base_folder = "WESAD_features" if use_normalized_ecg_signal else "WESAD_features_unnormalized"
+    if loso:
         results_save_path = os.path.join(
-            RESULTS_PATH, "WESAD_features", str(window_size), str(step_size),
-            classifier_model, f"{seed}", f"{label_fraction}"
+            RESULTS_PATH, f"{base_folder}_LOSO", str(window_size), str(step_size),
+            classifier_model, f"{seed}", f"participant_index_{held_out_participant}", f"{label_fraction}"
         )
     else:
         results_save_path = os.path.join(
-            RESULTS_PATH, "WESAD_features_unnormalized", str(window_size), str(step_size),
+            RESULTS_PATH, base_folder, str(window_size), str(step_size),
             classifier_model, f"{seed}", f"{label_fraction}"
         )
     create_directory(results_save_path)
@@ -162,12 +170,28 @@ def main(
         X = X_clean
 
     # Split by participant to get train/test split
-    train_idx, train_p, test_idx, test_p = split_indices_by_participant_groups(
-        groups,
-        train_ratio=0.8,
-        label_fraction=label_fraction,
-        seed=seed
-    )
+    if loso:
+        held_out_id = WESAD_PARTICIPANT_MAP[held_out_participant]
+        print(f"LOSO mode: holding out participant {held_out_id} (index {held_out_participant}) as test set")
+        all_train_p = np.array([p for p in WESAD_PARTICIPANT_MAP.values() if p != held_out_id])
+
+        test_idx = np.flatnonzero(groups == held_out_id)
+        all_train_idx = np.flatnonzero(np.isin(groups, all_train_p))
+
+        rng = np.random.default_rng(seed)
+        if label_fraction < 1.0:
+            n_labeled = max(1, int(len(all_train_p) * label_fraction))
+            labeled_participants = rng.choice(all_train_p, size=n_labeled, replace=False)
+            train_idx = np.flatnonzero(np.isin(groups, labeled_participants))
+        else:
+            train_idx = all_train_idx.copy()
+    else:
+        train_idx, train_p, test_idx, test_p = split_indices_by_participant_groups(
+            groups,
+            train_ratio=0.8,
+            label_fraction=label_fraction,
+            seed=seed
+        )
 
     X_train_all = X[train_idx]
     y_train_all = y[train_idx]
@@ -258,6 +282,12 @@ if __name__ == "__main__":
     parser.add_argument("--scoring_metric", type=str, default="roc_auc",
                          choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
                          help="Scoring metric for cross-validation hyperparameter selection")
+    parser.add_argument("--loso", action="store_true",
+                        help="Leave-one-subject-out: hold out one participant as test set")
+    parser.add_argument("--held_out_participant", type=int, default=0,
+                        help="Index (0-14) of participant to hold out under --loso. "
+                             "Mapping: 0=S2, 1=S3, 2=S4, 3=S5, 4=S6, 5=S7, 6=S8, 7=S9, "
+                             "8=S10, 9=S11, 10=S13, 11=S14, 12=S15, 13=S16, 14=S17")
 
     args = parser.parse_args()
     args.use_normalized_ecg_signal = True
