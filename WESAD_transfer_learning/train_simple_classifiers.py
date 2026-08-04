@@ -272,7 +272,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_normalized_ecg_signal", action="store_true",
                         help="If set, we use the normalized ECG signal")
     parser.add_argument("--classifier_epochs", type=int, default=25)
-    parser.add_argument("--label_fraction", type=float, default=0.1)
+    parser.add_argument("--label_fraction", type=float, default=1.0)
     parser.add_argument("--k_folds", type=int, default=5, help="Number of folds for CV")
     parser.add_argument("--min_participants_for_kfold", type=int, default=5,
                         help="Minimum participants needed for k-fold (otherwise use Leave one participant out)")
