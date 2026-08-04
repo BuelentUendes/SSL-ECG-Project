@@ -1103,7 +1103,7 @@ def run_logistic_regression_with_gridsearch(
     y_test_pred_bal_opt = (y_test_proba >= optimal_thresh_bal_acc).astype(int)
     y_test_pred_f1_opt = (y_test_proba >= optimal_thresh_f1).astype(int)
 
-    print(f"The mean test prediction is {np.mean(y_test_pred)}, {y_test_pred}")
+    # print(f"The mean test prediction is {np.mean(y_test_pred)}, {y_test_pred}")
 
     # Calculate test metrics (default threshold 0.5)
     test_acc = accuracy_score(y_test, y_test_pred)
@@ -1124,7 +1124,8 @@ def run_logistic_regression_with_gridsearch(
     print(f"Test Accuracy: {test_acc:.4f}")
     print(f"Balanced Test Accuracy: {balanced_test_acc:.4f}")
     print(f"Test AUROC: {test_auroc:.4f}")
-    print(f"Test F1: {test_f1:.4f}")
+    print(f"Test F1 (default threshold 0.5): {test_f1:.4f}")
+    print(f"Test F1 (optimized threshold {optimal_thresh_f1}): {test_f1_f1_opt:.4f}")
     print(f"Test PR-AUC: {test_pr_auc:.4f}")
     print(f"\n=== Optimized Threshold Results ===")
     print(
@@ -1785,7 +1786,7 @@ def evaluate_zero_shot_model_performance(classifier_model, X_zero_shot, y_zero_s
                          "zero_shot_balanced_accuracy": balanced_accuracy_score(y_zero_shot, y_test_pred),
                          "zero_shot_roc_auc": roc_auc_score(y_zero_shot, y_test_proba),
                          "zero_shot_pr_auc": average_precision_score(y_zero_shot, y_test_proba),
-                         "zero_shot_f1_score": average_precision_score(y_zero_shot, y_test_proba)}
+                         "zero_shot_f1_score": f1_score(y_zero_shot, y_test_pred)}
 
     print(f"\n=== Zero-shot Test Set Results ===")
     print(f"The mean test prediction is {np.mean(y_test_pred)}, {y_test_pred}")
