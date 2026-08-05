@@ -835,7 +835,7 @@ def standardize_features(X_train, X_val, X_test, feature_names):
     return X_train_scaled, X_val_scaled, X_test_scaled, (standard_scaler, minmax_scaler)
 
 
-def get_participant_cv_splitter(groups, min_participants_for_kfold=5, k=5):
+def get_participant_cv_splitter(groups, min_participants_for_kfold=5, k=5, seed=None):
     """Get appropriate cross-validation splitter based on number of participants."""
     unique_participants = np.unique(groups)
     n_participants = len(unique_participants)
@@ -852,7 +852,11 @@ def get_participant_cv_splitter(groups, min_participants_for_kfold=5, k=5):
         print(f"Using Leave-One-Group-Out CV ({n_splits} splits)")
     else:
         actual_k = min(k, n_participants)
-        cv_splitter = StratifiedGroupKFold(n_splits=actual_k)
+        if seed is not None:
+            cv_splitter = StratifiedGroupKFold(n_splits=actual_k, shuffle=True, random_state=seed)
+        else:
+            cv_splitter = StratifiedGroupKFold(n_splits=actual_k)
+
         # cv_splitter =GroupKFold(n_splits=actual_k)
         n_splits = actual_k
         print(f"Using {actual_k}-Fold Group CV ({n_splits} splits)")

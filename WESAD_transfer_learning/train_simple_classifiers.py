@@ -217,11 +217,22 @@ def main(
     print(f"Test participants: {len(np.unique(groups[test_idx][test_binary_mask]))}")
 
     # ── Step 2: Set up Cross-Validation Splitter ───────────────────────────────
-    cv_splitter, n_splits = get_participant_cv_splitter(
-        groups_train_all,
-        min_participants_for_kfold=min_participants_for_kfold,
-        k=k_folds
-    )
+    if loso:
+        # For LOSO we do not have variability of who is in the train and test set,
+        # so we introduce the variability in the CV shuffling, we do this with shuffling and seed setting
+        cv_splitter, n_splits = get_participant_cv_splitter(
+            groups_train_all,
+            min_participants_for_kfold=min_participants_for_kfold,
+            k=k_folds,
+            seed=seed
+        )
+
+    else:
+        cv_splitter, n_splits = get_participant_cv_splitter(
+            groups_train_all,
+            min_participants_for_kfold=min_participants_for_kfold,
+            k=k_folds
+        )
 
     # ── Step 3: Run Model Selection + Final Training + Test Evaluation ─────────
     if classifier_model in ["logistic_regression", "xgboost", "random_forest"]:
@@ -291,4 +302,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     args.use_normalized_ecg_signal = True
+    args.loso = True
+    args.held_out_participant = 0
     main(**vars(args))

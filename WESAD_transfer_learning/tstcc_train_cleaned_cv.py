@@ -437,11 +437,23 @@ def main(
         print(f"train_repr shape = {train_repr.shape}")
 
         # ── Step 4: Set up Cross-Validation Splitter ───────────────────────────────
-        cv_splitter, n_splits = get_participant_cv_splitter(
-            groups_train,
-            min_participants_for_kfold=min_participants_for_kfold,
-            k=k_folds
-        )
+        # Important:
+        # For LOSO, we do not have variability introduced in the assignment of who is in train & test
+        # So we introduce it for LOSO via shufflign in the cv_splitter,
+        # so each CV split has across seeds different subjects introducing the subject variability
+
+        if loso:
+            cv_splitter, n_splits = get_participant_cv_splitter(
+                groups_train,
+                min_participants_for_kfold=min_participants_for_kfold,
+                k=k_folds, seed=seed
+            )
+        else:
+            cv_splitter, n_splits = get_participant_cv_splitter(
+                groups_train,
+                min_participants_for_kfold=min_participants_for_kfold,
+                k=k_folds
+            )
 
         # ── Step 5: Run CV with Logistic Regression or MLP ─────────────────────────────────
         set_seed(seed)
