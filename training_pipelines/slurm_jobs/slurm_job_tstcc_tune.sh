@@ -52,8 +52,8 @@ echo "=== GPU Test Completed ==="
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 50 --jitter_scale_ratio 0.001 --cc_temperature 0.2
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 50 --jitter_scale_ratio 0.001 --cc_temperature 0.1
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --tc_timesteps 100 --jitter_scale_ratio 0.001 --cc_temperature 0.1
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 50 --tc_timesteps 10 --max_segment 8
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 50 --tc_timesteps 50 --max_segment 8
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 100 --tc_timesteps 10 --max_segment 5
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 100 --tc_timesteps 50 --max_segment 5
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 100 --tc_timesteps 10 --max_segment 8
 python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 20 --label_fraction 0.1 --optimize_hyperparameters --cc_temperature 0.2 --tc_hidden_dim 100 --tc_timesteps 50 --max_segment 8
 
@@ -76,11 +76,11 @@ echo "=== Runs with 20 epochs are completed! ==="
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0
 
 # Command to run the job
-#  for SEED in 42; do
-#      sbatch --job-name=ECG_TSTCC_seed_${SEED} \
-#             --output=ecg_tstcc_${SEED}_%j.out \
-#             --error=ecg_tstcc_${SEED}_%j.err \
-#             --time=72:00:00 \
-#             ./slurm_jobs/slurm_job_tstcc_tune.sh $SEED
-#  done
+  for SEED in 42; do
+      sbatch --job-name=ECG_TSTCC_seed_${SEED} \
+             --output=ecg_tstcc_${SEED}_%j.out \
+             --error=ecg_tstcc_${SEED}_%j.err \
+             --time=72:00:00 \
+             ./slurm_jobs/slurm_job_tstcc_tune.sh $SEED
+  done
 ###
