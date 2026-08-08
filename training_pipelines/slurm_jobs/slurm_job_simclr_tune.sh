@@ -49,10 +49,10 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 simclr_train_cleaned_cv.py --seed $1 --epochs 20 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.3 --use_only_inversion_negation
-python3 simclr_train_cleaned_cv.py --seed $1 --epochs 20 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.1 --use_only_inversion_negation
-python3 simclr_train_cleaned_cv.py --seed $1 --epochs 20 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.2 --use_only_inversion_negation
-python3 simclr_train_cleaned_cv.py --seed $1 --epochs 20 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.25 --use_only_inversion_negation
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 20 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.3
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 20 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.1
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 20 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.2
+python3 simclr_train_cleaned_cv.py --seed $1 --epochs 20 --label_fraction 0.1 --force_retraining --optimize_hyperparameters --temperature 0.25
 
 # Command to run the job
 #  for SEED in 42; do
@@ -62,4 +62,4 @@ python3 simclr_train_cleaned_cv.py --seed $1 --epochs 20 --label_fraction 0.1 --
 #             --time=12:00:00 \
 #             ./slurm_jobs/slurm_job_simclr_tune.sh $SEED
 #  done
-##
+##0
