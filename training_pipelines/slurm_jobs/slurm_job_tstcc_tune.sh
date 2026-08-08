@@ -76,11 +76,11 @@ echo "=== Runs with 20 epochs are completed! ==="
 #python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0
 
 # Command to run the job
-  for SEED in 42; do
-      sbatch --job-name=ECG_TSTCC_seed_${SEED} \
-             --output=ecg_tstcc_${SEED}_%j.out \
-             --error=ecg_tstcc_${SEED}_%j.err \
-             --time=72:00:00 \
-             ./slurm_jobs/slurm_job_tstcc_tune.sh $SEED
-  done
+#  for SEED in 42; do
+#      sbatch --job-name=ECG_TSTCC_seed_${SEED} \
+#             --output=ecg_tstcc_${SEED}_%j.out \
+#             --error=ecg_tstcc_${SEED}_%j.err \
+#             --time=72:00:00 \
+#             ./slurm_jobs/slurm_job_tstcc_tune.sh $SEED
+#  done
 ###
