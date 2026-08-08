@@ -207,6 +207,8 @@ def main(
     else:
         model_save_name_weights = "simclr_encoder.pt" if batch_size == 256 else f"simclr_encoder_{batch_size}.pt"
 
+    epoch_train_loss = {}  # populated in the training branch; empty if loading from cache
+
     # Check for local pretrained model
     if (os.path.exists(os.path.join(model_save_path, model_save_name_weights)) and not force_retraining
             and not optimize_hyperparameters):
@@ -378,7 +380,7 @@ def main(
                 "tstcc_encoder_used": use_tstcc_encoder,
                 "epochs": epochs,
             },
-            "Training loss": epoch_train_loss[-5:],
+            "Training loss": list(epoch_train_loss.values())[-5:],
             "CV score": results['best_cv_score'], #Criterion for checking the performance and selecting best hyperparameter set
             "Test_metrics": results["test_metrics"],
             "timestamp": datetime.now().isoformat(),
