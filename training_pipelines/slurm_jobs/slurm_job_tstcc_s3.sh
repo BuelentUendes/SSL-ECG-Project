@@ -49,20 +49,20 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.1 --use_s3_layers --force_retraining
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.01 --use_s3_layers
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.025 --use_s3_layers
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.05 --use_s3_layers
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.25 --use_s3_layers
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.5 --use_s3_layers
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0 --use_s3_layers
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.1 --use_s3_layers --force_retraining --max_segment 5
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.01 --use_s3_layers --max_segment 5
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.025 --use_s3_layers --max_segment 5
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.05 --use_s3_layers --max_segment 5
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.25 --use_s3_layers --max_segment 5
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.5 --use_s3_layers --max_segment 5
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0 --use_s3_layers --max_segment 5
 
 ## Command to run the job
-#  for SEED in 3 5 7 9 42; do
+#  for SEED in 3 5 7 9 11 13 15 17 19 42; do
 #      sbatch --job-name=ECG_TSTCC_s3_seed_${SEED} \
 #             --output=ecg_tstcc_s3_${SEED}_%j.out \
 #             --error=ecg_tstcc_s3_${SEED}_%j.err \
-#             --time=48:00:00 \
+#             --time=72:00:00 \
 #             ./slurm_jobs/slurm_job_tstcc_s3.sh $SEED
 #  done
 ##
