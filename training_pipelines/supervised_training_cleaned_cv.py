@@ -20,6 +20,7 @@ from utils.helper_paths import SAVED_MODELS_PATH, DATA_PATH, RESULTS_PATH
 
 from utils.torch_utilities import (
     load_processed_data,
+    load_processed_data_with_conditions,
     split_indices_by_participant_groups,
     get_participant_cv_splitter,
     PhysiologicalDataset,
@@ -41,6 +42,47 @@ from models.supervised import (
     FineTunedCNNNet,
     freeze_and_unfreeze_encoder,
 )
+
+
+# Stressor groups for leave-one-stressor-out analysis: (group_name, [condition_names])
+STRESSOR_GROUPS = [
+    ("TA", ["TA", "TA_repeat"]),
+    ("Pasat", ["Pasat", "Pasat_repeat"]),
+    ("Raven", ["Raven"]),
+    ("SSST", ["SSST_Sing_countdown"]),
+]
+
+
+def _per_condition_metrics_torch(model, X_test, y_test, conditions_test, device, batch_size=64):
+    """Per-condition binary (vs baseline) metrics for a PyTorch model."""
+    baseline_mask = y_test == 0
+    out = {}
+    model.eval()
+    for cond in np.unique(conditions_test[y_test == 1]):
+        cond_mask = (conditions_test == cond) & (y_test == 1)
+        mask = baseline_mask | cond_mask
+        if mask.sum() < 2 or cond_mask.sum() == 0:
+            continue
+        X_s = X_test[mask]
+        y_s = y_test[mask].astype(int)
+        ds = PhysiologicalDataset(X_s, y_s)
+        loader = DataLoader(ds, batch_size=batch_size, shuffle=False)
+        proba_list = []
+        with torch.no_grad():
+            for X_b, _ in loader:
+                logits = model(X_b.to(device).permute(0, 2, 1)).squeeze(-1)
+                proba_list.extend(torch.sigmoid(logits).cpu().numpy())
+        proba = np.array(proba_list)
+        pred = (proba > 0.5).astype(int)
+        out[cond] = {
+            "n_stress_samples": int(cond_mask.sum()),
+            "auroc": float(roc_auc_score(y_s, proba)),
+            "pr_auc": float(average_precision_score(y_s, proba)),
+            "accuracy": float(accuracy_score(y_s, pred)),
+            "balanced_accuracy": float(balanced_accuracy_score(y_s, pred)),
+            "f1": float(f1_score(y_s, pred)),
+        }
+    return out
 
 
 # Numeric index → WESAD participant ID (sorted numerically, S12 is missing)
@@ -536,6 +578,7 @@ def main(
         classifier_batch_size: int = 32,
         loso: bool = False,
         held_out_participant: int = 0,
+        leave_one_stressor_out: bool = False,
 ):
 
     set_seed(seed)
@@ -640,7 +683,7 @@ def main(
         y_zero_shot = y_zero_shot.astype(np.float32)
 
     # load data
-    X, y, groups = load_processed_data(
+    X, y, groups, conditions = load_processed_data_with_conditions(
         window_data_path,
         label_map={"baseline": 0, "mental_stress": 1},
     )
@@ -681,9 +724,11 @@ def main(
     X_train = X[train_idx]
     y_train = y[train_idx]
     groups_train = groups[train_idx]
+    conditions_train = conditions[train_idx]
 
     X_test = X[test_idx]
     y_test = y[test_idx]
+    conditions_test = conditions[test_idx]
 
     # Filter to binary classification for both train and test
     train_binary_mask = np.isin(y_train, [0, 1])
@@ -692,9 +737,11 @@ def main(
     X_train = X_train[train_binary_mask]
     y_train = y_train[train_binary_mask]
     groups_train = groups_train[train_binary_mask]
+    conditions_train = conditions_train[train_binary_mask]
 
     X_test = X_test[test_binary_mask]
     y_test = y_test[test_binary_mask]
+    conditions_test = conditions_test[test_binary_mask]
 
     print(f"Training data: {X_train.shape}")
     print(f"Test data: {X_test.shape}")
@@ -722,15 +769,63 @@ def main(
             results_save_path=results_save_path
         )
 
+        # ── Per-condition metrics ─────────────────────────────────────────────────
+        per_condition_results = _per_condition_metrics_torch(
+            model, X_test, y_test, conditions_test, device, batch_size=batch_size
+        )
+        results["per_condition_metrics"] = per_condition_results
+        print("Per-condition test metrics (each stressor vs baseline):")
+        for cond, m in per_condition_results.items():
+            print(f"  {cond}: AUROC={m['auroc']:.4f}, PR-AUC={m['pr_auc']:.4f}, "
+                  f"n_stress={m['n_stress_samples']}")
+
         # Save the results:
         with open(os.path.join(results_save_path, "test_results.json"), "w") as f:
-            json.dump(results, f)
+            json.dump(results, f, default=str)
 
         saved_results = os.path.join(model_save_path, f"{model_type}.pt")
         torch.save(
             {"model_parameters": model.state_dict()},
             saved_results
         )
+
+        # ── Leave-one-stressor-out (our dataset only) ─────────────────────────────
+        if leave_one_stressor_out and dataset == "ours":
+            loso_results = {}
+            baseline_test_mask = y_test == 0
+            for group_name, stressor_conditions in STRESSOR_GROUPS:
+                held_out_train = np.isin(conditions_train, stressor_conditions) & (y_train == 1)
+                X_tr_loso = X_train[~held_out_train]
+                y_tr_loso = y_train[~held_out_train]
+                g_tr_loso = groups_train[~held_out_train]
+                held_out_test = np.isin(conditions_test, stressor_conditions) & (y_test == 1)
+                loso_test_mask = baseline_test_mask | held_out_test
+                X_te_loso = X_test[loso_test_mask]
+                y_te_loso = y_test[loso_test_mask]
+                if held_out_test.sum() == 0 or X_tr_loso.shape[0] == 0:
+                    print(f"LOSO [{group_name}]: skipping — no samples")
+                    continue
+                cv_sp_loso, _ = get_participant_cv_splitter(
+                    g_tr_loso, min_participants_for_kfold=min_participants_for_kfold, k=k_folds
+                )
+                res_loso, _ = run_supervised_model_with_cv_and_test(
+                    model_type, X_tr_loso, y_tr_loso, g_tr_loso, X_te_loso, y_te_loso,
+                    cv_sp_loso, device, classifier_epochs=num_epochs, classifier_batch_size=batch_size,
+                    disable_hyperparameter_tuning=disable_hyperparameter_tuning,
+                    dropout_rate=dropout_rate, lr=lr, pin_memory=pin_memory,
+                    scoring_metric=scoring_metric, results_save_path=results_save_path
+                )
+                loso_results[group_name] = {
+                    "held_out_stressor": stressor_conditions,
+                    "n_train_stress": int((y_tr_loso == 1).sum()),
+                    "n_test_stress": int(held_out_test.sum()),
+                    "test_metrics": res_loso["test_metrics"],
+                }
+                print(f"LOSO [{group_name}]: AUROC={res_loso['test_metrics']['auroc']:.4f}, "
+                      f"PR-AUC={res_loso['test_metrics']['pr_auc']:.4f}")
+
+            with open(os.path.join(results_save_path, "loso_stressor_results.json"), "w") as f:
+                json.dump(loso_results, f, indent=2, default=str)
 
     else:
         if use_pretrained_encoder:
@@ -955,6 +1050,10 @@ if __name__ == "__main__":
                         help="Index (0-14) of participant to hold out under --loso. "
                              "Mapping: 0=S2, 1=S3, 2=S4, 3=S5, 4=S6, 5=S7, 6=S8, 7=S9, "
                              "8=S10, 9=S11, 10=S13, 11=S14, 12=S15, 13=S16, 14=S17")
+    parser.add_argument("--leave_one_stressor_out", action="store_true",
+                        help="Run leave-one-stressor-out analysis: for each stressor group "
+                             "(TA+TA_repeat, Pasat+Pasat_repeat, Raven, SSST), train without "
+                             "that stressor and evaluate on it. Only applies when --dataset ours.")
 
     args = parser.parse_args()
 
