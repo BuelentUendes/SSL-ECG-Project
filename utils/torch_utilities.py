@@ -162,6 +162,53 @@ def load_processed_data(
     return X, y, groups
 
 
+def load_processed_data_with_conditions(hdf5_path, label_map=None, domain_features=False):
+    """Like load_processed_data, but also returns a conditions array (segment name per window).
+
+    When domain_features=True, returns (X, y, groups, conditions, feature_names) — X is 2-D
+    feature matrix (no expand_dims), matching the behaviour of load_processed_data(domain_features=True).
+    """
+    if label_map is None:
+        label_map = {"baseline": 0, "mental_stress": 1}
+
+    X_list, y_list, groups_list, conditions_list = [], [], [], []
+    feature_names = None
+    with h5py.File(hdf5_path, "r") as f:
+        participants = list(f.keys())
+        if domain_features:
+            feature_names = f[participants[0]].attrs['feature_names']
+        for participant_key in participants:
+            participant_id = participant_key.replace("participant_", "")
+            for cat in f[participant_key].keys():
+                if cat not in label_map:
+                    continue
+                cat_group = f[participant_key][cat]
+                for segment_name in cat_group.keys():
+                    ds = cat_group[segment_name]
+                    windows = ds[...]
+                    n = windows.shape[0]
+                    if n == 0:
+                        continue
+                    condition = ds.attrs.get("condition", segment_name)
+                    X_list.append(windows)
+                    y_list.append(np.full(n, label_map[cat], dtype=int))
+                    groups_list.append(np.array([participant_id] * n, dtype=object))
+                    conditions_list.append(np.array([condition] * n, dtype=object))
+
+    if not X_list:
+        raise ValueError(f"No valid data found in {hdf5_path} with label_map {label_map}.")
+
+    X = np.concatenate(X_list, axis=0)
+    if not domain_features:
+        X = np.expand_dims(X, axis=-1)
+    y = np.concatenate(y_list, axis=0)
+    groups = np.concatenate(groups_list, axis=0)
+    conditions = np.concatenate(conditions_list, axis=0)
+
+    if domain_features:
+        return X, y, groups, conditions, feature_names
+    return X, y, groups, conditions
+
 
 def split_data_by_participant(X, y, groups, train_ratio=0.6, val_ratio=0.2, seed=42):
     """
