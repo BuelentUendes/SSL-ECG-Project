@@ -571,7 +571,7 @@ if __name__ == "__main__":
 
     tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.001, type=float)
     tstcc_arch_group.add_argument("--jitter_ratio", default=0.001, type=float)
-    tstcc_arch_group.add_argument("--max_segment", default = 8, type=int)
+    tstcc_arch_group.add_argument("--max_segment", default = 5, type=int)
 
     # ══════════════════════════════════════════════════════════════════════════════
     # Downstream Classifier Configuration
