@@ -436,7 +436,7 @@ if __name__ == "__main__":
                              help="TS2Vec max training length")
     ts2vec_group.add_argument("--ts2vec_temporal_unit", type=int, default=3,
                              help="TS2Vec temporal unit for hierarchical pooling")
-    ts2vec_group.add_argument("--ts2vec_masking_prob", type=float, default=0.5,
+    ts2vec_group.add_argument("--ts2vec_masking_prob", type=float, default=0.3,
                               help="Masking probability for random masking augmentation")
     ts2vec_group.add_argument("--ts2vec_use_gradient_clipping", action="store_true",
                               help="If true, we use gradient clipping for the TS2Vec training")

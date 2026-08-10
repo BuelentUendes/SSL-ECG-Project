@@ -451,7 +451,7 @@ if __name__ == "__main__":
                              help="InfoTS max training length")
     infots_group.add_argument("--infots_dropout", type=float, default=0.1,
                              help="InfoTS dropout rate")
-    infots_group.add_argument("--infots_aug_p1", type=float, default=0.2,
+    infots_group.add_argument("--infots_aug_p1", type=float, default=0.4,
                              help="InfoTS augmentation probability 1")
     infots_group.add_argument("--infots_aug_p2", type=float, default=0.0,
                              help="InfoTS augmentation probability 2")
