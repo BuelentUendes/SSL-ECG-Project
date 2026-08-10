@@ -49,16 +49,16 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 1.0 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 40
-python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.5 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 40
-python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.25 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 40
-python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.1 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 40
-python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.01 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 40
-python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.025 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 40
-python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.05 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 40
+python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 1.0 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 25
+python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.5 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 25
+python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.25 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 25
+python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.1 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 25
+python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.01 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 25
+python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.025 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 25
+python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 0.05 --window_size 10 --step_size 5 --model_type "transformer" --dataset "ours" --force_retraining --num_epochs 25
 
 # Command to run the job
-#  for SEED in 42; do
+#  for SEED in 3 5 7 9 11 13 15 17 19 42; do
 #      sbatch --job-name=transformer_${SEED}_10_5 \
 #             --output=ecg_transformer_10_5_${SEED}_%j.out \
 #             --error=ecg_transformer_10_5_${SEED}_%j.err \
