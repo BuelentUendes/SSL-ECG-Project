@@ -10,9 +10,12 @@ import uuid
 import numpy as np
 import torch
 import torch.optim as optim
+from sklearn.dummy import DummyClassifier
+from sklearn.metrics import roc_auc_score, average_precision_score, accuracy_score, f1_score, balanced_accuracy_score
 
 from utils.torch_utilities import (
     load_processed_data,
+    load_processed_data_with_conditions,
     return_track_data_file,
     split_indices_by_participant_groups,
     set_seed,
@@ -34,6 +37,40 @@ from models.tstcc import (
     Config as ECGConfig,
     encode_representations,
 )
+
+
+# Stressor groups for leave-one-stressor-out analysis: (group_name, [condition_names])
+STRESSOR_GROUPS = [
+    ("TA", ["TA", "TA_repeat"]),
+    ("Pasat", ["Pasat", "Pasat_repeat"]),
+    ("Raven", ["Raven"]),
+    ("SSST", ["SSST_Sing_countdown"]),
+]
+
+
+def _per_condition_metrics(model, test_repr, y_test, conditions_test):
+    """Compute binary (vs baseline) metrics per mental-stress condition using a trained sklearn model."""
+    from sklearn.metrics import roc_auc_score, average_precision_score, accuracy_score, f1_score, balanced_accuracy_score
+    baseline_mask = y_test == 0
+    out = {}
+    for cond in np.unique(conditions_test[y_test == 1]):
+        cond_mask = (conditions_test == cond) & (y_test == 1)
+        mask = baseline_mask | cond_mask
+        if mask.sum() < 2 or cond_mask.sum() == 0:
+            continue
+        y_s = y_test[mask].astype(int)
+        r_s = test_repr[mask]
+        proba = model.predict_proba(r_s)[:, 1]
+        pred = model.predict(r_s)
+        out[cond] = {
+            "n_stress_samples": int(cond_mask.sum()),
+            "auroc": float(roc_auc_score(y_s, proba)),
+            "pr_auc": float(average_precision_score(y_s, proba)),
+            "accuracy": float(accuracy_score(y_s, pred)),
+            "balanced_accuracy": float(balanced_accuracy_score(y_s, pred)),
+            "f1": float(f1_score(y_s, pred)),
+        }
+    return out
 
 
 def main(
@@ -76,6 +113,7 @@ def main(
         optimize_hyperparameters: bool = False,
         zero_shot_evaluation: bool = False,
         zero_shot_dataset: str = "wesad",
+        leave_one_stressor_out: bool = False,
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -173,7 +211,7 @@ def main(
         else:
             raise ValueError('Please use a proper dataset "wesad" or "stressid"')
 
-    X, y, groups = load_processed_data(window_data_path, label_map=label_map)
+    X, y, groups, conditions = load_processed_data_with_conditions(window_data_path, label_map=label_map)
     y = y.astype(np.float32)
 
     if zero_shot_evaluation:
@@ -369,9 +407,11 @@ def main(
     train_repr = train_repr[downstream_mask["train"]]
     y_train = y[train_idx][downstream_mask["train"]]
     groups_train = groups[train_idx][downstream_mask["train"]]
+    conditions_train = conditions[train_idx][downstream_mask["train"]]
 
     test_repr = test_repr[downstream_mask["test"]]
     y_test = y[test_idx][downstream_mask["test"]]
+    conditions_test = conditions[test_idx][downstream_mask["test"]]
 
     print(f"train_repr shape = {train_repr.shape}")
 
@@ -433,6 +473,70 @@ def main(
         with open(hyperparameter_file_name, "w") as f:
             json.dump(hyperparameter_save_file, f, indent=4)
 
+    # ── Step 6a: Per-condition metrics ───────────────────────────────────────────
+    if classifier_model in ["logistic_regression", "random_forest", "xgboost"]:
+        per_condition_results = _per_condition_metrics(
+            results["model"], test_repr, y_test, conditions_test
+        )
+        results["per_condition_metrics"] = per_condition_results
+        print("Per-condition test metrics (each stressor vs baseline):")
+        for cond, m in per_condition_results.items():
+            print(f"  {cond}: AUROC={m['auroc']:.4f}, PR-AUC={m['pr_auc']:.4f}, "
+                  f"n_stress={m['n_stress_samples']}")
+
+    # ── Step 6b: Leave-one-stressor-out ──────────────────────────────────────────
+    if leave_one_stressor_out and classifier_model in ["logistic_regression", "random_forest", "xgboost"]:
+        loso_results = {}
+        baseline_test_mask = y_test == 0
+        for group_name, stressor_conditions in STRESSOR_GROUPS:
+            held_out_train = np.isin(conditions_train, stressor_conditions) & (y_train == 1)
+            X_tr_loso = train_repr[~held_out_train]
+            y_tr_loso = y_train[~held_out_train]
+            g_tr_loso = groups_train[~held_out_train]
+            held_out_test = np.isin(conditions_test, stressor_conditions) & (y_test == 1)
+            loso_test_mask = baseline_test_mask | held_out_test
+            X_te_loso = test_repr[loso_test_mask]
+            y_te_loso = y_test[loso_test_mask]
+            if held_out_test.sum() == 0 or X_tr_loso.shape[0] == 0:
+                print(f"LOSO [{group_name}]: skipping — no samples")
+                continue
+            cv_sp_loso, _ = get_participant_cv_splitter(
+                g_tr_loso, min_participants_for_kfold=min_participants_for_kfold, k=k_folds
+            )
+            feat_names_loso = [f"repr_{i}" for i in range(X_tr_loso.shape[1])]
+            res_loso = run_logistic_regression_with_gridsearch(
+                X_tr_loso, y_tr_loso, g_tr_loso, X_te_loso, y_te_loso,
+                feat_names_loso, cv_sp_loso, False, seed,
+                scoring_metric=scoring_metric, classifier_model=classifier_model
+            )
+
+            dummy = DummyClassifier(strategy="most_frequent", random_state=seed)
+            dummy.fit(X_tr_loso, y_tr_loso)
+            dummy_pred = dummy.predict(X_te_loso)
+            dummy_proba = dummy.predict_proba(X_te_loso)[:, 1]
+            chance_metrics = {
+                "auroc": float(roc_auc_score(y_te_loso, dummy_proba)),
+                "pr_auc": float(average_precision_score(y_te_loso, dummy_proba)),
+                "accuracy": float(accuracy_score(y_te_loso, dummy_pred)),
+                "balanced_accuracy": float(balanced_accuracy_score(y_te_loso, dummy_pred)),
+                "f1": float(f1_score(y_te_loso, dummy_pred, zero_division=0)),
+            }
+
+            loso_results[group_name] = {
+                "held_out_stressor": stressor_conditions,
+                "n_train_stress": int((y_tr_loso == 1).sum()),
+                "n_test_stress": int(held_out_test.sum()),
+                "test_metrics": res_loso["test_metrics"],
+                "chance_level": chance_metrics,
+            }
+            print(f"LOSO [{group_name}]: AUROC={res_loso['test_metrics']['auroc']:.4f} (chance={chance_metrics['auroc']:.4f}), "
+                  f"PR-AUC={res_loso['test_metrics']['pr_auc']:.4f} (chance={chance_metrics['pr_auc']:.4f})")
+
+        loso_file = (f"loso_stressor_results_{tcc_batch_size}.json"
+                     if tcc_batch_size != 128 else "loso_stressor_results.json")
+        with open(os.path.join(results_save_path, loso_file), "w") as f:
+            json.dump(loso_results, f, indent=2, default=str)
+
     if zero_shot_evaluation:
         # Load the best-trained model
         classifier_model = results["model"]
@@ -482,7 +586,7 @@ if __name__ == "__main__":
     general_group = parser.add_argument_group('General Setup')
     general_group.add_argument("--gpu", type=int, default=0,
                               help="GPU device ID to use")
-    general_group.add_argument("--seed", type=int, default=123,
+    general_group.add_argument("--seed", type=int, default=42,
                               help="Random seed for reproducibility")
     general_group.add_argument("--verbose", action="store_true",
                               help="Show verbose output of CV for logistic regression")
@@ -538,7 +642,7 @@ if __name__ == "__main__":
 
     tstcc_arch_group.add_argument("--jitter_scale_ratio", default=0.001, type=float)
     tstcc_arch_group.add_argument("--jitter_ratio", default=0.001, type=float)
-    tstcc_arch_group.add_argument("--max_segment", default = 8, type=int)
+    tstcc_arch_group.add_argument("--max_segment", default = 5, type=int)
 
     # Augmentation used
     tstcc_arch_group.add_argument("--use_spectral_augmentation", action="store_true",
@@ -588,11 +692,22 @@ if __name__ == "__main__":
                                  help="If set, we do downstream zero-shot evaluation.")
     zero_shot_group.add_argument("--zero_shot_dataset", type=str,
                                  choices=("stressid", "wesad"), default="wesad")
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Leave-one-stressor-out
+    # ══════════════════════════════════════════════════════════════════════════════
+    loso_group = parser.add_argument_group("Leave-one-stressor-out")
+    loso_group.add_argument("--leave_one_stressor_out", action="store_true",
+                            help="Run leave-one-stressor-out analysis: for each stressor group "
+                                 "(TA+TA_repeat, Pasat+Pasat_repeat, Raven, SSST), train without "
+                                 "that stressor and evaluate on it.")
+
     # Parse arguments and run main function
     args = parser.parse_args()
 
     #Important:
     args.pretrain_all_conditions = True
+    args.leave_one_stressor_out = True
 
     # For zero-shot transfer:
     #python3 tstcc_train_cleaned_cv.py --fs 700 --label_fraction 1.0 --zero_shot_evaluation --zero_shot_dataset wesad --seed 3
