@@ -49,15 +49,15 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.1 --use_s3_layers --force_retraining --infots_aug_p1 0.3
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.01 --use_s3_layers --infots_aug_p1 0.3
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.025 --use_s3_layers --infots_aug_p1 0.3
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.05 --use_s3_layers --infots_aug_p1 0.3
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.25 --use_s3_layers --infots_aug_p1 0.3
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.5 --use_s3_layers --infots_aug_p1 0.3
-python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 1.0 --use_s3_layers --infots_aug_p1 0.3
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.1 --use_s3_layers --force_retraining --infots_aug_p1 0.4
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.01 --use_s3_layers --infots_aug_p1 0.4
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.025 --use_s3_layers --infots_aug_p1 0.4
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.05 --use_s3_layers --infots_aug_p1 0.4
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.25 --use_s3_layers --infots_aug_p1 0.4
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 0.5 --use_s3_layers --infots_aug_p1 0.4
+python3 infots_train_cleaned_cv.py --seed $1 --infots_epochs 40 --label_fraction 1.0 --use_s3_layers --infots_aug_p1 0.4
 
-#  for SEED in 3 5 7 9 42; do
+#  for SEED in 3 5 7 9 11 13 15 17 19 42; do
 #      sbatch --job-name=ECG_INFOTS_s3_seed_${SEED} \
 #             --output=ecg_infots_s3_${SEED}_%j.out \
 #             --time=60:00:00 \
