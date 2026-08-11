@@ -4,8 +4,8 @@
  # shellcheck disable=SC1061
 
  ## Bash script for running several experiments
-fractions=(0.1 0.25 0.5 1.0)
-seeds=(3 5 7 9 42)
+fractions=(1.0)
+seeds=(3 5 7 9 11 13 15 17 42)
 models=("cnn")
 
 for model in "${models[@]}"
