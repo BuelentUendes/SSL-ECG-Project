@@ -4,8 +4,8 @@
  # shellcheck disable=SC1061
 
  ## Bash script for running several experiments
-fractions=(0.1 0.25 0.5 1.0)
-seeds=(3 5 7 9 42)
+fractions=(1.0)
+seeds=(3 5 7 9 11 13 15 17 19 42)
 models=("cnn")
 
 for model in "${models[@]}"
@@ -14,7 +14,7 @@ do
   do
     for fraction in "${fractions[@]}"
     do
-      python3 supervised_training_cleaned_cv.py --dataset "stressid" --scoring_metric "roc_auc" --fs 500 --model_type "$model" --seed "$seed" --label_fraction "$fraction" --batch_size 64 --gpu 0 --force_retraining
+      python3 supervised_training_cleaned_cv.py --dataset "wesad" --scoring_metric "roc_auc" --fs 700 --model_type "$model" --seed "$seed" --label_fraction "$fraction" --batch_size 64 --gpu 0 --force_retraining
     done
   done
 done
