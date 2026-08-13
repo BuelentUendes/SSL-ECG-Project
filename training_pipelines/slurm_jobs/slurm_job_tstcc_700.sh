@@ -49,16 +49,10 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.1 --fs 700 --force_retraining
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.01 --fs 700
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.025 --fs 700
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.05 --fs 700
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.25 --fs 700
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.5 --fs 700
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0 --fs 700
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0 --fs 700 --max_segment 5 --force_retraining
 
 # Command to run the job
-#  for SEED in 11 13 15 17 19; do
+#  for SEED in 3 5 7 9 11 13 15 17 19 42; do
 #      sbatch --job-name=ECG_700_TSTCC_seed_${SEED} \
 #             --output=ecg_700_tstcc_${SEED}_%j.out \
 #             --error=ecg_700_tstcc_${SEED}_%j.err \
