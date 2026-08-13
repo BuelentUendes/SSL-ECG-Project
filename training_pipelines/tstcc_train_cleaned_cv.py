@@ -73,6 +73,32 @@ def _per_condition_metrics(model, test_repr, y_test, conditions_test):
     return out
 
 
+def _pr_auc_ratio_corrected(model, X, y, overall_ratio, seed=42):
+    """PR-AUC with baseline subsampled to match overall_ratio prevalence.
+
+    Used alongside the raw (all-baseline) PR-AUC so the two can be compared:
+    - raw:            realistic — all baseline samples in the pool
+    - ratio-corrected: comparable across conditions — prevalence fixed to the
+                       dataset-wide stress rate, matching the reference bootstrap
+                       evaluation (get_idx_per_subcategory).
+    """
+    stress_idx = np.where(np.asarray(y) == 1)[0]
+    baseline_idx = np.where(np.asarray(y) == 0)[0]
+    n_stress = len(stress_idx)
+    if n_stress == 0 or len(baseline_idx) == 0:
+        return float("nan"), 0
+    n_baseline = int((1 - overall_ratio) * n_stress / overall_ratio)
+    n_baseline = min(max(n_baseline, 1), len(baseline_idx))
+    rng = np.random.RandomState(seed)
+    sampled = rng.choice(baseline_idx, size=n_baseline, replace=False)
+    combined = np.concatenate([stress_idx, sampled])
+    y_s = np.asarray(y)[combined]
+    if len(np.unique(y_s)) < 2:
+        return float("nan"), n_baseline
+    proba = model.predict_proba(X[combined])[:, 1]
+    return float(average_precision_score(y_s, proba)), n_baseline
+
+
 def main(
         fs: str,
         window_size:int,
@@ -522,15 +548,26 @@ def main(
                 "f1": float(f1_score(y_te_loso, dummy_pred, zero_division=0)),
             }
 
+            overall_stress_ratio = float((y_test == 1).sum()) / len(y_test)
+            pr_auc_corrected, n_baseline_used = _pr_auc_ratio_corrected(
+                res_loso["model"], X_te_loso, y_te_loso,
+                overall_ratio=overall_stress_ratio, seed=seed,
+            )
             loso_results[group_name] = {
                 "held_out_stressor": stressor_conditions,
                 "n_train_stress": int((y_tr_loso == 1).sum()),
                 "n_test_stress": int(held_out_test.sum()),
                 "test_metrics": res_loso["test_metrics"],
                 "chance_level": chance_metrics,
+                "test_metrics_ratio_corrected": {
+                    "pr_auc": pr_auc_corrected,
+                    "n_baseline_samples_used": n_baseline_used,
+                    "overall_stress_ratio_used": round(overall_stress_ratio, 4),
+                },
             }
             print(f"LOSO [{group_name}]: AUROC={res_loso['test_metrics']['auroc']:.4f} (chance={chance_metrics['auroc']:.4f}), "
-                  f"PR-AUC={res_loso['test_metrics']['pr_auc']:.4f} (chance={chance_metrics['pr_auc']:.4f})")
+                  f"PR-AUC (raw)={res_loso['test_metrics']['pr_auc']:.4f} (chance={chance_metrics['pr_auc']:.4f}), "
+                  f"PR-AUC (ratio-corrected)={pr_auc_corrected:.4f}")
 
         loso_file = (f"loso_stressor_results_{tcc_batch_size}.json"
                      if tcc_batch_size != 128 else "loso_stressor_results.json")
@@ -707,7 +744,6 @@ if __name__ == "__main__":
 
     #Important:
     args.pretrain_all_conditions = True
-    args.leave_one_stressor_out = True
 
     # For zero-shot transfer:
     #python3 tstcc_train_cleaned_cv.py --fs 700 --label_fraction 1.0 --zero_shot_evaluation --zero_shot_dataset wesad --seed 3
