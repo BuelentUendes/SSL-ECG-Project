@@ -7,7 +7,7 @@
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_tstcc_%j.out
 #SBATCH --error=ecg_tstcc_%j.err
-#SBATCH -C A4000
+#SBATCH -C A6000
 
 # Useful bash commands:
 ## sinfo -N -l
@@ -49,20 +49,20 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.1 --force_retraining --tc_hidden_dim 64 --tc_timesteps 10
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.01 --tc_hidden_dim 64 --tc_timesteps 10
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.025 --tc_hidden_dim 64 --tc_timesteps 10
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.05 --tc_hidden_dim 64 --tc_timesteps 10
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.25 --tc_hidden_dim 64 --tc_timesteps 10
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.5 --tc_hidden_dim 64 --tc_timesteps 10
-python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0 --tc_hidden_dim 64 --tc_timesteps 10
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.1 --force_retraining --tc_hidden_dim 64
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.01 --tc_hidden_dim 64
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.025 --tc_hidden_dim 64
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.05 --tc_hidden_dim 64
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.25 --tc_hidden_dim 64
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 0.5 --tc_hidden_dim 64
+python3 tstcc_train_cleaned_cv.py --seed $1 --tcc_epochs 40 --label_fraction 1.0 --tc_hidden_dim 64
 
 # Command to run the job
-#  for SEED in 11 13 15 17 19; do
-#      sbatch --job-name=ECG_TSTCC_seed_${SEED} \
-#             --output=ecg_tstcc_${SEED}_%j.out \
-#             --error=ecg_tstcc_${SEED}_%j.err \
+#  for SEED in 3 5 7 9 11 13 15 17 19 42; do
+#      sbatch --job-name=64_ECG_TSTCC_seed_${SEED} \
+#             --output=64_ecg_tstcc_${SEED}_%j.out \
+#             --error=64_ecg_tstcc_${SEED}_%j.err \
 #             --time=48:00:00 \
-#             ./slurm_jobs/slurm_job_tstcc.sh $SEED
+#             ./slurm_jobs/slurm_job_tstcc_64.sh $SEED
 #  done
 ##
