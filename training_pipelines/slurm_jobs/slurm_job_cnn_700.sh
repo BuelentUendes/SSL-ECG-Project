@@ -52,7 +52,7 @@ echo "=== GPU Test Completed ==="
 python3 supervised_training_cleaned_cv.py --seed $1 --label_fraction 1.0 --window_size 10 --step_size 5 --dataset "ours" --force_retraining --fs 700
 
 # Command to run the job
-#  for SEED in 11 13 15 17 19; do
+#  for SEED in 3 5 7 9 11 13 15 17 19 42; do
 #      sbatch --job-name=700_cnn_${SEED}_10_5 \
 #             --output=700_cnn_10_5_${SEED}_%j.out \
 #             --error=700_cnn_10_5_${SEED}_%j.err \
