@@ -7,7 +7,7 @@
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_tstcc_%j.out
 #SBATCH --error=ecg_tstcc_%j.err
-#SBATCH -C A6000
+#SBATCH -C A4000
 
 # Useful bash commands:
 ## sinfo -N -l
