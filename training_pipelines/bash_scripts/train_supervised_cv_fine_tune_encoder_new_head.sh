@@ -4,7 +4,7 @@
  # shellcheck disable=SC1061
 
  ## Bash script for running several experiments
-seeds=(3 5 7 9 42)
+seeds=(3 5 7 9 11 13 15 17 19 42)
 models=("cnn")
 
 for model in "${models[@]}"
