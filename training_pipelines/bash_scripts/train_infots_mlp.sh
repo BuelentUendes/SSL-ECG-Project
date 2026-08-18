@@ -9,12 +9,12 @@ seeds=(3 5 7 9 11 13 15 17 19 42)
 
 for seed in "${seeds[@]}"
 do
-  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.1
-  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.05
-  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.01
-  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.025
-  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.25
-  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.5
-  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 1.0
+  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.1 --gpu 1
+  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.05 --gpu 1
+  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.01 --gpu 1
+  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.025 --gpu 1
+  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.25 --gpu 1
+  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 0.5 --gpu 1
+  python3 infots_train_cleaned_cv.py --classifier_model "mlp" --train_ratio_encoder 1.0 --seed "$seed" --label_fraction 1.0 --gpu 1
 done
 
