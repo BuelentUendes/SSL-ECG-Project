@@ -12,8 +12,11 @@ import numpy as np
 import torch
 import torch.optim as optim
 
+from sklearn.dummy import DummyClassifier
+from sklearn.metrics import roc_auc_score, average_precision_score, accuracy_score, f1_score, balanced_accuracy_score
+
 from utils.torch_utilities import (
-    load_processed_data,
+    load_processed_data_with_conditions,
     return_track_data_file,
     split_indices_by_participant_groups,
     set_seed,
@@ -34,6 +37,65 @@ from models.simclr import (
     encode_representations,
     build_simclr_fingerprint,
 )
+
+# Stressor groups for leave-one-stressor-out analysis: (group_name, [condition_names])
+STRESSOR_GROUPS = [
+    ("TA", ["TA", "TA_repeat"]),
+    ("Pasat", ["Pasat", "Pasat_repeat"]),
+    ("Raven", ["Raven"]),
+    ("SSST", ["SSST_Sing_countdown"]),
+]
+
+
+def _per_condition_metrics(model, test_repr, y_test, conditions_test):
+    """Compute binary (vs baseline) metrics per mental-stress condition using a trained sklearn model."""
+    from sklearn.metrics import roc_auc_score, average_precision_score, accuracy_score, f1_score, balanced_accuracy_score
+    baseline_mask = y_test == 0
+    out = {}
+    for cond in np.unique(conditions_test[y_test == 1]):
+        cond_mask = (conditions_test == cond) & (y_test == 1)
+        mask = baseline_mask | cond_mask
+        if mask.sum() < 2 or cond_mask.sum() == 0:
+            continue
+        y_s = y_test[mask].astype(int)
+        r_s = test_repr[mask]
+        proba = model.predict_proba(r_s)[:, 1]
+        pred = model.predict(r_s)
+        out[cond] = {
+            "n_stress_samples": int(cond_mask.sum()),
+            "auroc": float(roc_auc_score(y_s, proba)),
+            "pr_auc": float(average_precision_score(y_s, proba)),
+            "accuracy": float(accuracy_score(y_s, pred)),
+            "balanced_accuracy": float(balanced_accuracy_score(y_s, pred)),
+            "f1": float(f1_score(y_s, pred)),
+        }
+    return out
+
+
+def _pr_auc_ratio_corrected(model, X, y, overall_ratio, seed=42):
+    """PR-AUC with baseline subsampled to match overall_ratio prevalence.
+
+    Used alongside the raw (all-baseline) PR-AUC so the two can be compared:
+    - raw:            realistic — all baseline samples in the pool
+    - ratio-corrected: comparable across conditions — prevalence fixed to the
+                       dataset-wide stress rate, matching the reference bootstrap
+                       evaluation (get_idx_per_subcategory).
+    """
+    stress_idx = np.where(np.asarray(y) == 1)[0]
+    baseline_idx = np.where(np.asarray(y) == 0)[0]
+    n_stress = len(stress_idx)
+    if n_stress == 0 or len(baseline_idx) == 0:
+        return float("nan"), 0
+    n_baseline = int((1 - overall_ratio) * n_stress / overall_ratio)
+    n_baseline = min(max(n_baseline, 1), len(baseline_idx))
+    rng = np.random.RandomState(seed)
+    sampled = rng.choice(baseline_idx, size=n_baseline, replace=False)
+    combined = np.concatenate([stress_idx, sampled])
+    y_s = np.asarray(y)[combined]
+    if len(np.unique(y_s)) < 2:
+        return float("nan"), n_baseline
+    proba = model.predict_proba(X[combined])[:, 1]
+    return float(average_precision_score(y_s, proba)), n_baseline
 
 
 def main(
@@ -65,6 +127,7 @@ def main(
         min_participants_for_kfold: int = 5,
         verbose: bool = False,
         scoring_metric: str = "roc_auc",
+        leave_one_stressor_out: bool = False,
 ):
     # ── Step 0: Setup ────────────────────────────────────────────────────────────
     set_seed(seed)
@@ -130,7 +193,7 @@ def main(
         DATA_PATH, "interim", "ECG", str(fs), str(window_size), str(step_size), 'windowed_data.h5'
     )
 
-    X, y, groups = load_processed_data(window_data_path, label_map=label_map)
+    X, y, groups, conditions = load_processed_data_with_conditions(window_data_path, label_map=label_map)
     y = y.astype(np.float32)
     win_len = X.shape[1]
 
@@ -307,9 +370,11 @@ def main(
     train_repr = train_repr[downstream_mask["train"]]
     y_train = y[train_idx][downstream_mask["train"]]
     groups_train = groups[train_idx][downstream_mask["train"]]
+    conditions_train = conditions[train_idx][downstream_mask["train"]]
 
     test_repr = test_repr[downstream_mask["test"]]
     y_test = y[test_idx][downstream_mask["test"]]
+    conditions_test = conditions[test_idx][downstream_mask["test"]]
 
     print(f"Extracted SimCLR representations: train_repr shape={train_repr.shape}")
 
@@ -363,6 +428,80 @@ def main(
                      f"F1: {results['test_metrics']['f1']}, "
                      f"PR-AUC: {results['test_metrics']['pr_auc']}")
         logging.info(f"Best parameters: {results['best_params']}")
+
+    # ── Step 6a: Per-condition metrics ───────────────────────────────────────────
+    if classifier_model in ["logistic_regression", "random_forest", "xgboost"]:
+        per_condition_results = _per_condition_metrics(
+            results["model"], test_repr, y_test, conditions_test
+        )
+        results["per_condition_metrics"] = per_condition_results
+        print("Per-condition test metrics (each stressor vs baseline):")
+        for cond, m in per_condition_results.items():
+            print(f"  {cond}: AUROC={m['auroc']:.4f}, PR-AUC={m['pr_auc']:.4f}, "
+                  f"n_stress={m['n_stress_samples']}")
+
+    # ── Step 6b: Leave-one-stressor-out ──────────────────────────────────────────
+    if leave_one_stressor_out and classifier_model in ["logistic_regression", "random_forest", "xgboost"]:
+        loso_results = {}
+        baseline_test_mask = y_test == 0
+        for group_name, stressor_conditions in STRESSOR_GROUPS:
+            held_out_train = np.isin(conditions_train, stressor_conditions) & (y_train == 1)
+            X_tr_loso = train_repr[~held_out_train]
+            y_tr_loso = y_train[~held_out_train]
+            g_tr_loso = groups_train[~held_out_train]
+            held_out_test = np.isin(conditions_test, stressor_conditions) & (y_test == 1)
+            loso_test_mask = baseline_test_mask | held_out_test
+            X_te_loso = test_repr[loso_test_mask]
+            y_te_loso = y_test[loso_test_mask]
+            if held_out_test.sum() == 0 or X_tr_loso.shape[0] == 0:
+                print(f"LOSO [{group_name}]: skipping — no samples")
+                continue
+            cv_sp_loso, _ = get_participant_cv_splitter(
+                g_tr_loso, min_participants_for_kfold=min_participants_for_kfold, k=k_folds
+            )
+            feat_names_loso = [f"repr_{i}" for i in range(X_tr_loso.shape[1])]
+            res_loso = run_logistic_regression_with_gridsearch(
+                X_tr_loso, y_tr_loso, g_tr_loso, X_te_loso, y_te_loso,
+                feat_names_loso, cv_sp_loso, False, seed,
+                scoring_metric=scoring_metric, classifier_model=classifier_model
+            )
+
+            dummy = DummyClassifier(strategy="most_frequent", random_state=seed)
+            dummy.fit(X_tr_loso, y_tr_loso)
+            dummy_pred = dummy.predict(X_te_loso)
+            dummy_proba = dummy.predict_proba(X_te_loso)[:, 1]
+            chance_metrics = {
+                "auroc": float(roc_auc_score(y_te_loso, dummy_proba)),
+                "pr_auc": float(average_precision_score(y_te_loso, dummy_proba)),
+                "accuracy": float(accuracy_score(y_te_loso, dummy_pred)),
+                "balanced_accuracy": float(balanced_accuracy_score(y_te_loso, dummy_pred)),
+                "f1": float(f1_score(y_te_loso, dummy_pred, zero_division=0)),
+            }
+
+            overall_stress_ratio = float((y_test == 1).sum()) / len(y_test)
+            pr_auc_corrected, n_baseline_used = _pr_auc_ratio_corrected(
+                res_loso["model"], X_te_loso, y_te_loso,
+                overall_ratio=overall_stress_ratio, seed=seed,
+            )
+            loso_results[group_name] = {
+                "held_out_stressor": stressor_conditions,
+                "n_train_stress": int((y_tr_loso == 1).sum()),
+                "n_test_stress": int(held_out_test.sum()),
+                "test_metrics": res_loso["test_metrics"],
+                "chance_level": chance_metrics,
+                "test_metrics_ratio_corrected": {
+                    "pr_auc": pr_auc_corrected,
+                    "n_baseline_samples_used": n_baseline_used,
+                    "overall_stress_ratio_used": round(overall_stress_ratio, 4),
+                },
+            }
+            print(f"LOSO [{group_name}]: AUROC={res_loso['test_metrics']['auroc']:.4f} (chance={chance_metrics['auroc']:.4f}), "
+                  f"PR-AUC (raw)={res_loso['test_metrics']['pr_auc']:.4f} (chance={chance_metrics['pr_auc']:.4f}), "
+                  f"PR-AUC (ratio-corrected)={pr_auc_corrected:.4f}")
+
+        loso_file = "loso_stressor_results.json" if batch_size == 256 else f"loso_stressor_results_{batch_size}.json"
+        with open(os.path.join(results_save_path, loso_file), "w") as f:
+            json.dump(loso_results, f, indent=2, default=str)
 
     # ── Step 6: Save Results ────────────────────────────────────────────────────
     # Different save name for non-default batch size
@@ -460,7 +599,7 @@ if __name__ == "__main__":
                              help="Learning rate for SimCLR training")
     simclr_group.add_argument("--batch_size", type=int, default=256,
                              help="Batch size for SimCLR training")
-    simclr_group.add_argument("--temperature", type=float, default=0.2,
+    simclr_group.add_argument("--temperature", type=float, default=0.1, #optimal value
                              help="Temperature parameter for contrastive loss")
     simclr_group.add_argument("--use_tstcc_encoder", action="store_true",
                               help="If set, we use the tstcc encoder (differs from the original architecture.")
@@ -510,6 +649,15 @@ if __name__ == "__main__":
     cv_group.add_argument("--scoring_metric", type=str, default="roc_auc",
                          choices=["roc_auc", "average_precision", "f1", "balanced_accuracy"],
                          help="Scoring metric for cross-validation hyperparameter selection")
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # Leave-one-stressor-out
+    # ══════════════════════════════════════════════════════════════════════════════
+    loso_group = parser.add_argument_group("Leave-one-stressor-out")
+    loso_group.add_argument("--leave_one_stressor_out", action="store_true",
+                            help="Run leave-one-stressor-out analysis: for each stressor group "
+                                 "(TA+TA_repeat, Pasat+Pasat_repeat, Raven, SSST), train without "
+                                 "that stressor and evaluate on it.")
 
     # Parse arguments and run main function
     args = parser.parse_args()
