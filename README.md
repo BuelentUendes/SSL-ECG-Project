@@ -106,22 +106,22 @@ pip3 install .
 │   └── __init__.py
 
 ├── training_pipelines/        # Training pipelines for training the models
-│   ├── hyperparams_infots.yaml # Final hyperparameter configuration for Infots  
-│   ├── hyperparams_simclr.yaml # Final hyperparameter configuration for SimCLR  
-│   ├── hyperparams_ts2vec.yaml # Final hyperparameter configuration for TS2Vec  
-│   ├── hyperparams_tstcc.yaml # Final hyperparameter configuration for TS-TCC  
 │   ├── infots_train_cleaned_cv.py
 │   ├── supervised_train_cleaned_cv.py
 │   ├── simclr_train_cleaned_cv.py
 │   ├── ts2vec_train_cleaned_cv.py
 │   ├── tstcc_train_cleaned_cv.py
 │   ├── sophisticated_baseline_cleaned_cv.py
-│   ├── slurm_jobs/            # SLURM job directory
-│       ├── ...                # Individual slurm files for training on a cluster
-│   ├── bash_scripts/          # Bash scripts
-│       ├── ...                # Individual bash scripts to run specific models
-│   └── models -> ../models    # Symlink for shared access
-│   └── archive                # Unused files (can be ignored)
+│   ├── slurm_jobs/             # SLURM job directory
+│       ├── ...                 # Individual slurm files for training on a cluster
+│   ├── bash_scripts/           # Bash scripts
+│       ├── ...                 # Individual bash scripts to run specific models
+│   └── models -> ../models     # Symlink for shared access
+│   └── archive                 # Unused files (can be ignored)
+│   ├── hyperparams_infots.yaml # Final hyperparameter configuration for Infots  
+│   ├── hyperparams_simclr.yaml # Final hyperparameter configuration for SimCLR  
+│   ├── hyperparams_ts2vec.yaml # Final hyperparameter configuration for TS2Vec  
+│   ├── hyperparams_tstcc.yaml  # Final hyperparameter configuration for TS-TCC  
 
 ├── results/                   # Generated results and figures
 ├── figures/                   # Generated figures of the results
