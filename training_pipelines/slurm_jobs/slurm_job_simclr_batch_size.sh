@@ -49,13 +49,13 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 0.1 --force_retraining --temperature 0.2
-python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 0.01 --temperature 0.2
-python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 0.025 --temperature 0.2
-python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 0.05 --temperature 0.2
-python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 0.25 --temperature 0.2
-python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 0.5 --temperature 0.2
-python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 1.0 --temperature 0.2
+python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 0.1 --force_retraining --temperature 0.1
+python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 0.01 --temperature 0.1
+python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 0.025 --temperature 0.1
+python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 0.05 --temperature 0.1
+python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 0.25 --temperature 0.1
+python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 0.5 --temperature 0.1
+python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --label_fraction 1.0 --temperature 0.1
 
 # Command to run the job
 #  for SEED in 3 5 7 9 11 13 15 17 19 42; do
@@ -66,4 +66,4 @@ python3 simclr_train_cleaned_cv.py --seed $1 --batch_size 512 --epochs 40 --labe
 #             --begin=20:00 \
 #             ./slurm_jobs/slurm_job_simclr_batch_size.sh $SEED
 #  done
-##
+###
