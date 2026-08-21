@@ -106,6 +106,10 @@ pip3 install .
 │   └── __init__.py
 
 ├── training_pipelines/        # Training pipelines for training the models
+│   ├── hyperparams_infots.yaml # Final hyperparameter configuration for Infots  
+│   ├── hyperparams_simclr.yaml # Final hyperparameter configuration for SimCLR  
+│   ├── hyperparams_ts2vec.yaml # Final hyperparameter configuration for TS2Vec  
+│   ├── hyperparams_tstcc.yaml # Final hyperparameter configuration for TS-TCC  
 │   ├── infots_train_cleaned_cv.py
 │   ├── supervised_train_cleaned_cv.py
 │   ├── simclr_train_cleaned_cv.py
