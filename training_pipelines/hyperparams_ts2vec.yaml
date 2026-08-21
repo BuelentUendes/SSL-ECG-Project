@@ -1,0 +1,17 @@
+method: TS2Vec
+
+encoder:
+  ts2vec_epochs: 40
+  ts2vec_lr: 1.0e-3
+  ts2vec_batch_size: 8
+  ts2vec_output_dims: 320
+  ts2vec_hidden_dims: 64
+  ts2vec_depth: 10
+  ts2vec_temporal_unit: 3
+  ts2vec_masking_prob: 0.3
+  ts2vec_max_train_length: null
+
+s3_layers:
+  num_s3_layers: 2
+  initial_num_segments: 2
+  segment_multiplier: 1

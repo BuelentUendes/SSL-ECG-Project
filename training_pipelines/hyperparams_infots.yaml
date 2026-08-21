@@ -1,0 +1,21 @@
+method: InfoTS
+
+encoder:
+  infots_epochs: 40
+  infots_lr: 1.0e-3
+  infots_meta_lr: 0.01
+  infots_batch_size: 16
+  infots_output_dims: 320
+  infots_hidden_dims: 64
+  infots_depth: 10
+  infots_max_train_length: 10000
+  infots_dropout: 0.1
+  infots_aug_p1: 0.4
+  infots_aug_p2: 0.0
+  alpha: 1.0
+  beta: 1.0
+
+s3_layers:
+  num_s3_layers: 2
+  initial_num_segments: 2
+  segment_multiplier: 1

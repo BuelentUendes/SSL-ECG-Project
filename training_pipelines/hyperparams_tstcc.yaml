@@ -1,0 +1,17 @@
+method: TS-TCC
+
+encoder:
+  tcc_epochs: 40
+  tcc_lr: 3.0e-4
+  tcc_batch_size: 128
+  tc_hidden_dim: 100
+  cc_temperature: 0.2
+  tc_timesteps: 50
+  jitter_ratio: 0.001
+  jitter_scale_ratio: 0.001
+  max_segment: 5
+
+s3_layers:
+  num_s3_layers: 2
+  initial_num_segments: 2
+  segment_multiplier: 1
