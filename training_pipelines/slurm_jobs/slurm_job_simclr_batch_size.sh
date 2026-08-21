@@ -7,7 +7,7 @@
 #SBATCH --mail-user=b.uendes@vu.nl
 #SBATCH --output=ecg_simclr_%j.out
 #SBATCH --error=ecg_simclr_%j.err
-#SBATCH -C A5000
+#SBATCH -C A4000
 
 # Useful bash commands:
 ## sinfo -N -l
