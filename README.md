@@ -41,6 +41,7 @@ pip3 install .
 ```text
 .
 ├── README.md                  # Project overview and usage guide
+├── ablation_ucr_uea/          # Ablation for InfoTS on UCR/UEA dataset
 ├── environment.yml            # Conda environment definition
 ├── requirements.txt           # Optional pip requirements
 ├── setup.py                   # Python config file for setuptools, needed for the sia package
