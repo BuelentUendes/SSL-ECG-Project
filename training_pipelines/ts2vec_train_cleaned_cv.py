@@ -114,6 +114,7 @@ def main(
         num_s3_layers: int,
         segment_multiplier: int,
         optimize_hyperparameters: bool,
+        classification_task: str,
         classifier_model: str,
         classifier_epochs: int,
         classifier_lr: float,
@@ -157,7 +158,7 @@ def main(
         str(train_ratio_encoder)
     )
     results_save_path = os.path.join(
-        RESULTS_PATH, "ECG", model_name, classifier_model, f"{seed}", f"{label_fraction}", f"{window_size}",
+        RESULTS_PATH, "ECG", model_name, classifier_model, classification_task, f"{seed}", f"{label_fraction}", f"{window_size}",
         f"{step_size}", str(train_ratio_encoder)
     )
 
@@ -216,10 +217,16 @@ def main(
 
     print(f"Labelled windows for training classifier: train {len(train_idx)}, test {len(test_idx)}")
 
-    # Keep binary‐task mask for later
+    # For ms_base_lpa_mpa, treat lpa (2) and mpa (3) as baseline (0) so the
+    # downstream task stays binary (mental_stress vs everything else).
+    y_downstream = y.copy()
+    if classification_task == "ms_base_lpa_mpa":
+        y_downstream[y_downstream == 2] = 0
+        y_downstream[y_downstream == 3] = 0
+
     downstream_mask = {
-        "train": np.isin(y[train_idx], [0, 1]),
-        "test": np.isin(y[test_idx], [0, 1]),
+        "train": np.isin(y_downstream[train_idx], [0, 1]),
+        "test": np.isin(y_downstream[test_idx], [0, 1]),
     }
 
     # ── Step 2: TS2Vec Pretraining ──────────────────────────────────────────────
@@ -325,12 +332,12 @@ def main(
 
     # filter to binary downstream samples
     train_repr = train_repr[downstream_mask["train"]]
-    y_train = y[train_idx][downstream_mask["train"]]
+    y_train = y_downstream[train_idx][downstream_mask["train"]]
     groups_train = groups[train_idx][downstream_mask["train"]]
     conditions_train = conditions[train_idx][downstream_mask["train"]]
 
     test_repr = test_repr[downstream_mask["test"]]
-    y_test = y[test_idx][downstream_mask["test"]]
+    y_test = y_downstream[test_idx][downstream_mask["test"]]
     conditions_test = conditions[test_idx][downstream_mask["test"]]
 
     print(f"Extracted TS2Vec representations: train_repr shape={train_repr.shape}")
@@ -556,6 +563,10 @@ if __name__ == "__main__":
     data_group.add_argument("--train_ratio_encoder", default=1.0, type=float,
                             help="If set to 0.75, it will result in 60/20/20 split and have a validation set for TS2Vec,"
                                  "Alternatively, set to 1.0 to train on all unlabelled training instances.")
+    data_group.add_argument("--classification_task", default="ms_base",
+                            type=str, choices=("ms_base", "ms_base_lpa_mpa"),
+                            help="Downstream classification task: ms_base (binary) or ms_base_lpa_mpa "
+                                 "(mental stress vs baseline+lpa+mpa, still binary).")
 
     # ══════════════════════════════════════════════════════════════════════════════
     # TS2Vec Encoder Training
