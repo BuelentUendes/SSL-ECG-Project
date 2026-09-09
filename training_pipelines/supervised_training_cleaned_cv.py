@@ -444,7 +444,8 @@ def get_paths(
         seed: int,
         label_fraction: float,
         window_size: int,
-        step_size: int
+        step_size: int,
+        classification_task: str = "ms_base",
 ) -> [str, str, str]:
     """
     Returns the model path, result path and data path based on the dataset
@@ -456,7 +457,7 @@ def get_paths(
             SAVED_MODELS_PATH, "ECG", str(fs), f"{model_type}", f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
         )
         results_save_path = os.path.join(
-            RESULTS_PATH, "ECG", "Supervised", model_type, f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
+            RESULTS_PATH, "ECG", "Supervised", model_type, classification_task, f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
         )
         window_data_path = os.path.join(
             DATA_PATH, "interim", "ECG", str(fs), f"{window_size}", f"{step_size}", 'windowed_data.h5'
@@ -579,6 +580,7 @@ def main(
         loso: bool = False,
         held_out_participant: int = 0,
         leave_one_stressor_out: bool = False,
+        classification_task: str = "ms_base",
 ):
 
     set_seed(seed)
@@ -598,7 +600,8 @@ def main(
     create_directory(RESULTS_PATH)
 
     model_save_path, results_save_path, window_data_path = get_paths(
-        dataset, fs, model_type, seed, label_fraction, window_size, step_size
+        dataset, fs, model_type, seed, label_fraction, window_size, step_size,
+        classification_task=classification_task,
     )
 
     if loso and dataset == "wesad":
@@ -683,9 +686,14 @@ def main(
         y_zero_shot = y_zero_shot.astype(np.float32)
 
     # load data
+    if classification_task == "ms_base_lpa_mpa" and dataset == "ours":
+        label_map = {"baseline": 0, "low_physical_activity": 0, "moderate_physical_activity": 0, "mental_stress": 1}
+    else:
+        label_map = {"baseline": 0, "mental_stress": 1}
+
     X, y, groups, conditions = load_processed_data_with_conditions(
         window_data_path,
-        label_map={"baseline": 0, "mental_stress": 1},
+        label_map=label_map,
     )
     y = y.astype(np.float32)
 
@@ -1054,6 +1062,11 @@ if __name__ == "__main__":
                         help="Run leave-one-stressor-out analysis: for each stressor group "
                              "(TA+TA_repeat, Pasat+Pasat_repeat, Raven, SSST), train without "
                              "that stressor and evaluate on it. Only applies when --dataset ours.")
+    parser.add_argument("--classification_task", default="ms_base",
+                        type=str, choices=("ms_base", "ms_base_lpa_mpa"),
+                        help="Downstream classification task: ms_base (binary) or ms_base_lpa_mpa "
+                             "(mental stress vs baseline+lpa+mpa, still binary). "
+                             "Only applies when --dataset ours.")
 
     args = parser.parse_args()
 
