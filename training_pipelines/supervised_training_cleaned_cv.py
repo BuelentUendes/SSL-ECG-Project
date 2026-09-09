@@ -454,7 +454,8 @@ def get_paths(
     if dataset == "ours":
         # We save the model here via seeds, we create a separate folder for pretraining on all labels and on only task-related data
         model_save_path = os.path.join(
-            SAVED_MODELS_PATH, "ECG", str(fs), f"{model_type}", f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
+            SAVED_MODELS_PATH, "ECG", str(fs), f"{model_type}", f"{seed}", classification_task, f"{label_fraction}",
+            f"{window_size}", f"{step_size}"
         )
         results_save_path = os.path.join(
             RESULTS_PATH, "ECG", "Supervised", model_type, classification_task, f"{seed}", f"{label_fraction}", f"{window_size}", f"{step_size}"
