@@ -168,7 +168,7 @@ mlflow server --host 127.0.0.1 --port 5000
 
 ### 3. Run the preprocessing pipeline
 ```bash
-python3 preprocessing_pipeline/preprocess_no_flow.py
+python3 preprocessing_pipeline/preprocess_no_flow_window_correction.py
 ```
 
 This will:
@@ -176,6 +176,7 @@ This will:
 - Clean and denoise signals
 - Normalize all recordings
 - Segment signals into fixed-length windows
+- Filter out windows with SQI of <= 0.25
 
 The final output is saved to:
 ```bash
