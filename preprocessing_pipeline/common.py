@@ -36,6 +36,29 @@ def clean_and_filter_ecg(ecg_signal, sampling_rate, threshold=0.25, method="neur
     cleaned_filtered_signal = ecg_cleaned[good_indices[0]]
     return cleaned_filtered_signal
 
+
+def compute_sqi(ecg_signal, sampling_rate, method="neurokit"):
+    """Clean ECG and compute per-sample SQI scores without removing any samples.
+
+    Returns the cleaned signal and quality array at full original length,
+    so that timestamp-based indexing remains valid.
+    """
+    ecg_signal = nk.signal_sanitize(ecg_signal)
+    # ecg_cleaned = nk.ecg_clean(ecg_sanitized, sampling_rate=sampling_rate)
+
+    _, info = nk.ecg_peaks(
+        ecg_cleaned=ecg_signal,
+        sampling_rate=sampling_rate,
+        method=method,
+        correct_artifacts=True,
+    )
+
+    quality = nk.ecg_quality(
+        ecg_signal, rpeaks=info["ECG_R_Peaks"], sampling_rate=sampling_rate
+    )
+
+    return ecg_signal, np.array(quality, dtype=np.float32)
+
 # ------------------------------------------------------
 # Match ECG data with labels and save segments individually
 # ------------------------------------------------------
@@ -356,3 +379,193 @@ def segment_data_into_windows(cleaned_data_path, hdf5_path, fs=1000, window_size
                     )
                     print(f"-> {participant}/{category}/{segment_name}: {windows_array.shape[0]} windows stored.")
     print(f"Segmented data saved to {hdf5_path}")
+
+
+# ------------------------------------------------------
+# Window-level SQI correction: filter without removing samples, compute SQI, slice into segments
+# ------------------------------------------------------
+def process_ecg_data_window_correction(segmented_data_path, sqi_data_path, fs, sqi_threshold=0.25):
+    """
+    Filter ECG with length-preserving filters, compute per-sample SQI on the full signal,
+    then slice into condition segments — no samples are removed.
+    Returns a DataFrame of SQI statistics (informational only).
+    """
+    FOLDERPATH = os.path.join(RAW_DATA_PATH, str(fs))
+
+    files = [f for f in os.listdir(FOLDERPATH) if f.endswith("_ECG.edf")]
+    filepaths = [os.path.join(FOLDERPATH, f) for f in files]
+    participants = [f[:5] for f in files]
+
+    timestamps = pd.read_csv(
+        os.path.join(RAW_DATA_PATH, "TimeStamps_Merged.txt"), sep="\t", decimal="."
+    )
+    timestamps["LabelStart"] = pd.to_datetime(timestamps["LabelStart"], format="%Y-%m-%d %H:%M:%S", utc=True)
+    timestamps["LabelEnd"] = pd.to_datetime(timestamps["LabelEnd"], format="%Y-%m-%d %H:%M:%S", utc=True)
+    timestamps["Subject_ID"] = timestamps["Subject_ID"].astype(str)
+
+    stats_rows = []
+
+    with h5py.File(segmented_data_path, "w") as f_seg, h5py.File(sqi_data_path, "w") as f_sqi:
+        for p, participant_id in enumerate(participants):
+            print(f"Processing Participant {participant_id} ({p + 1}/{len(participants)})")
+
+            ecg_edf = mne.io.read_raw_edf(filepaths[p], preload=True, verbose=False)
+            ecg_signal = ecg_edf.get_data()[0]
+            n_samples = len(ecg_signal)
+            start_time = ecg_edf.annotations.orig_time
+
+            if start_time is None:
+                print(f"Skipping {participant_id}, no start time in EDF.")
+                continue
+
+            ecg_signal = clean_ecg_signal(ecg_signal, fs)
+
+            try:
+                _, sqi_scores = compute_sqi(ecg_signal, sampling_rate=fs)
+            except Exception as e:
+                print(f"SQI computation failed for {participant_id}: {e}. Using zeros.")
+                sqi_scores = np.zeros(n_samples, dtype=np.float32)
+
+            n_bad = int(np.sum(sqi_scores <= sqi_threshold))
+            stats_rows.append({
+                "participant": f"participant_{participant_id}",
+                "class": "_ALL_",
+                "condition": "_ALL_",
+                "n_original_samples": n_samples,
+                "n_removed_samples": n_bad,
+                "proportion_removed": n_bad / n_samples if n_samples > 0 else 0.0,
+            })
+
+            timestamps_subj = timestamps[timestamps["Subject_ID"] == participant_id]
+            participant_seg = f_seg.create_group(f"participant_{participant_id}")
+            participant_sqi = f_sqi.create_group(f"participant_{participant_id}")
+
+            for _, row in timestamps_subj.iterrows():
+                category = row["Category"]
+                label = None
+                for key, cat_list in CATEGORY_MAPPING.items():
+                    if category in cat_list:
+                        label = key
+                        break
+
+                if label is None:
+                    print(f"Category {category} not found in mapping. Skipping.")
+                    continue
+
+                idx_start = int((row["LabelStart"] - start_time).total_seconds() * fs)
+                idx_end = int((row["LabelEnd"] - start_time).total_seconds() * fs)
+                idx_start = max(0, idx_start)
+                idx_end = min(n_samples, idx_end)
+
+                if idx_end <= idx_start:
+                    continue
+
+                segment = ecg_signal[idx_start:idx_end].astype(np.float32)
+                sqi_segment = sqi_scores[idx_start:idx_end]
+
+                n_seg = len(sqi_segment)
+                n_bad_seg = int(np.sum(sqi_segment <= sqi_threshold))
+                stats_rows.append({
+                    "participant": f"participant_{participant_id}",
+                    "class": label,
+                    "condition": category,
+                    "n_original_samples": n_seg,
+                    "n_removed_samples": n_bad_seg,
+                    "proportion_removed": n_bad_seg / n_seg if n_seg > 0 else 0.0,
+                })
+
+                if label not in participant_seg:
+                    label_seg = participant_seg.create_group(label)
+                    label_sqi = participant_sqi.create_group(label)
+                else:
+                    label_seg = participant_seg[label]
+                    label_sqi = participant_sqi[label]
+
+                seg_name = f"segment_{len(label_seg.keys())}"
+
+                ds_seg = label_seg.create_dataset(
+                    seg_name, data=segment, compression="gzip", compression_opts=4, dtype=np.float32
+                )
+                ds_seg.attrs["condition"] = category
+
+                ds_sqi = label_sqi.create_dataset(
+                    seg_name, data=sqi_segment, compression="gzip", compression_opts=4, dtype=np.float32
+                )
+                ds_sqi.attrs["condition"] = category
+
+    print(f"Segmented data saved to {segmented_data_path}")
+    print(f"SQI data saved to {sqi_data_path}")
+    return pd.DataFrame(stats_rows)
+
+
+# ------------------------------------------------------
+# Sliding window with whole-window SQI keep/drop
+# ------------------------------------------------------
+def segment_data_into_windows_sqi_filtered(
+    normalized_data_path, sqi_data_path, window_data_path, fs=1000, window_size=10, step_size=5, sqi_threshold=0.25
+):
+    """
+    Slide windows over normalized segments; drop any window that contains a sample with SQI <= threshold.
+    Returns a DataFrame of per-segment window statistics.
+    """
+    window_size_samples = window_size * fs
+    step_size_samples = step_size * fs
+    stats_rows = []
+
+    with (
+        h5py.File(normalized_data_path, "r") as f_norm,
+        h5py.File(sqi_data_path, "r") as f_sqi,
+        h5py.File(window_data_path, "w") as f_out,
+    ):
+        for participant in f_norm.keys():
+            print(f"Windowing data for {participant}...")
+            participant_norm = f_norm[participant]
+            participant_sqi = f_sqi[participant]
+            participant_out = f_out.create_group(participant)
+
+            for label in participant_norm.keys():
+                label_norm = participant_norm[label]
+                label_sqi = participant_sqi[label]
+                label_out = participant_out.create_group(label)
+
+                for segment_name in label_norm.keys():
+                    signal = label_norm[segment_name][...]
+                    sqi = label_sqi[segment_name][...]
+                    condition = label_sqi[segment_name].attrs.get("condition", "unknown")
+
+                    windows_sig = sliding_window(signal, window_size_samples, step_size_samples)
+                    windows_sqi = sliding_window(sqi, window_size_samples, step_size_samples)
+
+                    if len(windows_sig) == 0:
+                        print(f"-> No windows for {participant}/{label}/{segment_name} (too short). Skipping.")
+                        continue
+
+                    kept = [w for w, q in zip(windows_sig, windows_sqi) if np.all(q > sqi_threshold)]
+
+                    n_total = len(windows_sig)
+                    n_kept = len(kept)
+                    n_dropped = n_total - n_kept
+                    stats_rows.append({
+                        "participant": participant,
+                        "label": label,
+                        "condition": condition,
+                        "segment": segment_name,
+                        "n_total_windows": n_total,
+                        "n_kept_windows": n_kept,
+                        "n_dropped_windows": n_dropped,
+                        "proportion_dropped": n_dropped / n_total if n_total > 0 else 0.0,
+                    })
+
+                    if n_kept == 0:
+                        print(f"-> All windows dropped for {participant}/{label}/{segment_name}. Skipping.")
+                        continue
+
+                    windows_array = np.array(kept, dtype=np.float32)
+                    ds = label_out.create_dataset(
+                        segment_name, data=windows_array, compression="gzip", compression_opts=4
+                    )
+                    ds.attrs["condition"] = condition
+                    print(f"-> {participant}/{label}/{segment_name}: {n_kept}/{n_total} windows kept.")
+
+    print(f"Windowed data saved to {window_data_path}")
+    return pd.DataFrame(stats_rows)
