@@ -30,10 +30,14 @@ from sklearn.metrics import make_scorer
 
 import xgboost as xgb
 
-from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, roc_auc_score, average_precision_score
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, roc_auc_score, average_precision_score, confusion_matrix
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.model_selection import GroupKFold, LeaveOneGroupOut, GridSearchCV, RandomizedSearchCV, StratifiedGroupKFold
 from scipy.stats import loguniform
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 # MLflow imports
 import mlflow
@@ -179,6 +183,7 @@ def load_processed_data_with_conditions(hdf5_path, label_map=None, domain_featur
             feature_names = f[participants[0]].attrs['feature_names']
         for participant_key in participants:
             participant_id = participant_key.replace("participant_", "")
+            overall_categories = list(f[participant_key].keys())
             for cat in f[participant_key].keys():
                 if cat not in label_map:
                     continue
@@ -1163,6 +1168,10 @@ def run_logistic_regression_with_gridsearch(
     test_f1 = f1_score(y_test, y_test_pred)
     test_pr_auc = average_precision_score(y_test, y_test_proba)
 
+    tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred, labels=[0, 1]).ravel()
+    test_sensitivity = float(tp / (tp + fn)) if (tp + fn) > 0 else 0.0
+    test_specificity = float(tn / (tn + fp)) if (tn + fp) > 0 else 0.0
+
     # Calculate test metrics (optimized thresholds)
     test_acc_bal_opt = accuracy_score(y_test, y_test_pred_bal_opt)
     balanced_test_acc_bal_opt = balanced_accuracy_score(y_test, y_test_pred_bal_opt)
@@ -1171,6 +1180,14 @@ def run_logistic_regression_with_gridsearch(
     balanced_test_acc_f1_opt = balanced_accuracy_score(y_test, y_test_pred_f1_opt)
     test_f1_f1_opt = f1_score(y_test, y_test_pred_f1_opt)
 
+    tn_bo, fp_bo, fn_bo, tp_bo = confusion_matrix(y_test, y_test_pred_bal_opt, labels=[0, 1]).ravel()
+    test_sensitivity_bal_opt = float(tp_bo / (tp_bo + fn_bo)) if (tp_bo + fn_bo) > 0 else 0.0
+    test_specificity_bal_opt = float(tn_bo / (tn_bo + fp_bo)) if (tn_bo + fp_bo) > 0 else 0.0
+
+    tn_fo, fp_fo, fn_fo, tp_fo = confusion_matrix(y_test, y_test_pred_f1_opt, labels=[0, 1]).ravel()
+    test_sensitivity_f1_opt = float(tp_fo / (tp_fo + fn_fo)) if (tp_fo + fn_fo) > 0 else 0.0
+    test_specificity_f1_opt = float(tn_fo / (tn_fo + fp_fo)) if (tn_fo + fp_fo) > 0 else 0.0
+
     print(f"\n=== Test Set Results ===")
     print(f"Test Accuracy: {test_acc:.4f}")
     print(f"Balanced Test Accuracy: {balanced_test_acc:.4f}")
@@ -1178,11 +1195,15 @@ def run_logistic_regression_with_gridsearch(
     print(f"Test F1 (default threshold 0.5): {test_f1:.4f}")
     print(f"Test F1 (optimized threshold {optimal_thresh_f1}): {test_f1_f1_opt:.4f}")
     print(f"Test PR-AUC: {test_pr_auc:.4f}")
+    print(f"Test Sensitivity: {test_sensitivity:.4f}")
+    print(f"Test Specificity: {test_specificity:.4f}")
     print(f"\n=== Optimized Threshold Results ===")
     print(
-        f"Bal Acc Opt (thresh={optimal_thresh_bal_acc:.2f}): Acc={test_acc_bal_opt:.4f}, BalAcc={balanced_test_acc_bal_opt:.4f}, F1={test_f1_bal_opt:.4f}")
+        f"Bal Acc Opt (thresh={optimal_thresh_bal_acc:.2f}): Acc={test_acc_bal_opt:.4f}, BalAcc={balanced_test_acc_bal_opt:.4f}, F1={test_f1_bal_opt:.4f}, "
+        f"Sensitivity={test_sensitivity_bal_opt:.4f}, Specificity={test_specificity_bal_opt:.4f}")
     print(
-        f"F1 Opt (thresh={optimal_thresh_f1:.2f}): Acc={test_acc_f1_opt:.4f}, BalAcc={balanced_test_acc_f1_opt:.4f}, F1={test_f1_f1_opt:.4f}")
+        f"F1 Opt (thresh={optimal_thresh_f1:.2f}): Acc={test_acc_f1_opt:.4f}, BalAcc={balanced_test_acc_f1_opt:.4f}, F1={test_f1_f1_opt:.4f}, "
+        f"Sensitivity={test_sensitivity_f1_opt:.4f}, Specificity={test_specificity_f1_opt:.4f}")
 
     return {
         'best_params': best_params,
@@ -1198,12 +1219,18 @@ def run_logistic_regression_with_gridsearch(
             'auroc': test_auroc,
             'f1': test_f1,
             'pr_auc': test_pr_auc,
+            'sensitivity': test_sensitivity,
+            'specificity': test_specificity,
             'accuracy_bal_opt': test_acc_bal_opt,
             'balanced_accuracy_bal_opt': balanced_test_acc_bal_opt,
             'f1_bal_opt': test_f1_bal_opt,
+            'sensitivity_bal_opt': test_sensitivity_bal_opt,
+            'specificity_bal_opt': test_specificity_bal_opt,
             'accuracy_f1_opt': test_acc_f1_opt,
             'balanced_accuracy_f1_opt': balanced_test_acc_f1_opt,
             'f1_f1_opt': test_f1_f1_opt,
+            'sensitivity_f1_opt': test_sensitivity_f1_opt,
+            'specificity_f1_opt': test_specificity_f1_opt,
         },
         'model': best_model,
         'scaler': scaler,
@@ -1846,7 +1873,164 @@ def evaluate_zero_shot_model_performance(classifier_model, X_zero_shot, y_zero_s
     return zero_shot_results
 
 
+# ── Subcategory confusion analysis ────────────────────────────────────────────
+
+_ACTIVITY_CATEGORIES = {
+    'ta': 'MS', 'ssst': 'MS', 'pasat': 'MS', 'raven': 'MS',
+    'ta_repeat': 'MS', 'pasat_repeat': 'MS',
+    'baseline': 'BL', 'sitting': 'BL',
+    'recov1': 'BL', 'recov2': 'BL', 'recov3': 'BL',
+    'recov4': 'BL', 'recov5': 'BL', 'recov6': 'BL',
+    'recov_standing': 'BL',
+    'low_physical_activity': 'LPA', 'standing': 'LPA',
+    'moderate_physical_activity': 'MPA', 'walking_own_pace': 'MPA',
+    'dishes': 'MPA', 'vacuum': 'MPA',
+}
 
 
+def _confusion_metrics(y_true_cat: np.ndarray, y_pred_cat: np.ndarray) -> dict:
+    """Return TP/FP/TN/FN and derived metrics for a single category slice."""
+    if len(np.unique(y_true_cat)) > 1:
+        tn, fp, fn, tp = confusion_matrix(y_true_cat, y_pred_cat, labels=[0, 1]).ravel()
+    elif np.unique(y_true_cat)[0] == 0:
+        tn = int(np.sum(y_pred_cat == 0)); fp = int(np.sum(y_pred_cat == 1)); fn = tp = 0
+    else:
+        fp = tn = 0; fn = int(np.sum(y_pred_cat == 0)); tp = int(np.sum(y_pred_cat == 1))
+
+    total = int(len(y_true_cat))
+    # None signals "undefined" (single-class slice): serialises as JSON null
+    sensitivity = float(tp / (tp + fn)) if (tp + fn) > 0 else None
+    specificity = float(tn / (tn + fp)) if (tn + fp) > 0 else None
+    precision   = float(tp / (tp + fp)) if (tp + fp) > 0 else None
+    _s = sensitivity if sensitivity is not None else 0.0
+    _p = precision   if precision   is not None else 0.0
+    f1 = 2 * _p * _s / (_p + _s) if (_p + _s) > 0 else 0.0
+    return {
+        'sample_count': total,
+        'true_positives': int(tp), 'false_positives': int(fp),
+        'true_negatives': int(tn), 'false_negatives': int(fn),
+        'accuracy': round((tp + tn) / total, 4) if total > 0 else 0.0,
+        'sensitivity_recall': round(sensitivity, 4) if sensitivity is not None else None,
+        'specificity':        round(specificity, 4) if specificity is not None else None,
+        'precision':          round(precision,   4) if precision   is not None else None,
+        'f1_score': round(f1, 4),
+        'false_positive_rate': round(1 - specificity, 4) if specificity is not None else None,
+        'class_distribution': {
+            'mental_stress_samples': int(np.sum(y_true_cat == 1)),
+            'non_stress_samples':    int(np.sum(y_true_cat == 0)),
+        },
+    }
+
+
+def plot_confusion_matrix_subcategories(
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        categories,
+        coarse_grained_metrics: dict,
+        save_path: str,
+        save_name: str = None,
+) -> None:
+    """Bar chart of specificity / sensitivity per coarse-grained category."""
+    labels = [k for k in coarse_grained_metrics if coarse_grained_metrics[k]]
+    specificity = [coarse_grained_metrics[k]['specificity']        if coarse_grained_metrics[k]['specificity']        is not None else np.nan for k in labels]
+    sensitivity = [coarse_grained_metrics[k]['sensitivity_recall'] if coarse_grained_metrics[k]['sensitivity_recall'] is not None else np.nan for k in labels]
+
+    x = np.arange(len(labels))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(max(8, len(labels) * 1.5), 5))
+    ax.bar(x - width / 2, specificity, width, label='Specificity', color='steelblue')
+    ax.bar(x + width / 2, sensitivity, width, label='Sensitivity',  color='coral')
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, rotation=30, ha='right')
+    ax.set_ylim(0, 1.05)
+    ax.set_ylabel('Score')
+    ax.set_title('Specificity & Sensitivity per Activity Category')
+    ax.legend()
+    ax.axhline(0.5, color='grey', linestyle='--', linewidth=0.8)
+    plt.tight_layout()
+
+    fname = (save_name.replace('.json', '_subcategory_confusion.png') if save_name
+             else 'subcategory_confusion_plot.png')
+    fig.savefig(os.path.join(save_path, fname), dpi=150)
+    plt.close(fig)
+
+
+def analyze_subcategory_confusion(
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        categories,
+        save_path: str,
+        save_name: str = None,
+) -> dict:
+    """Compute per-subcategory and coarse-grained confusion metrics.
+
+    Args:
+        y_true:     Binary true labels (0/1).
+        y_pred:     Binary predicted labels (0/1).
+        categories: Array-like of raw condition strings (e.g. 'baseline', 'raven').
+        save_path:  Directory to write results JSON and plot.
+        save_name:  Base filename for the saved JSON.
+
+    Returns:
+        dict with per-subcategory metrics and a 'summary' key containing
+        coarse-grained ('MS', 'BL', 'LPA', 'MPA') metrics.
+    """
+    categories = np.asarray(categories)
+    y_true     = np.asarray(y_true)
+    y_pred     = np.asarray(y_pred)
+
+    confusion_analysis: dict = {}
+    coarse_buckets: dict = {k: {'y_true': [], 'y_pred': []} for k in
+                            ['MS', 'BL', 'BL_True', 'BL_Recovery', 'LPA', 'MPA']}
+
+    for category in np.unique(categories):
+        mask = categories == category
+        y_t  = y_true[mask]
+        y_p  = y_pred[mask]
+
+        coarse = _ACTIVITY_CATEGORIES.get(category.lower())
+        if coarse:
+            coarse_buckets[coarse]['y_true'].extend(y_t.tolist())
+            coarse_buckets[coarse]['y_pred'].extend(y_p.tolist())
+            if coarse == 'BL':
+                sub = 'BL_True' if category.lower() in ('baseline', 'sitting') else 'BL_Recovery'
+                coarse_buckets[sub]['y_true'].extend(y_t.tolist())
+                coarse_buckets[sub]['y_pred'].extend(y_p.tolist())
+
+        confusion_analysis[category] = _confusion_metrics(y_t, y_p)
+
+    coarse_grained_metrics: dict = {}
+    for coarse, data in coarse_buckets.items():
+        if not data['y_true']:
+            continue
+        coarse_grained_metrics[coarse] = _confusion_metrics(
+            np.array(data['y_true']), np.array(data['y_pred'])
+        )
+
+    physical_categories = ['baseline', 'low_physical_activity', 'moderate_physical_activity', 'high_physical_activity']
+    confusion_analysis['summary'] = {
+        'note': ('Specificity is key for distinguishing mental stress from physical activity '
+                 '(especially MPA)'),
+        'coarse_grained_categories': coarse_grained_metrics,
+        'physical_activity_performance': {
+            cat: {
+                'specificity':        confusion_analysis[cat]['specificity'],
+                'false_positive_rate': confusion_analysis[cat]['false_positive_rate'],
+                'samples':            confusion_analysis[cat]['sample_count'],
+            }
+            for cat in physical_categories if cat in confusion_analysis
+        },
+    }
+
+    if save_path:
+        plot_confusion_matrix_subcategories(
+            y_true, y_pred, categories, coarse_grained_metrics, save_path, save_name
+        )
+        fname = (save_name.replace('.json', '_subcategory_confusion.json') if save_name
+                 else 'subcategory_confusion_analysis.json')
+        with open(os.path.join(save_path, fname), 'w') as f:
+            json.dump(confusion_analysis, f, indent=4)
+
+    return confusion_analysis
 
 
