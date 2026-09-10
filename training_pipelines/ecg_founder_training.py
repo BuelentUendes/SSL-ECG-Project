@@ -932,7 +932,7 @@ if __name__ == "__main__":
     enc_group = parser.add_argument_group("Encoding")
     enc_group.add_argument("--encoding_batch_size", type=int, default=64,
                            help="Batch size used when extracting ECGFounder representations")
-    enc_group.add_argument("--use_window_level_normalization", type=bool, action="store_true",
+    enc_group.add_argument("--use_window_level_normalization", action="store_true",
                            help="If set, we use additional window level normalization, as this is the default setup used.")
 
     # ══════════════════════════════════════════════════════════════════════════════
