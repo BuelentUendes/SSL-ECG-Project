@@ -42,6 +42,7 @@ metaflow==2.15.12
 metaflow-card-html==1.0.3
 torcheval
 tslearn
+tabpfn===8.5.0
 torchmetrics
 einops
 opencv-python
