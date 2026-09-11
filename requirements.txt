@@ -9,6 +9,7 @@ pytorch
 torchvision
 torchaudio
 torchinfo
+mantis-tsfm==1.1.0
 numpy==1.23.5
 pandas==1.5.3
 ipykernel==6.17.1
