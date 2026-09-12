@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=b.uendes@vu.nl
-#SBATCH -C A6000
+#SBATCH -C A100
 
 # Useful bash commands:
 ## sinfo -N -l
