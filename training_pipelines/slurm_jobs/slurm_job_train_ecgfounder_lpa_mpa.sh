@@ -46,13 +46,13 @@ EOF
 
 echo "=== GPU Test Completed ==="
 # The first run runs it and retrains it for the specific seed
-python3 ecg_founder_training.py --seed $1 --label_fraction 0.1 --classification_task base "ms_base_lpa_mpa"
-python3 ecg_founder_training.py --seed $1 --label_fraction 0.01 --classification_task base "ms_base_lpa_mpa"
-python3 ecg_founder_training.py --seed $1 --label_fraction 0.025 --classification_task base "ms_base_lpa_mpa"
-python3 ecg_founder_training.py --seed $1 --label_fraction 0.05 --classification_task base "ms_base_lpa_mpa"
-python3 ecg_founder_training.py --seed $1 --label_fraction 0.25 --classification_task base "ms_base_lpa_mpa"
-python3 ecg_founder_training.py --seed $1 --label_fraction 0.5 --classification_task base "ms_base_lpa_mpa"
-python3 ecg_founder_training.py --seed $1 --label_fraction 1.0 --classification_task base "ms_base_lpa_mpa"
+python3 ecg_founder_training.py --seed $1 --label_fraction 0.1 --classification_task "ms_base_lpa_mpa"
+python3 ecg_founder_training.py --seed $1 --label_fraction 0.01 --classification_task "ms_base_lpa_mpa"
+python3 ecg_founder_training.py --seed $1 --label_fraction 0.025 --classification_task "ms_base_lpa_mpa"
+python3 ecg_founder_training.py --seed $1 --label_fraction 0.05 --classification_task "ms_base_lpa_mpa"
+python3 ecg_founder_training.py --seed $1 --label_fraction 0.25 --classification_task "ms_base_lpa_mpa"
+python3 ecg_founder_training.py --seed $1 --label_fraction 0.5 --classification_task "ms_base_lpa_mpa"
+python3 ecg_founder_training.py --seed $1 --label_fraction 1.0 --classification_task "ms_base_lpa_mpa"
 
 # Command to run the job
 #  for SEED in 200 201 202 203 204 205 206 207 208 209; do
